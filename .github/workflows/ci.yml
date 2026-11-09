@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 프론트엔드 위치 찾기
+        id: find
+        run: |
+          if [ -f frontend/package.json ]; then echo "dir=frontend" >> "$GITHUB_OUTPUT";
+          elif [ -f package.json ]; then echo "dir=." >> "$GITHUB_OUTPUT";
+          else echo "dir=" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.find.outputs.dir != ''
+        with:
+          node-version: 20
+      - name: 설치·린트·테스트·빌드
+        if: steps.find.outputs.dir != ''
+        working-directory: ${{ steps.find.outputs.dir }}
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run lint --if-present
+          npm run typecheck --if-present
+          npm test --if-present
+          npm run build --if-present
+
+  # 백엔드 스택이 결정되면 여기에 backend 잡(Oracle Free 컨테이너 포함)을 추가합니다.
+  # .github/** 는 보호된 경로라서 사람이 직접 추가합니다.
