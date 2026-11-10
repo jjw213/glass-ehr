@@ -4,8 +4,9 @@ React + TypeScript 화면과 Node.js + Oracle 서버로 된 인사 시스템입�
 
 ```
 glass-ehr/
-├─ src/        화면 (React + Vite)
-├─ server/     API 서버 (Node.js + TypeScript, Oracle 연결)
+├─ frontend/   화면 (React + Vite, 테스트는 Vitest)
+├─ server/     API 서버 (Node.js + TypeScript, Oracle 연결) — backend/로 이전될 때까지 유지
+├─ backend/    새 백엔드 (Spring Boot, docs/DECISIONS.md 참고)
 └─ shared/     화면과 서버가 같이 쓰는 데이터 타입 (types.ts)
 ```
 
@@ -55,28 +56,41 @@ Oracle 드라이버는 `oracledb` Thin 모드라서 **Instant Client 설치가 �
 
 ## 2. 실행
 
-Node.js **22.13 이상**이 필요합니다.
+Node.js **22.13 이상**이 필요합니다. 화면(`frontend/`)만 다룰 때는 20.19 이상이어도 됩니다.
 
 **개발할 때** (터미널 2개)
 
 ```bash
 # 터미널 1 — 서버 (http://localhost:4000)
-cd server && npm run dev
+cd server && npm install && npm run dev
 
 # 터미널 2 — 화면 (http://localhost:5173, /api는 서버로 자동 전달)
-npm install && npm run dev
+cd frontend && npm install && npm run dev
 ```
 
 **배포할 때** (서버 하나로 화면까지 같이 서비스)
 
 ```bash
-npm run build                 # 화면 → dist/
-cd server && npm start        # http://서버주소:4000 에서 화면 + API 모두 제공
+cd frontend && npm run build  # 화면 → frontend/dist/
+cd ../server && npm start     # http://서버주소:4000 에서 화면 + API 모두 제공
 ```
+
+서버는 기본으로 `frontend/dist`를 제공합니다. 다른 폴더를 쓰려면 `STATIC_DIR` 환경변수로 바꿉니다.
 
 로그인: `hr` / `1234`. 다른 직원 계정은 `sy.park`, `dy.lee`, `he.choi` … 이고, 초기 비밀번호는 모두 `.env`의 `SEED_PASSWORD`입니다.
 
-**서버 없이 화면만 볼 때:** `npm run dev:demo`를 실행하면 브라우저 안의 샘플 데이터로 동작합니다.
+**서버 없이 화면만 볼 때:** `cd frontend && npm run dev:demo`를 실행하면 브라우저 안의 샘플 데이터로 동작합니다.
+
+### 화면 검사 명령 (`frontend/`에서 실행)
+
+| 명령 | 내용 |
+|---|---|
+| `npm run lint` | ESLint 9 (TypeScript, React Hooks 규칙) |
+| `npm run typecheck` | TypeScript 타입 검사 (`tsc --noEmit`) |
+| `npm test` | Vitest 테스트 한 번 실행 (`npm run test:watch`는 감시 모드) |
+| `npm run build` | 타입 검사 후 `frontend/dist/`로 빌드 (`build:demo`는 서버 없는 데모 빌드) |
+
+테스트 파일은 `frontend/src/**/*.test.ts(x)`에 둡니다. CI는 `frontend/`에서 위 명령을 차례로 실행합니다.
 
 ## 3. 서버 구조
 
@@ -163,7 +177,7 @@ Oracle 전용 기능(시퀀스, PL/SQL 등)이 필요하면 `repo.ts`에서 `db.
 ## 4. 화면 구조
 
 ```
-src/
+frontend/src/
 ├─ api/                서버 호출 (http.ts) + 서버 없는 데모용 (mock.ts)
 ├─ state/store.tsx     로그인 상태와 데이터, 서버 호출 동작
 ├─ lib/cursorBuilder.ts 커서 인트로 엔진

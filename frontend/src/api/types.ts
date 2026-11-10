@@ -1,6 +1,6 @@
-import type { Approval, Attendance, Bootstrap, LeaveRequest, NewLeave, Thread } from '../../shared/types';
+import type { Approval, Attendance, Bootstrap, LeaveRequest, NewLeave, Thread } from '../../../shared/types';
 
-export * from '../../shared/types';
+export * from '../../../shared/types';
 
 /** Everything the UI can ask of the backend. Two implementations: http.ts (real server) and mock.ts (in-browser demo). */
 export interface Api {

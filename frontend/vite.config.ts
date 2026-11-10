@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
@@ -6,5 +6,11 @@ export default defineConfig({
   server: {
     // dev: the browser talks to Vite (5173); /api goes on to the Node server (4000)
     proxy: { '/api': 'http://localhost:4000' },
+    // ../shared (types shared with server/) lives outside frontend/
+    fs: { allow: ['..'] },
+  },
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 });
