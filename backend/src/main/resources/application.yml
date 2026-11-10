@@ -1,0 +1,34 @@
+# 접속정보는 환경변수(.env)로만 받는다. 예시는 backend/.env.example 참고.
+spring:
+  application:
+    name: glass-ehr-backend
+  config:
+    # backend/.env 를 properties 형식으로 읽는다(없으면 무시). 실제 환경변수가 있으면 환경변수가 우선한다.
+    # backend/ 에서 실행하면 ./.env, 저장소 루트에서 실행하면 ./backend/.env 가 잡힌다.
+    import:
+      - optional:file:./.env[.properties]
+      - optional:file:./backend/.env[.properties]
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: oracle.jdbc.OracleDriver
+  jpa:
+    open-in-view: false
+    hibernate:
+      # 스키마는 마이그레이션 스크립트로 관리한다. JPA가 테이블을 만들거나 바꾸지 않는다.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Seoul
+  jackson:
+    time-zone: Asia/Seoul
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+server:
+  port: ${PORT:8080}

@@ -8,3 +8,7 @@
 | 2026-11-05 | DB는 Oracle | 초기 설계 |
 | 2026-11-05 | 상시근로자 30인 이상 사업장 기준으로 법령 적용 | 초기 설계 |
 | 2026-11-05 | 작성자 Claude Code, 검수자 Codex, 루프는 맥미니 스크립트 | 초기 설계 |
+| 2026-11-09 | 백엔드는 Spring Boot (IntelliJ로 작업) | 국내 HR·ERP에서 가장 흔한 스택 / #1 |
+| 2026-11-10 | Java 21 + JPA(인사·조직 CRUD) + MyBatis(근태·급여 집계·기준값 적용시작일 조회) 혼용. 빌드는 Maven, 코드는 `backend/`, 드라이버 ojdbc11. 스키마는 JPA가 만들지 않음(`ddl-auto: validate`) | 집계 SQL·기준값 조회는 SQL 직접 제어가 필요 / #1 |
+| 2026-11-10 | CI backend 잡은 `docs/ci-backend-job.md` 내용을 사람이 `.github/workflows/ci.yml`에 붙여 넣음 (보호 경로) | #1 |
+| 2026-11-10 | 기존 `server/`(Node API)는 새 백엔드로 이전될 때까지 유지. 신규 백엔드 기능은 `backend/`에만 추가 | #1 |

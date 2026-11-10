@@ -3,6 +3,9 @@ dist
 .DS_Store
 *.local
 *.sqlite
+target/
+.idea/
+*.iml
 
 .env
 .env.*
