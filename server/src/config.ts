@@ -23,6 +23,6 @@ export const config = {
   sessionHours: Number(env('SESSION_HOURS', '12')),
   /** set to true when served over HTTPS */
   cookieSecure: env('COOKIE_SECURE', 'false') === 'true',
-  /** folder with the built frontend (npm run build → dist). Empty = API only. */
-  staticDir: process.env.STATIC_DIR ?? resolve(import.meta.dirname, '..', '..', 'dist'),
+  /** folder with the built frontend (frontend: npm run build → frontend/dist). Empty = API only. */
+  staticDir: process.env.STATIC_DIR ?? resolve(import.meta.dirname, '..', '..', 'frontend', 'dist'),
 };
