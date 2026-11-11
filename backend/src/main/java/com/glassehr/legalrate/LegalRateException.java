@@ -12,7 +12,9 @@ public class LegalRateException extends RuntimeException {
         /** 조회일에 유효한 행이 없음 (미등록 항목 또는 기간 공백) */
         NOT_FOUND,
         /** 조회일에 유효한 행이 2건 이상 (기간 겹침 데이터 오류) */
-        OVERLAPPING
+        OVERLAPPING,
+        /** 조회된 행의 단위가 항목 정의 단위와 다름 (데이터 오류) */
+        UNIT_MISMATCH
     }
 
     private final Reason reason;

@@ -1,20 +1,55 @@
--- legal_rate 시드 데이터 (#3) — 아직 실행 대상이 아니다.
+-- legal_rate 시드 데이터 (#3, #7) — 아직 실행 대상이 아니다.
 --
 -- 법정 수치는 기억에 의존해 넣지 않는다(AGENTS.md 법령 규칙). 아래 값은 모두 TODO이며
 -- 사람이 국가법령정보센터(law.go.kr)·고용노동부(moel.go.kr) 등 공식 원문과 대조해 채운 뒤
--- 주석을 풀어 실행한다. 확인이 끝나기 전에는 이 파일 전체가 주석이어야 한다.
+-- 주석을 풀어 실행한다. 확인이 끝나기 전에는 이 파일 전체가 주석이어야 한다
+-- (LegalRateItemRegistrationTest 가 검사).
 --
 -- 입력 규칙
+--  - 값 쓰기는 legal_rate_api.insert_period / set_end 로만 한다(V004, 겹침 검사·잠금). 직접 INSERT 금지.
 --  - effective_from / effective_to: 법령의 적용 개시일, 다음 기간 시작일(종료일은 배타적). 종료 미정이면 NULL.
 --  - rate_value: 공식 원문의 값. 요율은 고시 표기와 같은 퍼센트 숫자로 저장한다
 --    (고시가 "x.xx%"이면 x.xx). 2026-11-11 결정, docs/DECISIONS.md.
---  - unit: 요율은 'PERCENT'(LegalRateUnit.PERCENT). 금액 항목 단위 코드(예: 원/시간, 원/월)는
---    사람이 수치 목록을 줄 때 함께 확정한다.
+--  - unit: 항목에 등록된 단위와 같아야 한다(V002 복합 FK). 시간·일수 등도 조문 표기 단위 그대로.
 --  - 입력 절차: 사람이 원문 URL과 수치 목록을 주면 에이전트가 이 파일을 작성하고, 사람이 검수한다.
 --  - legal_basis: 법률명·조문·항/호, 고시 번호
 --  - source_url: 해당 원문 URL
 --
--- 항목 후보 (코드 체계는 사람 확인 후 확정):
+-- ===== #7 인사·근태 항목 (V003 에 등록됨, 값 입력 대기) =====
+-- 항목코드                                    단위         근거 조문(항목 등록 기준)
+-- WEEKLY_OVERTIME_LIMIT_HOURS                 HOURS        근로기준법 제53조 제1항
+-- OVERTIME_PREMIUM_RATE                       PERCENT      근로기준법 제56조 제1항
+-- HOLIDAY_PREMIUM_RATE                        PERCENT      근로기준법 제56조 제2항 제1호
+-- HOLIDAY_EXCESS_PREMIUM_RATE                 PERCENT      근로기준법 제56조 제2항 제2호
+-- HOLIDAY_PREMIUM_THRESHOLD_HOURS             HOURS        근로기준법 제56조 제2항
+-- NIGHT_PREMIUM_RATE                          PERCENT      근로기준법 제56조 제3항
+-- NIGHT_WORK_START_HOUR                       HOUR_OF_DAY  근로기준법 제56조 제3항
+-- NIGHT_WORK_END_HOUR                         HOUR_OF_DAY  근로기준법 제56조 제3항
+-- ANNUAL_LEAVE_BASE_DAYS                      DAYS         근로기준법 제60조 제1항
+-- ANNUAL_LEAVE_ATTENDANCE_RATE                PERCENT      근로기준법 제60조 제1항
+-- ANNUAL_LEAVE_MONTHLY_DAYS                   DAYS         근로기준법 제60조 제2항
+-- ANNUAL_LEAVE_INCREMENT_BASE_YEARS           YEARS        근로기준법 제60조 제4항
+-- ANNUAL_LEAVE_INCREMENT_CYCLE_YEARS          YEARS        근로기준법 제60조 제4항
+-- ANNUAL_LEAVE_INCREMENT_DAYS                 DAYS         근로기준법 제60조 제4항
+-- ANNUAL_LEAVE_MAX_DAYS                       DAYS         근로기준법 제60조 제4항
+-- MENSTRUAL_LEAVE_DAYS_PER_MONTH              DAYS         근로기준법 제73조
+-- MATERNITY_LEAVE_DAYS                        DAYS         근로기준법 제74조 제1항
+-- MATERNITY_LEAVE_MULTIPLE_DAYS               DAYS         근로기준법 제74조 제1항
+-- MATERNITY_LEAVE_POSTNATAL_MIN_DAYS          DAYS         근로기준법 제74조 제1항
+-- MATERNITY_LEAVE_POSTNATAL_MIN_MULTIPLE_DAYS DAYS         근로기준법 제74조 제1항
+-- SPOUSE_MATERNITY_LEAVE_DAYS                 DAYS         남녀고용평등법 제18조의2 제1항
+-- SPOUSE_MATERNITY_LEAVE_CLAIM_DAYS           DAYS         남녀고용평등법 제18조의2
+-- PARENTAL_LEAVE_MAX_MONTHS                   MONTHS       남녀고용평등법 제19조
+-- PARENTAL_LEAVE_EXTENSION_MONTHS             MONTHS       남녀고용평등법 제19조
+-- CHILDCARE_REDUCED_HOURS_MAX_MONTHS          MONTHS       남녀고용평등법 제19조의2
+-- CHILDCARE_REDUCED_WEEKLY_HOURS_MIN          HOURS        남녀고용평등법 제19조의2
+-- CHILDCARE_REDUCED_WEEKLY_HOURS_MAX          HOURS        남녀고용평등법 제19조의2
+-- FAMILY_CARE_LEAVE_OF_ABSENCE_DAYS_PER_YEAR  DAYS         남녀고용평등법 제22조의2
+-- FAMILY_CARE_LEAVE_DAYS_PER_YEAR             DAYS         남녀고용평등법 제22조의2
+-- (남녀고용평등법 = 남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률)
+-- 개정 이력이 있는 항목(예: 배우자 출산휴가·육아휴직·근로시간 단축 기간)은 시행일별로 여러 기간을 넣는다.
+--
+-- ===== 이후 모듈(급여) 항목 후보 — 코드 체계는 해당 이슈에서 확정 =====
 --   최저임금 시간급        — 최저임금법, 고용노동부 고시
 --   국민연금 보험료율      — 국민연금법
 --   건강보험료율          — 국민건강보험법·시행령
@@ -23,16 +58,17 @@
 --   산재보험료율          — 같은 법, 업종별 고시
 --   비과세 한도(식대 등)    — 소득세법·시행령
 --
--- INSERT INTO legal_rate_item (item_code, item_name) VALUES ('TODO_ITEM_CODE', 'TODO 항목명');
---
--- INSERT INTO legal_rate
---     (item_code, effective_from, effective_to, rate_value, unit, legal_basis, source_url, created_by)
--- VALUES
---     ('TODO_ITEM_CODE',
---      DATE 'TODO-적용시작일',
---      NULL,                -- TODO: 종료일(다음 기간 시작일) 또는 NULL
---      TODO_값,
---      'TODO_단위',
---      'TODO 근거 조문',
---      'TODO 원문 URL',
---      'TODO 입력자');
+-- ===== 입력 형식 =====
+-- BEGIN
+--     legal_rate_api.insert_period(
+--         p_item_code   => 'TODO_ITEM_CODE',
+--         p_from        => DATE 'TODO-적용시작일',
+--         p_to          => NULL,               -- TODO: 종료일(다음 기간 시작일) 또는 NULL
+--         p_value       => TODO_값,
+--         p_unit        => 'TODO_단위',         -- 항목 등록 단위와 같게
+--         p_legal_basis => 'TODO 근거 조문',
+--         p_source_url  => 'TODO 원문 URL',
+--         p_created_by  => 'TODO 입력자');
+-- END;
+-- /
+-- COMMIT;

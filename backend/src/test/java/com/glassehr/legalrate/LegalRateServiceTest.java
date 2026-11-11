@@ -116,6 +116,70 @@ class LegalRateServiceTest {
                         e -> assertThat(e.reason()).isEqualTo(LegalRateException.Reason.OVERLAPPING));
     }
 
+    // ---- 등록 항목코드(enum)로 조회: 경계일 + 단위 검사 (#7) ----
+    // 항목코드만 실제 것을 쓰고 날짜·값은 경계 동작 설명용 가짜다(법정 수치 아님).
+
+    private static final LegalRateItem REG = LegalRateItem.OVERTIME_PREMIUM_RATE;
+
+    private static LegalRateRow regRow(String from, String to, String value, String unit) {
+        return new LegalRateRow(REG.code(), d(from), to == null ? null : d(to), new BigDecimal(value),
+                unit, "테스트용 근거", "https://example.invalid/test");
+    }
+
+    private void addRegRows() {
+        // A: [2030-07-01, 2031-01-01), B: [2031-01-01, 무기한)
+        mapper.rows.add(regRow("2030-07-01", "2031-01-01", "1", REG.unit()));
+        mapper.rows.add(regRow("2031-01-01", null, "2", REG.unit()));
+    }
+
+    @Test
+    void 등록항목_적용시작일_당일은_그_구간() {
+        addRegRows();
+        assertThat(service.getEffective(REG, d("2030-07-01")).rateValue()).isEqualByComparingTo("1");
+    }
+
+    @Test
+    void 등록항목_적용시작일_전날은_기본값_없이_NOT_FOUND() {
+        addRegRows();
+        assertThatThrownBy(() -> service.getEffective(REG, d("2030-06-30")))
+                .isInstanceOfSatisfying(LegalRateException.class, e -> {
+                    assertThat(e.reason()).isEqualTo(LegalRateException.Reason.NOT_FOUND);
+                    assertThat(e.itemCode()).isEqualTo(REG.code());
+                });
+    }
+
+    @Test
+    void 등록항목_종료일_전날은_앞_구간_종료일_당일은_다음_구간() {
+        addRegRows();
+        assertThat(service.getEffective(REG, d("2030-12-31")).rateValue()).isEqualByComparingTo("1");
+        assertThat(service.getEffective(REG, d("2031-01-01")).rateValue()).isEqualByComparingTo("2");
+    }
+
+    @Test
+    void 등록항목_종료일_당일_다음_구간이_없으면_NOT_FOUND() {
+        mapper.rows.add(regRow("2030-07-01", "2031-01-01", "1", REG.unit()));
+        assertThatThrownBy(() -> service.getEffective(REG, d("2031-01-01")))
+                .isInstanceOfSatisfying(LegalRateException.class,
+                        e -> assertThat(e.reason()).isEqualTo(LegalRateException.Reason.NOT_FOUND));
+    }
+
+    @Test
+    void 등록항목_겹침은_OVERLAPPING() {
+        addRegRows();
+        mapper.rows.add(regRow("2030-12-01", "2031-02-01", "9", REG.unit()));
+        assertThatThrownBy(() -> service.getEffective(REG, d("2030-12-15")))
+                .isInstanceOfSatisfying(LegalRateException.class,
+                        e -> assertThat(e.reason()).isEqualTo(LegalRateException.Reason.OVERLAPPING));
+    }
+
+    @Test
+    void 등록항목_단위가_다르면_UNIT_MISMATCH() {
+        mapper.rows.add(regRow("2030-07-01", null, "1", LegalRateUnit.DAYS));
+        assertThatThrownBy(() -> service.getEffective(REG, d("2030-07-01")))
+                .isInstanceOfSatisfying(LegalRateException.class,
+                        e -> assertThat(e.reason()).isEqualTo(LegalRateException.Reason.UNIT_MISMATCH));
+    }
+
     @Test
     void 과거_날짜로_재조회하면_당시_값() {
         LocalDate past = d("2026-02-01");
