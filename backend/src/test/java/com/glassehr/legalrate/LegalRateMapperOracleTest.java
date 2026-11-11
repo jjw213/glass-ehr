@@ -10,10 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -21,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Oracle 고유 동작(DATE 비교, CHECK)은 H2로 대신하지 않는다(docs/legal-rate-design.md 7절).
  *
  * <p>실행 조건: 환경변수 {@code ORACLE_IT=true}와 DB_URL/DB_USER/DB_PASSWORD.
- * 테이블이 없으면 V001 DDL을 적용한다. 각 테스트는 트랜잭션 롤백으로 데이터를 남기지 않는다.
+ * 스키마가 없으면 V001·V002·V004를 적용한다({@link OracleLegalRateSchema}). 각 테스트는 트랜잭션 롤백으로 데이터를 남기지 않는다.
  * 날짜·값은 경계 동작 설명용 가짜 값이다.
  */
 @SpringBootTest
@@ -39,13 +37,9 @@ class LegalRateMapperOracleTest {
 
     @BeforeEach
     void setUp() {
-        Integer tables = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'LEGAL_RATE'", Integer.class);
-        if (tables == null || tables == 0) {
-            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V001__legal_rate.sql"))
-                    .execute(jdbc.getDataSource());
-        }
-        jdbc.update("INSERT INTO legal_rate_item (item_code, item_name) VALUES (?, ?)", ITEM, "IT 테스트 항목");
+        OracleLegalRateSchema.ensure(jdbc);
+        jdbc.update("INSERT INTO legal_rate_item (item_code, item_name, unit, legal_basis) VALUES (?, ?, ?, ?)",
+                ITEM, "IT 테스트 항목", LegalRateUnit.PERCENT, "테스트용 근거 제1조");
         insert("DATE '2026-01-01'", "DATE '2026-04-01'", "1");
         insert("DATE '2026-04-01'", "NULL", "2");
     }
@@ -53,7 +47,7 @@ class LegalRateMapperOracleTest {
     private void insert(String fromSql, String toSql, String value) {
         jdbc.update("INSERT INTO legal_rate (item_code, effective_from, effective_to, rate_value, unit,"
                 + " legal_basis, source_url, created_by) VALUES (?, " + fromSql + ", " + toSql + ", "
-                + value + ", 'TEST_UNIT', '테스트용 근거', 'https://example.invalid/test', 'it')", ITEM);
+                + value + ", 'PERCENT', '테스트용 근거', 'https://example.invalid/test', 'it')", ITEM);
     }
 
     private List<LegalRateRow> at(String date) {

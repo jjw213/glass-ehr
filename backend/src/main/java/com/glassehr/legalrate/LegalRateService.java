@@ -33,6 +33,19 @@ public class LegalRateService {
         return rows.get(0);
     }
 
+    /**
+     * 등록된 항목코드로 조회한다. 0건·2건 이상은 {@link #getEffective(String, LocalDate)}와 같고,
+     * 행 단위가 항목 단위와 다르면 {@link LegalRateException.Reason#UNIT_MISMATCH}. 기본값은 없다.
+     */
+    public LegalRateRow getEffective(LegalRateItem item, LocalDate asOfDate) {
+        Objects.requireNonNull(item, "item");
+        LegalRateRow row = getEffective(item.code(), asOfDate);
+        if (!item.unit().equals(row.unit())) {
+            throw new LegalRateException(LegalRateException.Reason.UNIT_MISMATCH, item.code(), asOfDate, 1);
+        }
+        return row;
+    }
+
     /** 미등록을 정상 흐름으로 다룰 때 쓴다. 겹침은 여전히 예외다. */
     public Optional<LegalRateRow> findEffective(String itemCode, LocalDate asOfDate) {
         List<LegalRateRow> rows = fetch(itemCode, asOfDate);

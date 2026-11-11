@@ -73,7 +73,7 @@ existing.effective_from < NVL(:p_to, DATE '9999-12-31')
 AND (existing.effective_to IS NULL OR :p_from < existing.effective_to)
 ```
 
-이 조건은 경계가 맞닿는 연속 기간(기존 종료일 = 다음 시작일)은 허용하고, 하루라도 공통 날짜가 있는 기간은 거부한다. 잠금은 같은 항목 코드의 쓰기만 직렬화하며, 여러 항목을 한 트랜잭션에서 수정할 경우 코드 오름차순으로 잠가 데드락 가능성을 줄인다. 실제 프로시저 본문과 권한 스크립트는 쓰기 운영 방식 확정 후 구현한다.
+이 조건은 경계가 맞닿는 연속 기간(기존 종료일 = 다음 시작일)은 허용하고, 하루라도 공통 날짜가 있는 기간은 거부한다. 잠금은 같은 항목 코드의 쓰기만 직렬화하며, 여러 항목을 한 트랜잭션에서 수정할 경우 코드 오름차순으로 잠가 데드락 가능성을 줄인다. 구현(#7): 쓰기 패키지 `db/oracle/V004__legal_rate_api.sql`(`legal_rate_api.insert_period` / `set_end`, 커밋은 호출자), 권한 스크립트 `db/oracle/grants/legal_rate_grants.sql`(앱 계정은 SELECT + EXECUTE만). `V002`로 `legal_rate_item`에 `unit`·`legal_basis`를 추가하고 `(item_code, unit)` 복합 FK로 값 행 단위가 항목 단위와 같도록 강제한다. 인사·근태 항목코드는 `V003`과 `LegalRateItem` enum에 등록(값 없음). 2026-11-11 사람 답변에 따라 `V005`로 18개(미숙아 출산전후휴가, 유산·사산휴가 구간별 시작 주수·일수 5구간, 임신기 근로시간 단축, 배우자 출산휴가·육아휴직 분할 횟수)를 추가하고 단위 `WEEKS`·`COUNT`를 CHECK에 더했다(합계 47개).
 
 ## 4. 날짜 기준 조회 SQL
 
