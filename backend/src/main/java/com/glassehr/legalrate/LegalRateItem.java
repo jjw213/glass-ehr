@@ -3,7 +3,8 @@ package com.glassehr.legalrate;
 /**
  * 인사·근태 모듈이 쓰는 legal_rate 항목코드(#7). 코드·단위만 두고 값은 두지 않는다.
  *
- * <p>DB 등록은 {@code db/oracle/V003__legal_rate_items_hr_attendance.sql}이며, 이 enum과 목록·단위가 같아야 한다
+ * <p>DB 등록은 {@code db/oracle/V003__legal_rate_items_hr_attendance.sql}과
+ * {@code V005__legal_rate_items_hr_attendance_ext.sql}(추가 18개, 합계 47개)이며, 이 enum과 목록·단위가 같아야 한다
  * (LegalRateItemRegistrationTest). 근거 조문은 legal_rate_item.legal_basis 에 있다.
  * 값은 {@link LegalRateService#getEffective(LegalRateItem, java.time.LocalDate)}로 적용일 기준 조회한다.
  */
@@ -38,14 +39,40 @@ public enum LegalRateItem {
     MATERNITY_LEAVE_MULTIPLE_DAYS(LegalRateUnit.DAYS),
     MATERNITY_LEAVE_POSTNATAL_MIN_DAYS(LegalRateUnit.DAYS),
     MATERNITY_LEAVE_POSTNATAL_MIN_MULTIPLE_DAYS(LegalRateUnit.DAYS),
+    // 근로기준법 제74조 제1항: 미숙아 출산 시 출산전후휴가 일수 (V005)
+    MATERNITY_LEAVE_PREMATURE_DAYS(LegalRateUnit.DAYS),
+
+    // 근로기준법 제74조 제3항, 같은 법 시행령 제43조: 유산·사산휴가 임신기간 구간별 일수 (V005)
+    // TIER는 시행령 제43조 제3항의 호 번호. 해당 기준일에 유효한 구간의 다음 시작 전까지다.
+    // 2025-02-23부터 제2호가 삭제되어 TIER2 값이 없다. 0으로 대체하거나 5개를 강제 조회하지 않는다.
+    // 실제 임신기간별 휴가 계산은 별도 구현하며, 이 enum은 항목 조회만 제공한다.
+    MISCARRIAGE_LEAVE_TIER1_FROM_WEEKS(LegalRateUnit.WEEKS),
+    MISCARRIAGE_LEAVE_TIER1_DAYS(LegalRateUnit.DAYS),
+    MISCARRIAGE_LEAVE_TIER2_FROM_WEEKS(LegalRateUnit.WEEKS),
+    MISCARRIAGE_LEAVE_TIER2_DAYS(LegalRateUnit.DAYS),
+    MISCARRIAGE_LEAVE_TIER3_FROM_WEEKS(LegalRateUnit.WEEKS),
+    MISCARRIAGE_LEAVE_TIER3_DAYS(LegalRateUnit.DAYS),
+    MISCARRIAGE_LEAVE_TIER4_FROM_WEEKS(LegalRateUnit.WEEKS),
+    MISCARRIAGE_LEAVE_TIER4_DAYS(LegalRateUnit.DAYS),
+    MISCARRIAGE_LEAVE_TIER5_FROM_WEEKS(LegalRateUnit.WEEKS),
+    MISCARRIAGE_LEAVE_TIER5_DAYS(LegalRateUnit.DAYS),
+
+    // 근로기준법 제74조 제7항: 임신기 근로시간 단축 (V005)
+    PREGNANCY_REDUCED_HOURS_EARLY_WEEKS(LegalRateUnit.WEEKS),
+    PREGNANCY_REDUCED_HOURS_LATE_FROM_WEEKS(LegalRateUnit.WEEKS),
+    PREGNANCY_REDUCED_HOURS_PER_DAY(LegalRateUnit.HOURS),
+    PREGNANCY_REDUCED_SHORT_DAY_THRESHOLD_HOURS(LegalRateUnit.HOURS),
+    PREGNANCY_REDUCED_SHORT_DAY_TARGET_HOURS(LegalRateUnit.HOURS),
 
     // 남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률 제18조의2: 배우자 출산휴가
     SPOUSE_MATERNITY_LEAVE_DAYS(LegalRateUnit.DAYS),
     SPOUSE_MATERNITY_LEAVE_CLAIM_DAYS(LegalRateUnit.DAYS),
+    SPOUSE_MATERNITY_LEAVE_SPLIT_COUNT(LegalRateUnit.COUNT), // V005
 
-    // 같은 법 제19조: 육아휴직
+    // 같은 법 제19조: 육아휴직 (분할 사용은 제19조의4 제1항)
     PARENTAL_LEAVE_MAX_MONTHS(LegalRateUnit.MONTHS),
     PARENTAL_LEAVE_EXTENSION_MONTHS(LegalRateUnit.MONTHS),
+    PARENTAL_LEAVE_SPLIT_COUNT(LegalRateUnit.COUNT), // V005
 
     // 같은 법 제19조의2: 육아기 근로시간 단축
     CHILDCARE_REDUCED_HOURS_MAX_MONTHS(LegalRateUnit.MONTHS),
