@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.glassehr.legalrate.LegalRateMapper">
+
+  <resultMap id="legalRateRow" type="com.glassehr.legalrate.LegalRateRow">
+    <constructor>
+      <arg column="item_code" javaType="java.lang.String"/>
+      <arg column="effective_from" javaType="java.time.LocalDate"/>
+      <arg column="effective_to" javaType="java.time.LocalDate"/>
+      <arg column="rate_value" javaType="java.math.BigDecimal"/>
+      <arg column="unit" javaType="java.lang.String"/>
+      <arg column="legal_basis" javaType="java.lang.String"/>
+      <arg column="source_url" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+
+  <!-- 반개구간 [effective_from, effective_to): 시작일 포함, 종료일 제외 -->
+  <select id="findEffective" resultMap="legalRateRow">
+    SELECT item_code,
+           effective_from,
+           effective_to,
+           rate_value,
+           unit,
+           legal_basis,
+           source_url
+      FROM legal_rate
+     WHERE item_code = #{itemCode}
+       AND effective_from &lt;= #{asOfDate, jdbcType=DATE}
+       AND (effective_to IS NULL OR #{asOfDate, jdbcType=DATE} &lt; effective_to)
+     ORDER BY effective_from
+  </select>
+</mapper>
