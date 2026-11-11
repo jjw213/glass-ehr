@@ -168,6 +168,7 @@ class CommonCodeServiceTest {
         assertThat(c.convertToEntityAttribute("Y")).isTrue();
         assertThat(c.convertToEntityAttribute("N")).isFalse();
         assertThatThrownBy(() -> c.convertToEntityAttribute("y")).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> c.convertToDatabaseColumn(null)).isInstanceOf(IllegalArgumentException.class);
+        // Hibernate 부팅 시 CHECK 조건 생성에서 null 로 호출되므로 null 은 그대로 통과해야 한다(NOT NULL 은 DDL이 막는다).
+        assertThat(c.convertToDatabaseColumn(null)).isNull();
     }
 }

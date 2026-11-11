@@ -23,3 +23,4 @@
 - 2026-11-12: #24 신청 결재선 방식(신청 유형별 관리자 설정, 공통 결재 기능) 결정을 DECISIONS·SPEC에 기록하고, 템플릿·스냅샷·상태 흐름·모듈 연결·테스트 항목·미결 사항을 `docs/approval-line-design.md`에 정리. 코드·마이그레이션 변경 없음(구현은 결재 구현 이슈).
 - 2026-11-12: #24 origin/main 병합 — DECISIONS·PROGRESS 충돌을 해결해 #23·#24 항목을 모두 남김.
 - 2026-11-12: #11 origin/main 병합 — PROGRESS 충돌을 해결해 #11과 #21~#24 항목을 모두 남김.
+- 2026-11-12: #11 CI backend 실패 수정 — Hibernate가 부팅 때 CHECK 조건을 만들려고 `YnConverter`에 null을 넣어 호출하는데 변환기가 예외를 던져 EntityManagerFactory가 뜨지 않았음. null은 그대로 통과시키도록 바꾸고(빈 값 저장은 엔티티 원시 boolean과 DDL NOT NULL이 막음) 단위 테스트를 맞춤.
