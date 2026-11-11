@@ -46,6 +46,17 @@
 -- CHILDCARE_REDUCED_WEEKLY_HOURS_MAX          HOURS        남녀고용평등법 제19조의2
 -- FAMILY_CARE_LEAVE_OF_ABSENCE_DAYS_PER_YEAR  DAYS         남녀고용평등법 제22조의2
 -- FAMILY_CARE_LEAVE_DAYS_PER_YEAR             DAYS         남녀고용평등법 제22조의2
+-- ----- V005 추가 항목 (2026-11-11 사람 답변 "①~⑤ 모두 추가") -----
+-- MATERNITY_LEAVE_PREMATURE_DAYS              DAYS         근로기준법 제74조 제1항
+-- MISCARRIAGE_LEAVE_TIER{1..5}_FROM_WEEKS     WEEKS        근로기준법 제74조 제3항, 같은 법 시행령 제43조
+-- MISCARRIAGE_LEAVE_TIER{1..5}_DAYS           DAYS         근로기준법 제74조 제3항, 같은 법 시행령 제43조
+-- PREGNANCY_REDUCED_HOURS_EARLY_WEEKS         WEEKS        근로기준법 제74조 제7항
+-- PREGNANCY_REDUCED_HOURS_LATE_FROM_WEEKS     WEEKS        근로기준법 제74조 제7항
+-- PREGNANCY_REDUCED_HOURS_PER_DAY             HOURS        근로기준법 제74조 제7항
+-- PREGNANCY_REDUCED_SHORT_DAY_THRESHOLD_HOURS HOURS        근로기준법 제74조 제7항
+-- PREGNANCY_REDUCED_SHORT_DAY_TARGET_HOURS    HOURS        근로기준법 제74조 제7항
+-- SPOUSE_MATERNITY_LEAVE_SPLIT_COUNT          COUNT        남녀고용평등법 제18조의2
+-- PARENTAL_LEAVE_SPLIT_COUNT                  COUNT        남녀고용평등법 제19조, 제19조의4 제1항
 -- (남녀고용평등법 = 남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률)
 -- 개정 이력이 있는 항목(예: 배우자 출산휴가·육아휴직·근로시간 단축 기간)은 시행일별로 여러 기간을 넣는다.
 --
