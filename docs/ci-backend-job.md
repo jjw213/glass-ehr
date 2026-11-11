@@ -7,6 +7,10 @@
 현재 백엔드 테스트(`@WebMvcTest`)는 DB 없이 돌아갑니다.
 Oracle이 필요한 통합 테스트가 생기면 아래 주석 처리된 `services:` 블록을 살립니다.
 
+#3부터 `LegalRateMapperOracleTest`(legal_rate 조회 SQL 경계·DDL 제약 검증)가 있습니다.
+이 테스트는 환경변수 `ORACLE_IT=true`일 때만 돌고, `legal_rate` 테이블이 없으면 `V001__legal_rate.sql`을 직접 적용합니다.
+CI에서 돌리려면 `services:` 블록과 `env:` 블록(`ORACLE_IT` 포함)의 주석을 함께 풀어 주세요.
+
 ```yaml
   backend:
     runs-on: ubuntu-latest
@@ -39,6 +43,7 @@ Oracle이 필요한 통합 테스트가 생기면 아래 주석 처리된 `servi
       - name: 빌드·테스트
         run: mvn -B verify
         # env:
+        #   ORACLE_IT: "true"
         #   DB_URL: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
         #   DB_USER: glass_ehr
         #   DB_PASSWORD: ci-only-password

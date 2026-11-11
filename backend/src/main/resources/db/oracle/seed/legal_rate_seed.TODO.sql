@@ -1,0 +1,38 @@
+-- legal_rate 시드 데이터 (#3) — 아직 실행 대상이 아니다.
+--
+-- 법정 수치는 기억에 의존해 넣지 않는다(AGENTS.md 법령 규칙). 아래 값은 모두 TODO이며
+-- 사람이 국가법령정보센터(law.go.kr)·고용노동부(moel.go.kr) 등 공식 원문과 대조해 채운 뒤
+-- 주석을 풀어 실행한다. 확인이 끝나기 전에는 이 파일 전체가 주석이어야 한다.
+--
+-- 입력 규칙
+--  - effective_from / effective_to: 법령의 적용 개시일, 다음 기간 시작일(종료일은 배타적). 종료 미정이면 NULL.
+--  - rate_value: 공식 원문의 값. 요율은 고시 표기와 같은 퍼센트 숫자로 저장한다
+--    (고시가 "x.xx%"이면 x.xx). 2026-11-11 결정, docs/DECISIONS.md.
+--  - unit: 요율은 'PERCENT'(LegalRateUnit.PERCENT). 금액 항목 단위 코드(예: 원/시간, 원/월)는
+--    사람이 수치 목록을 줄 때 함께 확정한다.
+--  - 입력 절차: 사람이 원문 URL과 수치 목록을 주면 에이전트가 이 파일을 작성하고, 사람이 검수한다.
+--  - legal_basis: 법률명·조문·항/호, 고시 번호
+--  - source_url: 해당 원문 URL
+--
+-- 항목 후보 (코드 체계는 사람 확인 후 확정):
+--   최저임금 시간급        — 최저임금법, 고용노동부 고시
+--   국민연금 보험료율      — 국민연금법
+--   건강보험료율          — 국민건강보험법·시행령
+--   장기요양보험료율       — 노인장기요양보험법·시행령
+--   고용보험료율(실업급여, 고용안정·직업능력개발 — 사업장 규모별) — 고용보험 및 산업재해보상보험의 보험료징수 등에 관한 법률
+--   산재보험료율          — 같은 법, 업종별 고시
+--   비과세 한도(식대 등)    — 소득세법·시행령
+--
+-- INSERT INTO legal_rate_item (item_code, item_name) VALUES ('TODO_ITEM_CODE', 'TODO 항목명');
+--
+-- INSERT INTO legal_rate
+--     (item_code, effective_from, effective_to, rate_value, unit, legal_basis, source_url, created_by)
+-- VALUES
+--     ('TODO_ITEM_CODE',
+--      DATE 'TODO-적용시작일',
+--      NULL,                -- TODO: 종료일(다음 기간 시작일) 또는 NULL
+--      TODO_값,
+--      'TODO_단위',
+--      'TODO 근거 조문',
+--      'TODO 원문 URL',
+--      'TODO 입력자');
