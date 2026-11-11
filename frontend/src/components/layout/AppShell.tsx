@@ -11,6 +11,7 @@ import { MessagesPage } from '../../pages/MessagesPage';
 import { PeoplePage } from '../../pages/PeoplePage';
 import { OrgPage } from '../../pages/OrgPage';
 import { SettingsPage } from '../../pages/SettingsPage';
+import { CodesPage } from '../../pages/CodesPage';
 import { useEffect, useState, type JSX } from 'react';
 
 const PAGES: Record<PageId, () => JSX.Element> = {
@@ -22,6 +23,7 @@ const PAGES: Record<PageId, () => JSX.Element> = {
   people: PeoplePage,
   org: OrgPage,
   settings: SettingsPage,
+  codes: CodesPage,
 };
 
 /** Desktop: top pill bar + floating dock (video 2). Mobile: glass sidebar (video 3). */

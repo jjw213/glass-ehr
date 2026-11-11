@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { LuSlidersHorizontal, LuCalendarDays, LuMail, LuBell, LuSearch, LuLogOut } from 'react-icons/lu';
-import { NAV } from '../../nav';
+import { NAV, navFor } from '../../nav';
 import { useData, useStore } from '../../state/store';
 import { useSession } from '../../state/session';
 import { Avatar, cx } from '../ui';
@@ -56,7 +56,7 @@ export function DesktopNav() {
       </header>
 
       <nav className="glass dock" aria-label="전체 메뉴">
-        {NAV.map((n, i) => (
+        {navFor(me.role).map((n, i) => (
           <button
             key={n.id}
             className={cx('dock__btn', page === n.id && 'active', i === 4 && 'sep', n.id === 'settings' && 'sep')}
