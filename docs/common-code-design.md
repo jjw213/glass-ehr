@@ -9,7 +9,9 @@
 | `common_code_group` | `group_code` | `group_name`, `description`, `sort_order`, `use_yn` |
 | `common_code` | (`group_code`, `code`) → 그룹 FK | `code_name`, `description`, `sort_order`, `use_yn` |
 
-- 코드값·그룹코드: `^[A-Z][A-Z0-9_]{0,29}$` (DB CHECK, 백엔드 Bean Validation, 프론트 `validateCode`가 같은 규칙)
+- 코드값·그룹코드: `^[A-Z][A-Z0-9_]{0,29}$` (백엔드 Bean Validation, 프론트 `validateCode`가 같은 규칙)
+  - DB는 같은 규칙을 CHECK `REGEXP_LIKE(.., '^[A-Z][A-Z0-9_]*$', 'c')` + 컬럼 `VARCHAR2(30 CHAR)`로 건다.
+    Oracle JDBC가 SQL 속 `{..}`를 SQL92 escape로 해석하므로 DDL 정규식에 중괄호를 쓰지 않는다.
 - `use_yn`: `'Y'`/`'N'` (CHECK). JPA에서는 `YnConverter`로 boolean
 - `sort_order`: 0 이상 정수, 같으면 코드값 순
 - **삭제하지 않는다.** 사원·발령 이력이 코드를 참조하므로 사용 중지(`use_yn = 'N'`)로 끈다. 코드값(PK)도 바꾸지 않는다.

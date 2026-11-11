@@ -91,7 +91,31 @@ class CommonCodeSeedScriptTest {
             assertThat(body).containsPattern("use_yn\\s+VARCHAR2\\(1 CHAR\\)\\s+DEFAULT 'Y' NOT NULL");
             assertThat(body).contains("CHECK (use_yn IN ('Y', 'N'))");
         }
-        // 정규식은 엔티티 검증(CodeGroups.CODE_PATTERN)과 같다
-        assertThat(ddl).contains("'" + CodeGroups.CODE_PATTERN + "'");
+        // 코드값 규칙 = 문자 CHECK + 컬럼 길이 30자. 둘을 합치면 CodeGroups.CODE_PATTERN 과 같다.
+        assertThat(ddl).contains("CHECK (REGEXP_LIKE(group_code, '" + DB_CODE_REGEX + "', 'c'))");
+        assertThat(ddl).contains("CHECK (REGEXP_LIKE(code, '" + DB_CODE_REGEX + "', 'c'))");
+        assertThat(ddl).containsPattern("group_code\\s+VARCHAR2\\(30 CHAR\\)\\s+NOT NULL");
+        assertThat(ddl).containsPattern("\\bcode\\s+VARCHAR2\\(30 CHAR\\)\\s+NOT NULL");
+    }
+
+    /** DB CHECK 에 쓰는 문자 규칙. 길이는 컬럼(VARCHAR2(30 CHAR))이 막는다. */
+    private static final String DB_CODE_REGEX = "^[A-Z][A-Z0-9_]*$";
+
+    @Test
+    void DDL에는_중괄호가_없다() throws IOException {
+        // Oracle JDBC는 문장 속 {..}를 SQL92 escape 로 해석해 JDBC로 DDL을 실행할 때 실패할 수 있다.
+        assertThat(sql("db/oracle/V006__common_code.sql")).doesNotContain("{").doesNotContain("}");
+    }
+
+    @Test
+    void DB_코드값_규칙은_CODE_PATTERN과_같다() {
+        Pattern db = Pattern.compile(DB_CODE_REGEX);
+        Pattern app = Pattern.compile(CodeGroups.CODE_PATTERN);
+        List<String> samples = List.of("A", "STAFF", "JOB_GRADE", "A1_B2", "Z".repeat(30), "Z".repeat(31),
+                "", "1A", "_A", "a", "Ab", "A-B", "A B", "가");
+        for (String s : samples) {
+            boolean dbOk = db.matcher(s).matches() && s.length() <= 30;
+            assertThat(app.matcher(s).matches()).as(s).isEqualTo(dbOk);
+        }
     }
 }
