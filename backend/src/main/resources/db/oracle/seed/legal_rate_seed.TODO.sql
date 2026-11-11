@@ -6,8 +6,11 @@
 --
 -- 입력 규칙
 --  - effective_from / effective_to: 법령의 적용 개시일, 다음 기간 시작일(종료일은 배타적). 종료 미정이면 NULL.
---  - rate_value: 공식 원문의 값. 요율을 비율(예: 소수)로 저장할지 퍼센트로 저장할지 결정 후 전 항목 일관 적용.
---  - unit: 저장 스케일을 포함한 단위 (예: KRW_PER_HOUR, RATIO, KRW_PER_MONTH 중 결정)
+--  - rate_value: 공식 원문의 값. 요율은 고시 표기와 같은 퍼센트 숫자로 저장한다
+--    (고시가 "x.xx%"이면 x.xx). 2026-11-11 결정, docs/DECISIONS.md.
+--  - unit: 요율은 'PERCENT'(LegalRateUnit.PERCENT). 금액 항목 단위 코드(예: 원/시간, 원/월)는
+--    사람이 수치 목록을 줄 때 함께 확정한다.
+--  - 입력 절차: 사람이 원문 URL과 수치 목록을 주면 에이전트가 이 파일을 작성하고, 사람이 검수한다.
 --  - legal_basis: 법률명·조문·항/호, 고시 번호
 --  - source_url: 해당 원문 URL
 --

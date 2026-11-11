@@ -12,3 +12,4 @@
 | 2026-11-10 | Java 21 + JPA(인사·조직 CRUD) + MyBatis(근태·급여 집계·기준값 적용시작일 조회) 혼용. 빌드는 Maven, 코드는 `backend/`, 드라이버 ojdbc11. 스키마는 JPA가 만들지 않음(`ddl-auto: validate`) | 집계 SQL·기준값 조회는 SQL 직접 제어가 필요 / #1 |
 | 2026-11-10 | CI backend 잡은 `docs/ci-backend-job.md` 내용을 사람이 `.github/workflows/ci.yml`에 붙여 넣음 (보호 경로) | #1 |
 | 2026-11-10 | 기존 `server/`(Node API)는 새 백엔드로 이전될 때까지 유지. 신규 백엔드 기능은 `backend/`에만 추가 | #1 |
+| 2026-11-11 | `legal_rate` 요율은 고시 표기와 같은 퍼센트 숫자로 저장(`unit = 'PERCENT'`), 계산 시 비율로 변환. 시드 값은 사람이 원문 URL·수치 목록을 주면 에이전트가 작성하고 사람이 검수 | #3 |

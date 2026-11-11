@@ -31,4 +31,17 @@ public record LegalRateRow(
         return !asOfDate.isBefore(effectiveFrom)
                 && (effectiveTo == null || asOfDate.isBefore(effectiveTo));
     }
+
+    /**
+     * 퍼센트로 저장된 요율을 비율로 바꾼다(소수점 이동만 하므로 반올림·오차 없음).
+     *
+     * @throws IllegalStateException 단위가 {@link LegalRateUnit#PERCENT}가 아닐 때
+     */
+    public BigDecimal toRatio() {
+        if (!LegalRateUnit.PERCENT.equals(unit)) {
+            throw new IllegalStateException(
+                    "요율(PERCENT) 항목이 아니다: itemCode=" + itemCode + ", unit=" + unit);
+        }
+        return rateValue.movePointLeft(2);
+    }
 }
