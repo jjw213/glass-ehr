@@ -209,6 +209,56 @@ describe('OrgChart', () => {
     expect(childNames('개발본부(예시)')).toEqual(['개발1팀(예시)', '개발2팀(예시)']);   // 적용일 전에는 그대로
   });
 
+  it('과거 조직도에서 이동해도 그 뒤의 부서명·정렬 변경을 되돌리지 않는다', async () => {
+    const api = createMockOrgApi();
+    // 2026-06-01 개발2팀 → 데이터팀으로 이름·정렬 변경 (상위부서는 그대로 개발본부)
+    await api.changeDept(7, { name: '데이터팀(예시)', parentDeptId: 5, headEmpId: null, sortOrder: 30, effectiveDate: '2026-06-01', reason: null });
+    const spy = vi.spyOn(api, 'changeDept');
+    const { toast } = await mount({ role: 'HR', api });
+    await setDate('2026-05-31');   // 이름 바뀌기 전의 과거 조직도에서
+    await act(async () => { label('개발2팀(예시) 이동')!.click(); });
+    await act(async () => { choose($<HTMLSelectElement>('.modal select')!, '2'); });
+    await act(async () => { type(host.querySelector<HTMLInputElement>('.modal input[type="date"]')!, '2026-12-01'); });
+    await act(async () => { $<HTMLFormElement>('.modal form')!.requestSubmit(); });
+    await flush();
+    await flush();
+
+    expect(spy).toHaveBeenCalledWith(7, expect.objectContaining({ name: '데이터팀(예시)', sortOrder: 30, parentDeptId: 2, effectiveDate: '2026-12-01' }));
+    expect(toast).toHaveBeenCalledWith('데이터팀(예시) 부서를 2026-12-01부터 옮겼어요');
+    expect(childNames('경영지원본부(예시)')).toEqual(['인사팀(예시)', '재무팀(예시)', '데이터팀(예시)']);
+  });
+
+  it('사원 목록을 못 받으면 0명으로 보이지 않고 다시 시도할 수 있다', async () => {
+    const api = createMockOrgApi();
+    const real = api.employees.bind(api);
+    const spy = vi.spyOn(api, 'employees').mockRejectedValueOnce(new Error('사원 목록 오류'));
+    const { toast } = await mount({ api });
+    expect(toast).toHaveBeenCalledWith('사원 목록 오류');
+    expect(count(3)).toBe('?');
+    expect($('.page-head')?.textContent).toContain('인원 확인 불가');
+    await act(async () => { deptButton('인사팀(예시)').click(); });
+    expect(host.textContent).not.toContain('이 부서에 바로 소속된 사원이 없어요');
+    expect($('[role="alert"]')?.textContent).toContain('불러오지 못했어요');
+
+    spy.mockImplementation(real);
+    await act(async () => { buttonByText('사원 목록 다시 불러오기').click(); });
+    await flush();
+    expect(count(3)).toBe('4명');
+    expect(host.querySelectorAll('[aria-label="인사팀(예시) 부서원"] li')).toHaveLength(4);
+    expect($('[role="alert"]')).toBeNull();
+  });
+
+  it('사원 목록 실패 상태에서 기준일을 바꾸면 다시 불러온다', async () => {
+    const api = createMockOrgApi();
+    const spy = vi.spyOn(api, 'employees').mockRejectedValueOnce(new Error('사원 목록 오류'));
+    await mount({ api });
+    expect(count(3)).toBe('?');
+    await setDate('2020-01-01');
+    await flush();
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(count(3)).toBe('2명');
+  });
+
   it('모바일에서는 한 열 세로 트리로 보인다', async () => {
     await mount({ mobile: true });
     const layout = $('.org-layout')!;

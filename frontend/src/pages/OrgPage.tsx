@@ -44,6 +44,8 @@ export function OrgChart({ api, codes, role, toast, mobile, today }: OrgChartPro
   const [date, setDate] = useState(today);
   const [tree, setTree] = useState<OrgTree | null>(null);
   const [employees, setEmployees] = useState<EmployeeSummary[] | null>(null);
+  const [empFailed, setEmpFailed] = useState(false);
+  const [empRetry, setEmpRetry] = useState(0);
   const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set());
   const [selected, setSelected] = useState<number | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -65,16 +67,25 @@ export function OrgChart({ api, codes, role, toast, mobile, today }: OrgChartPro
     return () => { alive = false; };
   }, [api, date, reload, fail]);
 
+  // 사원 목록을 못 받으면 0명으로 보이지 않게 '불러오지 못함' 상태로 두고 다시 시도할 수 있게 한다
   useEffect(() => {
     let alive = true;
-    api.employees().then((l) => { if (alive) setEmployees(l); }, fail);
+    setEmpFailed(false);
+    api.employees().then(
+      (l) => { if (alive) setEmployees(l); },
+      (e: unknown) => { if (alive) { setEmployees(null); setEmpFailed(true); fail(e); } },
+    );
     return () => { alive = false; };
-  }, [api, reload, fail]);
+  }, [api, reload, empRetry, fail]);
+  const retryEmployees = useCallback(() => setEmpRetry((n) => n + 1), []);
+  /** 기준일 변경. 사원 목록을 못 받은 상태였으면 같이 다시 시도한다 */
+  const changeDate = (d: string) => { setDate(d); if (empFailed) retryEmployees(); };
 
   const roots = useMemo(() => tree?.roots ?? [], [tree]);
   const flat = useMemo(() => flatten(roots), [roots]);
   const members = useMemo(() => membersByDept(employees ?? [], date), [employees, date]);
   const counts = useMemo(() => headcounts(roots, members), [roots, members]);
+  const empReady = employees !== null;
   const total = useMemo(() => roots.reduce((s, r) => s + (counts.get(r.deptId)?.total ?? 0), 0), [roots, counts]);
   const current = selected !== null ? findDept(roots, selected) : undefined;
   const parentIds = useMemo(() => flat.filter((f) => f.node.children.length > 0).map((f) => f.node.deptId), [flat]);
@@ -125,9 +136,15 @@ export function OrgChart({ api, codes, role, toast, mobile, today }: OrgChartPro
         done(v, `${v.name} 부서를 ${v.validFrom}부터 추가했어요`);
       } else {
         const n = editing.node;
-        if (parentDeptId === n.parentDeptId) { setFormError('지금과 같은 상위부서예요. 옮길 부서를 골라 주세요'); return; }
-        // 이동은 상위부서만 바꾼다. 나머지 속성은 지금 값을 그대로 보낸다(PUT 은 속성 전체를 받음)
-        const input = { name: n.name, parentDeptId, headEmpId: n.headEmpId, sortOrder: n.sortOrder, effectiveDate: draft.effectiveDate, reason };
+        const base = { name: n.name, parentDeptId, headEmpId: n.headEmpId, sortOrder: n.sortOrder, effectiveDate: draft.effectiveDate, reason };
+        const err0 = validateDept(base);
+        if (err0) { setFormError(err0); return; }
+        // 이동은 상위부서만 바꾼다. PUT 은 속성 전체를 받으므로 나머지 속성은 화면의(과거일 수 있는) 노드가 아니라
+        // 적용일 기준 조직도에서 다시 읽은 값을 보낸다. 그 사이의 부서명·부서장·정렬 변경을 되돌리지 않기 위해서다.
+        const at = findDept((await api.tree(draft.effectiveDate)).roots, n.deptId);
+        if (!at) { setFormError(`${draft.effectiveDate}에는 이 부서가 없어요. 적용일을 확인해 주세요`); return; }
+        if (parentDeptId === at.parentDeptId) { setFormError('지금과 같은 상위부서예요. 옮길 부서를 골라 주세요'); return; }
+        const input = { ...base, name: at.name, headEmpId: at.headEmpId, sortOrder: at.sortOrder };
         const err = validateDept(input);
         if (err) { setFormError(err); return; }
         const v = await api.changeDept(n.deptId, input);
@@ -157,6 +174,7 @@ export function OrgChart({ api, codes, role, toast, mobile, today }: OrgChartPro
     const hasKids = n.children.length > 0;
     const open = !collapsed.has(n.deptId);
     const c = counts.get(n.deptId) ?? { direct: 0, total: 0 };
+    const shown = (v: number) => (empReady ? `${v}명` : empFailed ? '?' : '…');
     return (
       <li key={n.deptId} role="treeitem" aria-expanded={hasKids ? open : undefined} aria-selected={selected === n.deptId} aria-label={n.name}>
         <div className="org-node">
@@ -170,9 +188,9 @@ export function OrgChart({ api, codes, role, toast, mobile, today }: OrgChartPro
           <button type="button" className={cx('org-node__main', selected === n.deptId && 'active')} onClick={() => pick(n.deptId)}>
             <span className="org-node__name">
               <strong>{n.name}</strong>
-              {hasKids && <span className="muted sm">직속 {c.direct}명</span>}
+              {hasKids && <span className="muted sm">직속 {shown(c.direct)}</span>}
             </span>
-            <span className="org-node__count" data-testid={`count-${n.deptId}`}>{c.total}명</span>
+            <span className="org-node__count" data-testid={`count-${n.deptId}`}>{shown(c.total)}</span>
           </button>
           {canManage && (
             <>
@@ -192,7 +210,7 @@ export function OrgChart({ api, codes, role, toast, mobile, today }: OrgChartPro
     <>
       <PageHead
         title="조직도"
-        sub={tree ? `${date} 기준 · ${flat.length}개 부서 · ${total}명` : '불러오는 중…'}
+        sub={tree ? `${date} 기준 · ${flat.length}개 부서 · ${empReady ? `${total}명` : empFailed ? '인원 확인 불가' : '인원 불러오는 중…'}` : '불러오는 중…'}
         right={canManage && <button className="btn btn--primary" onClick={() => openCreate(null)} disabled={!tree}><LuPlus /> 부서 추가</button>}
       />
 
@@ -204,8 +222,8 @@ export function OrgChart({ api, codes, role, toast, mobile, today }: OrgChartPro
             right={<LuFolderTree className="muted" />}
           />
           <div className="org-date">
-            <input type="date" className="input" aria-label="기준일" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
-            {date !== today && <button type="button" className="glass pill" onClick={() => setDate(today)}>오늘로</button>}
+            <input type="date" className="input" aria-label="기준일" value={date} onChange={(e) => e.target.value && changeDate(e.target.value)} />
+            {date !== today && <button type="button" className="glass pill" onClick={() => changeDate(today)}>오늘로</button>}
             <span className="grow" />
             <div className="org-tools">
               <button type="button" className="btn btn--ghost" onClick={() => setCollapsed(new Set())}>모두 펼치기</button>
@@ -225,8 +243,10 @@ export function OrgChart({ api, codes, role, toast, mobile, today }: OrgChartPro
           <Card i={2}>
             {current ? (
               <>
-                <CardHead title={`${current.name} 부서원`} sub={`${current.deptCode} · 직속 ${list.length}명`} right={<LuUsers className="muted" />} />
-                {list.length === 0 ? (
+                <CardHead title={`${current.name} 부서원`} sub={`${current.deptCode}${empReady ? ` · 직속 ${list.length}명` : ''}`} right={<LuUsers className="muted" />} />
+                {!empReady ? (
+                  !empFailed && <p className="muted code-empty">부서원을 불러오는 중…</p>
+                ) : list.length === 0 ? (
                   <p className="muted code-empty">이 부서에 바로 소속된 사원이 없어요</p>
                 ) : (
                   <ul className="org-members" aria-label={`${current.name} 부서원`}>
@@ -244,6 +264,12 @@ export function OrgChart({ api, codes, role, toast, mobile, today }: OrgChartPro
               </>
             ) : (
               <CardHead title="부서를 눌러 보세요" sub="부서를 누르면 부서원 목록이 여기에 나와요" right={<LuUsers className="muted" />} />
+            )}
+            {empFailed && (
+              <div className="code-empty" role="alert">
+                <p className="muted">사원 목록을 불러오지 못했어요. 인원 수와 부서원은 확인되지 않은 상태예요.</p>
+                <button type="button" className="btn btn--ghost" onClick={retryEmployees}>사원 목록 다시 불러오기</button>
+              </div>
             )}
             {date !== today && (
               <p className="muted sm org-note">
