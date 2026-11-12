@@ -118,7 +118,7 @@ V001~V005를 적용한 Oracle에서 SQL*Plus/SQLcl로 별도 실행한다. 기�
 
 ### 맥미니 실행 순서
 
-1. `agent/issue-7` 구현에 이 시드 PR을 통합하고 V001~V005와 legal_rate_api 유효 상태를 확인한다. 앱 계정 EXECUTE·SELECT 권한도 확인한다.
+1. PR #45 구현이 병합된 `main`에 이 시드 PR을 통합하고 V001~V005와 legal_rate_api 유효 상태를 확인한다. 앱 계정 EXECUTE·SELECT 권한도 확인한다.
 2. `python3 scripts/check_legal_rate_seed.py`로 구조를 검사한다. 이 검사는 시드에서 도출한 날짜·단위를 검증하며 법령 정답 검수나 Oracle 실행을 대신하지 않는다.
 3. DB 소유자 세션에서 기존 대상 데이터를 확인한 뒤 SQL*Plus/SQLcl로 `@backend/src/main/resources/db/oracle/seed/legal_rate_hr_current.sql`을 실행한다. 기존 값이 있으면 전체 중단한다. 값이 있는 DB의 증분 변경은 이 파일을 고쳐 재실행하지 말고 별도 교정 계획을 세운다.
 4. Oracle 연결 환경에서 `ORACLE_IT=true mvn -f backend/pom.xml test`로 기존 통합 테스트를 실행한다. 기존 테스트 통과는 이 법령 시드의 사람 검수 통과를 뜻하지 않는다. 시드의 실제 날짜별 조회·적용례 검증도 따로 진행한다.

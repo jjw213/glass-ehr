@@ -14,12 +14,12 @@ import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
  * DDL은 Oracle에서 암묵 커밋되므로 테스트 데이터 INSERT 전에 호출한다.
  * V003(항목 등록)은 데이터라서 여기서 적용하지 않는다.
  */
-final class OracleLegalRateSchema {
+public final class OracleLegalRateSchema {
 
     private OracleLegalRateSchema() {
     }
 
-    static void ensure(JdbcTemplate jdbc) {
+    public static void ensure(JdbcTemplate jdbc) {
         if (count(jdbc, "SELECT COUNT(*) FROM user_tables WHERE table_name = 'LEGAL_RATE'") == 0) {
             populate(jdbc, "db/oracle/V001__legal_rate.sql");
         }

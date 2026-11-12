@@ -1,14 +1,18 @@
 import { ApiError, type Api } from './types';
 
-/** Talks to the Node server (server/). In dev, Vite proxies /api → http://localhost:4000. */
-async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+/**
+ * Talks to the server under /api. In dev, Vite proxies /api → Node server (4000),
+ * except the Spring backend paths listed in vite.config.ts (공통코드 → 8080).
+ */
+export async function call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T> {
+  const hasBody = method !== 'GET';
   let res: Response;
   try {
     res = await fetch('/api' + path, {
       method,
       credentials: 'same-origin',
-      headers: method === 'POST' ? { 'Content-Type': 'application/json' } : undefined,
-      body: method === 'POST' ? JSON.stringify(body ?? {}) : undefined,
+      headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
+      body: hasBody ? JSON.stringify(body ?? {}) : undefined,
     });
   } catch {
     throw new ApiError(0, '서버에 연결할 수 없어요. 서버가 켜져 있는지 확인해 주세요');

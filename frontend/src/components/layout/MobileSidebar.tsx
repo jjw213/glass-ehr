@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
 import { LuChevronRight, LuChevronLeft, LuChevronDown, LuSearch, LuSun, LuMoon, LuLogOut, LuCommand } from 'react-icons/lu';
-import { NAV, navById, type NavItem } from '../../nav';
+import { navById, navFor, type NavItem } from '../../nav';
 
 const SettingsIcon = navById('settings').icon;
 import { useData, useStore } from '../../state/store';
@@ -108,7 +108,7 @@ export function MobileSidebar() {
   const pickDept = (d: string) => { setOrgDept(d); go('org'); close(); };
 
   const match = (s: string) => s.toLowerCase().includes(q.trim().toLowerCase());
-  const items = NAV.filter((n) => match(n.label) || (n.id === 'org' && DEPTS.some((d) => match(d.name))));
+  const items = navFor(me.role).filter((n) => match(n.label) || (n.id === 'org' && DEPTS.some((d) => match(d.name))));
   const section = (s: NavItem['section']) => items.filter((n) => n.section === s);
 
   const item = (n: NavItem, children?: ReactNode) => (
@@ -138,7 +138,7 @@ export function MobileSidebar() {
         </div>
         <button className="rail__btn" onClick={() => openSheet(true)} aria-label="메뉴 검색" {...railHandlers('검색')}><LuSearch /></button>
         <span className="rail__sep" />
-        {NAV.filter((n) => n.section !== 'system').map((n, i) => (
+        {navFor(me.role).filter((n) => n.section !== 'system').map((n, i) => (
           <button
             key={n.id}
             className={cx('rail__btn', page === n.id && 'active', i === 4 && 'gap')}

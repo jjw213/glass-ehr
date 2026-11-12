@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError, type Bootstrap, type Dept, type NewLeave } from '../api';
 
-export type PageId = 'home' | 'attendance' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings';
-export const PAGE_IDS: PageId[] = ['home', 'attendance', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings'];
+export type PageId = 'home' | 'attendance' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes';
+export const PAGE_IDS: PageId[] = ['home', 'attendance', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings', 'codes'];
 export type SceneId = 'sunset' | 'dawn' | 'night';
 
 interface Toast { id: number; text: string }
