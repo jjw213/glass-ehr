@@ -9,9 +9,9 @@ export default defineConfig({
     proxy: {
       '/api/codes': 'http://localhost:8080',
       '/api/code-groups': 'http://localhost:8080',
-      // 사원(#14)·조직(#12) — 인사기록카드 화면(#15)
-      '/api/employees': 'http://localhost:8080',
+      // 조직(#12)·사원(#14)도 Spring 백엔드. 조직도 화면(#13)과 인사기록카드 화면(#15)이 쓴다.
       '/api/org': 'http://localhost:8080',
+      '/api/employees': 'http://localhost:8080',
       '/api': 'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/
