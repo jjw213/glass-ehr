@@ -9,7 +9,7 @@ export default defineConfig({
     proxy: {
       '/api/codes': 'http://localhost:8080',
       '/api/code-groups': 'http://localhost:8080',
-      // 조직(#12)·사원(#14)도 Spring 백엔드. 조직도 화면(#13)이 쓴다.
+      // 조직(#12)·사원(#14)도 Spring 백엔드. 조직도 화면(#13)과 인사기록카드 화면(#15)이 쓴다.
       '/api/org': 'http://localhost:8080',
       '/api/employees': 'http://localhost:8080',
       '/api': 'http://localhost:4000',
@@ -20,5 +20,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
+    // 모바일 레이아웃 테스트(PeoplePage.test)가 global.css?raw 로 규칙을 읽는다. 기본값은 CSS를 빈 문자열로 바꾼다.
+    css: { include: [/global\.css/] },
   },
 });

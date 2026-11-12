@@ -4,14 +4,15 @@ import { ApiError, type Api } from './types';
  * Talks to the server under /api. In dev, Vite proxies /api → Node server (4000),
  * except the Spring backend paths listed in vite.config.ts (공통코드 → 8080).
  */
-export async function call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T> {
+export async function call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
   const hasBody = method !== 'GET';
+  const headers: Record<string, string> = { ...(hasBody ? { 'Content-Type': 'application/json' } : {}), ...extraHeaders };
   let res: Response;
   try {
     res = await fetch('/api' + path, {
       method,
       credentials: 'same-origin',
-      headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
       body: hasBody ? JSON.stringify(body ?? {}) : undefined,
     });
   } catch {
