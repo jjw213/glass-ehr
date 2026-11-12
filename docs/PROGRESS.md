@@ -24,3 +24,4 @@
 - 2026-11-12: #24 origin/main 병합 — DECISIONS·PROGRESS 충돌을 해결해 #23·#24 항목을 모두 남김.
 - 2026-11-12: #11 origin/main 병합 — PROGRESS 충돌을 해결해 #11과 #21~#24 항목을 모두 남김.
 - 2026-11-12: #11 CI backend 실패 수정 — Hibernate가 부팅 때 CHECK 조건을 만들려고 `YnConverter`에 null을 넣어 호출하는데 변환기가 예외를 던져 EntityManagerFactory가 뜨지 않았음. null은 그대로 통과시키도록 바꾸고(빈 값 저장은 엔티티 원시 boolean과 DDL NOT NULL이 막음) 단위 테스트를 맞춤.
+- 2026-11-12: #12 조직(부서) — V008(`org_dept` 정체성 + `org_dept_hist` 유효기간 이력: 이름·상위부서·부서장·정렬순서), JPA 기준일 트리 조회·신설·변경·폐지 API를 추가했다. 자기 하위로 옮기는 순환 참조를 거부하고(미래 예약 변경 포함), 하위부서나 재직자가 남은 부서는 폐지를 거부한다. 재직자 확인은 `DeptMemberChecker`로 했고, 사원 테이블이 아직 없어 지금 구현은 항상 0명이다. 사원·발령 이슈에서 바꿔야 한다. 단위 테스트 37개를 새로 넣었고 모두 통과한다. Oracle 통합 테스트 3개는 CI에서만 돈다. 상세는 `docs/org-history-design.md` 6장.

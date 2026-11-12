@@ -43,3 +43,25 @@
 - 폐지일 이후 조직도에 그 부서가 없음. 유효하지 않은 상위 부서 지정 거부.
 
 DDL·JPA 엔티티·조회 SQL은 별도 구현 이슈에서 만든다.
+
+## 6. 구현 (#12)
+- DDL `backend/src/main/resources/db/oracle/V008__org_dept.sql`, 코드 `backend/src/main/java/com/glassehr/org/`.
+- API: `GET /api/org/tree?date=YYYY-MM-DD`(생략 시 서울 기준 오늘), `POST /api/org/depts`(신설),
+  `PUT /api/org/depts/{deptId}`(변경: 적용일부터의 속성 전체), `POST /api/org/depts/{deptId}/close`(폐지).
+- 이력 행에 부서장(`head_emp_id`)도 둔다. 사원 테이블이 아직 없어 FK는 사원 등록 이슈에서 건다.
+- 2장 초안과 다른 점
+  - 폐지는 이력 행을 새로 만들지 않고 `org_dept.valid_to`·`close_reason`과 마지막 hist 행의 `valid_to`로 나타낸다.
+    그래서 `change_type`은 `CREATE`·`RENAME`·`MOVE`·`UPDATE`(부서장·정렬순서 등) 네 가지다.
+    한 번에 여러 속성이 바뀌면 상위부서 > 이름 > 그 밖 순으로 대표 유형을 기록한다.
+  - `created_by`는 인증 기능이 없어 넣지 않았다(인증·권한 이슈에서 감사 로그와 함께 추가).
+  - `org_dept_succession`(통폐합 계보)은 이번 범위 밖. 통폐합·분할 이슈에서 만든다.
+- 쓰기 규칙
+  - 변경·폐지는 그 부서의 마지막 이력 시작일보다 **뒤** 날짜에만 할 수 있다(중간 끼워 넣기·같은 날 정정은 정정 기능 이슈에서).
+  - 상위부서는 적용일에 이미 신설되어 있고 폐지일이 정해지지 않은 부서여야 한다.
+  - 순환 참조: 자기 자신·자기 하위로 옮기는 것을 거부한다. 미래로 예약된 다른 부서의 변경 때문에 나중에 순환이 생기는 경우도
+    적용일 뒤의 모든 변경 시작일에서 검사해 거부한다.
+  - 폐지: 폐지일 당일이나 그 뒤에 하위부서가 있거나(미래 이동 예약 포함) 재직자가 있으면 거부한다.
+    재직자 확인은 `DeptMemberChecker` 인터페이스로 한다. 지금은 사원 테이블이 없어 `NoEmployeeDeptMemberChecker`(항상 0명)가 쓰이고,
+    **사원 등록·인사발령 이슈에서 발령 이력 기준 구현으로 바꿔야 한다.**
+  - 여러 부서를 함께 읽어 판단하므로 쓰기 트랜잭션마다 `LOCK TABLE org_dept IN EXCLUSIVE MODE`로 직렬화한다(읽기는 막히지 않음).
+- 쓰기 권한(인사담당) 검사는 백엔드 인증·권한 이슈에서 붙인다.

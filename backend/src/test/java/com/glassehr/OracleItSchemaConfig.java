@@ -39,6 +39,11 @@ public class OracleItSchemaConfig {
                     new ClassPathResource("db/oracle/V007__common_code_seed.sql"))
                     .execute(dataSource);
         }
+        Integer org = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'ORG_DEPT'", Integer.class);
+        if (org == null || org == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V008__org_dept.sql")).execute(dataSource);
+        }
         return new Applied();
     }
 
