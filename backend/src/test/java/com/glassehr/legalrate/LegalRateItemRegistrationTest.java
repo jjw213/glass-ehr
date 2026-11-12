@@ -37,7 +37,11 @@ class LegalRateItemRegistrationTest {
     /** 항목 등록 마이그레이션. 적용 순서대로. */
     private static final List<String> ITEM_MIGRATIONS = List.of(
             "db/oracle/V003__legal_rate_items_hr_attendance.sql",
-            "db/oracle/V005__legal_rate_items_hr_attendance_ext.sql");
+            "db/oracle/V005__legal_rate_items_hr_attendance_ext.sql",
+            "db/oracle/V010__legal_rate_item_record_retention.sql");
+
+    /** #7 에서 등록한 인사·근태 항목 마이그레이션(V003·V005). */
+    private static final List<String> HR_ATTENDANCE_ITEM_MIGRATIONS = ITEM_MIGRATIONS.subList(0, 2);
 
     /** 단위 CHECK 제약을 정의하는 마이그레이션. 마지막 것이 현재 제약이다. */
     private static final List<String> UNIT_CHECK_MIGRATIONS = List.of(
@@ -45,8 +49,12 @@ class LegalRateItemRegistrationTest {
             "db/oracle/V005__legal_rate_items_hr_attendance_ext.sql");
 
     private static Map<String, String[]> registeredItems() throws IOException {
+        return registeredItems(ITEM_MIGRATIONS);
+    }
+
+    private static Map<String, String[]> registeredItems(List<String> paths) throws IOException {
         Map<String, String[]> items = new LinkedHashMap<>();
-        for (String path : ITEM_MIGRATIONS) {
+        for (String path : paths) {
             Matcher m = ITEM_INSERT.matcher(withoutComments(read(path)));
             while (m.find()) {
                 String[] prev = items.put(m.group(1), new String[] {m.group(2), m.group(3), m.group(4)});
@@ -98,7 +106,7 @@ class LegalRateItemRegistrationTest {
     @Test
     void 사람_답변으로_추가한_항목이_등록돼_있다() throws IOException {
         // 2026-11-11 답변 "①~⑤ 모두 추가": 미숙아, 유산·사산 구간, 임신기 단축, 배우자 출산휴가·육아휴직 분할 횟수
-        Map<String, String[]> items = registeredItems();
+        Map<String, String[]> items = registeredItems(HR_ATTENDANCE_ITEM_MIGRATIONS);
         assertThat(items).containsKeys(
                 "MATERNITY_LEAVE_PREMATURE_DAYS",
                 "MISCARRIAGE_LEAVE_TIER1_FROM_WEEKS", "MISCARRIAGE_LEAVE_TIER5_DAYS",
@@ -106,6 +114,15 @@ class LegalRateItemRegistrationTest {
                 "PREGNANCY_REDUCED_HOURS_PER_DAY",
                 "SPOUSE_MATERNITY_LEAVE_SPLIT_COUNT", "PARENTAL_LEAVE_SPLIT_COUNT");
         assertThat(items).hasSize(47);
+    }
+
+    @Test
+    void 근로자_명부_보존_기간_항목이_연_단위로_등록돼_있다() throws IOException {
+        // #14: 근로기준법 제42조 보존 기간. 값은 사람이 입력한다(V010 에는 값 행 없음).
+        Map<String, String[]> items = registeredItems(List.of("db/oracle/V010__legal_rate_item_record_retention.sql"));
+        assertThat(items).containsOnlyKeys("EMPLOYEE_RECORD_RETENTION_YEARS");
+        assertThat(items.get("EMPLOYEE_RECORD_RETENTION_YEARS")[1]).isEqualTo(LegalRateUnit.YEARS);
+        assertThat(items.get("EMPLOYEE_RECORD_RETENTION_YEARS")[2]).contains("근로기준법 제42조");
     }
 
     @Test

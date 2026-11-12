@@ -4,7 +4,8 @@ package com.glassehr.legalrate;
  * 인사·근태 모듈이 쓰는 legal_rate 항목코드(#7). 코드·단위만 두고 값은 두지 않는다.
  *
  * <p>DB 등록은 {@code db/oracle/V003__legal_rate_items_hr_attendance.sql}과
- * {@code V005__legal_rate_items_hr_attendance_ext.sql}(추가 18개, 합계 47개)이며, 이 enum과 목록·단위가 같아야 한다
+ * {@code V005__legal_rate_items_hr_attendance_ext.sql}(추가 18개, 합계 47개),
+ * {@code V010__legal_rate_item_record_retention.sql}(근로자 명부 보존 기간 1개, 합계 48개)이며, 이 enum과 목록·단위가 같아야 한다
  * (LegalRateItemRegistrationTest). 근거 조문은 legal_rate_item.legal_basis 에 있다.
  * 값은 {@link LegalRateService#getEffective(LegalRateItem, java.time.LocalDate)}로 적용일 기준 조회한다.
  */
@@ -79,7 +80,10 @@ public enum LegalRateItem {
 
     // 같은 법 제22조의2: 가족돌봄휴직·가족돌봄휴가
     FAMILY_CARE_LEAVE_OF_ABSENCE_DAYS_PER_YEAR(LegalRateUnit.DAYS),
-    FAMILY_CARE_LEAVE_DAYS_PER_YEAR(LegalRateUnit.DAYS);
+    FAMILY_CARE_LEAVE_DAYS_PER_YEAR(LegalRateUnit.DAYS),
+
+    // 근로기준법 제42조: 근로자 명부 등 계약 서류 보존 기간(퇴직일부터) (V010, #14)
+    EMPLOYEE_RECORD_RETENTION_YEARS(LegalRateUnit.YEARS);
 
     private final String unit;
 

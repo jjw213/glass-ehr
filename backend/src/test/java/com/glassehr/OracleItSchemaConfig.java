@@ -44,6 +44,17 @@ public class OracleItSchemaConfig {
         if (org == null || org == 0) {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V008__org_dept.sql")).execute(dataSource);
         }
+        Integer emp = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'EMPLOYEE'", Integer.class);
+        if (emp == null || emp == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V009__employee.sql")).execute(dataSource);
+        }
+        Integer retention = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM legal_rate_item WHERE item_code = 'EMPLOYEE_RECORD_RETENTION_YEARS'", Integer.class);
+        if (retention == null || retention == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V010__legal_rate_item_record_retention.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
