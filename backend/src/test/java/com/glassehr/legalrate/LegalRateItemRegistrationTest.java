@@ -38,7 +38,8 @@ class LegalRateItemRegistrationTest {
     private static final List<String> ITEM_MIGRATIONS = List.of(
             "db/oracle/V003__legal_rate_items_hr_attendance.sql",
             "db/oracle/V005__legal_rate_items_hr_attendance_ext.sql",
-            "db/oracle/V010__legal_rate_item_record_retention.sql");
+            "db/oracle/V010__legal_rate_item_record_retention.sql",
+            "db/oracle/V011__legal_rate_item_fixed_term_limit.sql");
 
     /** #7 에서 등록한 인사·근태 항목 마이그레이션(V003·V005). */
     private static final List<String> HR_ATTENDANCE_ITEM_MIGRATIONS = ITEM_MIGRATIONS.subList(0, 2);
@@ -123,6 +124,15 @@ class LegalRateItemRegistrationTest {
         assertThat(items).containsOnlyKeys("EMPLOYEE_RECORD_RETENTION_YEARS");
         assertThat(items.get("EMPLOYEE_RECORD_RETENTION_YEARS")[1]).isEqualTo(LegalRateUnit.YEARS);
         assertThat(items.get("EMPLOYEE_RECORD_RETENTION_YEARS")[2]).contains("근로기준법 제42조");
+    }
+
+    @Test
+    void 기간제_사용기간_상한_항목이_연_단위로_등록돼_있다() throws IOException {
+        // #17: 기간제법 제4조 제1항. 값은 사람이 입력한다(V011 에는 값 행 없음).
+        Map<String, String[]> items = registeredItems(List.of("db/oracle/V011__legal_rate_item_fixed_term_limit.sql"));
+        assertThat(items).containsOnlyKeys("FIXED_TERM_MAX_USE_YEARS");
+        assertThat(items.get("FIXED_TERM_MAX_USE_YEARS")[1]).isEqualTo(LegalRateUnit.YEARS);
+        assertThat(items.get("FIXED_TERM_MAX_USE_YEARS")[2]).contains("제4조");
     }
 
     @Test
