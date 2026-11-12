@@ -34,4 +34,11 @@ export const navFor = (role: Role) => NAV.filter((n) => !n.roles || n.roles.incl
 /** 공통코드를 관리하는 역할(인사담당자·관리자). */
 export const canManageCodes = (role: Role) => navFor(role).some((n) => n.id === 'codes');
 
+/**
+ * 조직도에서 부서를 추가·이동할 수 있는 역할(인사담당자·관리자, #13). 일반 사원은 조회만.
+ * 화면에서만 막는 것이다. 백엔드 쓰기 권한 검사는 인증·권한 이슈에서 붙인다(docs/org-history-design.md 6장).
+ */
+export const ORG_MANAGER_ROLES: readonly Role[] = ['HR', 'ADMIN'];
+export const canManageOrg = (role: Role) => ORG_MANAGER_ROLES.includes(role);
+
 export const navById = (id: PageId) => NAV.find((n) => n.id === id)!;
