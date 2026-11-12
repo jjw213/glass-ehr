@@ -20,6 +20,7 @@ import com.glassehr.employee.EmployeeDtos.RetirementRequest;
 import com.glassehr.legalrate.LegalRateException;
 import com.glassehr.org.OrgDept;
 import com.glassehr.org.OrgDeptRepository;
+import com.glassehr.org.OrgWriteLock;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
@@ -52,6 +53,8 @@ class EmployeeServiceTest {
     private EmpNoGenerator empNos;
     private RrnService rrns;
     private RecordRetentionCalculator retention;
+    private OrgWriteLock orgLock;
+    private EmployeeRepository employees;
     private EmployeeService service;
 
     private void code(String group, String code, boolean active) {
@@ -73,6 +76,9 @@ class EmployeeServiceTest {
     void setUp() {
         EmployeeRepository employees = mock(EmployeeRepository.class);
         when(employees.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(0))));
+        when(employees.findForUpdate(anyLong()))
+                .thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(0))));
+        this.employees = employees;
         when(employees.saveAndFlush(any())).thenAnswer(inv -> {
             Employee e = inv.getArgument(0);
             if (e.getEmpId() == null) {
@@ -103,8 +109,11 @@ class EmployeeServiceTest {
         code(CodeGroups.RETIREMENT_REASON, "VOLUNTARY", true);
         dept(10L, LocalDate.of(2020, 1, 1), null);
         dept(11L, LocalDate.of(2020, 1, 1), HIRE); // 입사일에 폐지됨
+        dept(12L, LocalDate.of(2020, 1, 1), HIRE.plusMonths(9)); // 입사일 뒤에 폐지 예정
+        dept(13L, HIRE.plusDays(1), null); // 입사일 다음 날 신설
+        orgLock = mock(OrgWriteLock.class);
 
-        service = new EmployeeService(employees, empNos, codes, depts, rrns, retention,
+        service = new EmployeeService(employees, empNos, codes, depts, rrns, retention, orgLock,
                 Clock.fixed(Instant.parse("2026-11-12T01:00:00Z"), ZoneId.of("Asia/Seoul")));
     }
 
@@ -168,6 +177,34 @@ class EmployeeServiceTest {
 
         assertThat(service.create(create("FIXED_TERM", HIRE, HIRE.plusYears(1), 10L, null), HR).contractEndDate())
                 .isEqualTo(HIRE.plusYears(1));
+    }
+
+    @Test
+    void 폐지가_예정된_부서나_입사일에_없는_부서에는_입사_등록할_수_없다() {
+        // 입사 등록은 기한 없는 배정이라, 폐지일이 입사일 뒤여도 폐지일 이후 재직자가 남으므로 거부한다
+        assertThatThrownBy(() -> service.create(create("REGULAR", null, null, 12L, null), HR))
+                .isInstanceOfSatisfying(EmployeeException.class, e -> {
+                    assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(e.getMessage()).contains("폐지");
+                });
+        assertStatus(() -> service.create(create("REGULAR", null, null, 13L, null), HR), HttpStatus.BAD_REQUEST);
+        assertThat(store).isEmpty();
+        verify(empNos, never()).next(any(), any());
+    }
+
+    @Test
+    void 부서를_지정한_입사_등록은_조직_쓰기_잠금을_잡는다() {
+        service.create(regular(), HR);
+        verify(orgLock).acquire();
+    }
+
+    @Test
+    void 수정과_퇴직은_사원_행을_잠가_읽는다() {
+        long id = service.create(regular(), HR).empId();
+        when(retention.retentionUntil(any())).thenReturn(LocalDate.of(2031, 10, 31));
+        service.update(id, update("새이름", "REGULAR"));
+        service.retire(id, new RetirementRequest(LocalDate.of(2026, 10, 31), "VOLUNTARY", null));
+        verify(employees, org.mockito.Mockito.times(2)).findForUpdate(id);
     }
 
     @Test

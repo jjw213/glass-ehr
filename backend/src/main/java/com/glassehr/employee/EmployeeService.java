@@ -14,6 +14,7 @@ import com.glassehr.employee.EmployeeDtos.RetirementRequest;
 import com.glassehr.legalrate.LegalRateException;
 import com.glassehr.org.OrgDept;
 import com.glassehr.org.OrgDeptRepository;
+import com.glassehr.org.OrgWriteLock;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -49,22 +50,25 @@ public class EmployeeService {
     private final OrgDeptRepository depts;
     private final RrnService rrns;
     private final RecordRetentionCalculator retention;
+    private final OrgWriteLock orgLock;
     private final Clock clock;
 
     @Autowired
     public EmployeeService(EmployeeRepository employees, EmpNoGenerator empNos, CommonCodeRepository codes,
-            OrgDeptRepository depts, RrnService rrns, RecordRetentionCalculator retention) {
-        this(employees, empNos, codes, depts, rrns, retention, Clock.system(SEOUL));
+            OrgDeptRepository depts, RrnService rrns, RecordRetentionCalculator retention, OrgWriteLock orgLock) {
+        this(employees, empNos, codes, depts, rrns, retention, orgLock, Clock.system(SEOUL));
     }
 
     EmployeeService(EmployeeRepository employees, EmpNoGenerator empNos, CommonCodeRepository codes,
-            OrgDeptRepository depts, RrnService rrns, RecordRetentionCalculator retention, Clock clock) {
+            OrgDeptRepository depts, RrnService rrns, RecordRetentionCalculator retention, OrgWriteLock orgLock,
+            Clock clock) {
         this.employees = employees;
         this.empNos = empNos;
         this.codes = codes;
         this.depts = depts;
         this.rrns = rrns;
         this.retention = retention;
+        this.orgLock = orgLock;
         this.clock = clock.withZone(SEOUL);
     }
 
@@ -93,6 +97,8 @@ public class EmployeeService {
         InitialAssignment first = new InitialAssignment(req.deptId(), blankToNull(req.jobGradeCode()),
                 blankToNull(req.jobTitleCode()));
         if (first.deptId() != null) {
+            // 부서 폐지(OrgDeptService.close)와 같은 조직 쓰기 잠금을 잡아, 폐지 검사와 입사 등록이 엇갈려 둘 다 통과하지 않게 한다.
+            orgLock.acquire();
             requireDeptOpenOn(first.deptId(), req.hireDate());
         }
         requireCode(CodeGroups.JOB_GRADE, first.jobGradeCode(), "직급", false);
@@ -112,7 +118,7 @@ public class EmployeeService {
     /** 명부 기본정보 수정. 소속·직급·직책·사번·입사일·퇴직 정보는 바꾸지 않는다. */
     @Transactional
     public EmployeeView update(long empId, EmployeeUpdateRequest req) {
-        Employee e = load(empId);
+        Employee e = loadForUpdate(empId);
         BasicInfo info = basicInfo(req.name(), req.gender(), req.birthDate(), req.address(), req.careerHistory(),
                 req.jobDescription(), req.jobFamilyCode(), req.renewalDate(), req.contractStartDate(),
                 req.contractEndDate(), req.employmentTypeCode(), req.weeklyContractMinutes(), req.workLocationCode(),
@@ -131,7 +137,7 @@ public class EmployeeService {
      */
     @Transactional
     public EmployeeView retire(long empId, RetirementRequest req) {
-        Employee e = load(empId);
+        Employee e = loadForUpdate(empId);
         if (e.isRetired()) {
             throw EmployeeException.conflict("이미 퇴직 처리된 사원이에요(퇴직일 " + e.getRetireDate() + ")");
         }
@@ -157,6 +163,11 @@ public class EmployeeService {
 
     Employee load(long empId) {
         return employees.findById(empId).orElseThrow(() -> EmployeeException.notFound(empId));
+    }
+
+    /** 쓰기용: 행을 잠가 읽는다(수정과 퇴직 처리가 서로의 결과를 덮어쓰지 않게). */
+    private Employee loadForUpdate(long empId) {
+        return employees.findForUpdate(empId).orElseThrow(() -> EmployeeException.notFound(empId));
     }
 
     private static BasicInfo basicInfo(String name, String gender, LocalDate birthDate, String address,
@@ -208,11 +219,19 @@ public class EmployeeService {
         }
     }
 
-    /** 첫 소속 부서는 입사일에 존속 중이어야 한다([validFrom, validTo)). */
+    /**
+     * 첫 소속 부서는 입사일에 이미 신설되어 있고, 폐지일이 정해지지 않은 부서여야 한다.
+     * 입사 등록은 소속 종료일·퇴직일 없이 기한 없는 배정을 만들므로, 폐지(예정) 부서에 넣으면 폐지일 뒤에도
+     * 재직자가 남는다. 재직자가 있는 부서의 폐지를 거부하는 규칙(OrgDeptService.close)과 맞춘다.
+     */
     private void requireDeptOpenOn(long deptId, LocalDate d) {
         OrgDept dept = depts.findById(deptId).orElseThrow(() -> EmployeeException.badRequest("부서가 없어요: " + deptId));
-        if (dept.getValidFrom().isAfter(d) || (dept.getValidTo() != null && !d.isBefore(dept.getValidTo()))) {
+        if (dept.getValidFrom().isAfter(d)) {
             throw EmployeeException.badRequest("부서 " + dept.getDeptCode() + "는 입사일(" + d + ")에 존속하지 않아요");
+        }
+        if (dept.getValidTo() != null) {
+            throw EmployeeException.badRequest("부서 " + dept.getDeptCode() + "는 폐지되었거나 폐지가 예정되어 있어요(폐지일 "
+                    + dept.getValidTo() + "). 다른 부서를 선택해 주세요");
         }
     }
 
