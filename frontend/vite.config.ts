@@ -15,7 +15,10 @@ export default defineConfig({
       // 권한(#19): 내 권한 조회와 관리자용 개인정보 조회 로그.
       '/api/auth': 'http://localhost:8080',
       '/api/admin': 'http://localhost:8080',
-      '/api':'http://localhost:4000',
+      // 근무유형·배정(#25)도 Spring. /api/attendance/toggle 등 나머지 근태 경로는 아직 Node 서버다.
+      '/api/attendance/work-patterns': 'http://localhost:8080',
+      '/api/attendance/employees': 'http://localhost:8080',
+      '/api': 'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/
     fs: { allow: ['..'] },

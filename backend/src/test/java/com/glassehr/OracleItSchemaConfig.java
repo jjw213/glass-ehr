@@ -73,6 +73,17 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V013__auth_role_privacy_log.sql"))
                     .execute(dataSource);
         }
+        Integer workItems = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM legal_rate_item WHERE item_code = 'DAILY_STANDARD_WORK_HOURS'", Integer.class);
+        if (workItems == null || workItems == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V015__legal_rate_items_work_pattern.sql"))
+                    .execute(dataSource);
+        }
+        Integer pattern = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'WORK_PATTERN'", Integer.class);
+        if (pattern == null || pattern == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V016__work_pattern.sql")).execute(dataSource);
+        }
         return new Applied();
     }
 

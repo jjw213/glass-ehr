@@ -33,6 +33,9 @@ public final class LegalRateUnit {
     /** 횟수(조문 표기 그대로, 예: "n회에 한정하여 나누어 사용"의 n). V005 에서 추가. */
     public static final String COUNT = "COUNT";
 
+    /** 분(휴게시간 등). V015 에서 추가. */
+    public static final String MINUTES = "MINUTES";
+
     private LegalRateUnit() {
     }
 }
