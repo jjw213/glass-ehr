@@ -14,11 +14,11 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
-/** V011 정적 검사(Oracle 없이). 코드의 enum·권한 원칙과 마이그레이션이 어긋나지 않는지 본다. */
+/** V013 정적 검사(Oracle 없이). 코드의 enum·권한 원칙과 마이그레이션이 어긋나지 않는지 본다. */
 class AuthSchemaScriptTest {
 
     private static String sql() throws IOException {
-        return new ClassPathResource("db/oracle/V011__auth_role_privacy_log.sql").getContentAsString(StandardCharsets.UTF_8);
+        return new ClassPathResource("db/oracle/V013__auth_role_privacy_log.sql").getContentAsString(StandardCharsets.UTF_8);
     }
 
     private static Set<String> all(String sql, String regex) {

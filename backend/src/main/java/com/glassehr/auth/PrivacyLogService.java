@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 개인정보 조회 로그 화면(관리자) 조회. privacy_access_log(V011)와 주민등록번호 원문 조회 로그 rrn_access_log(V009)를
+ * 개인정보 조회 로그 화면(관리자) 조회. privacy_access_log(V013)와 주민등록번호 원문 조회 로그 rrn_access_log(V009)를
  * 같은 형식으로 합쳐 최근 순으로 돌려준다.
  */
 @Service

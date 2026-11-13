@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
 
 /**
- * WebMvc 테스트용 가짜 사용자(DB 없이). 역할별 권한은 V011 마이그레이션의 app_role_permission INSERT 를 그대로 읽는다
+ * WebMvc 테스트용 가짜 사용자(DB 없이). 역할별 권한은 V013 마이그레이션의 app_role_permission INSERT 를 그대로 읽는다
  * (테스트용 권한표를 따로 두면 실제 표와 어긋날 수 있으므로).
  *
  * <ul>
@@ -43,11 +43,11 @@ public class TestAuthUsers {
     private static final Pattern ROLE_PERM = Pattern.compile(
             "INSERT INTO app_role_permission \\(role_code, perm_code\\) VALUES \\('([A-Z_]+)', '([A-Z_]+)'\\);");
 
-    /** V011 의 역할 → 권한. */
+    /** V013 의 역할 → 권한. */
     public static Map<String, Set<Permission>> v011Matrix() {
         String sql;
         try {
-            sql = new ClassPathResource("db/oracle/V011__auth_role_privacy_log.sql").getContentAsString(StandardCharsets.UTF_8);
+            sql = new ClassPathResource("db/oracle/V013__auth_role_privacy_log.sql").getContentAsString(StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

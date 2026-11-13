@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * DB 기반 사용자 해석(V011).
+ * DB 기반 사용자 해석(V013).
  * <ul>
  *   <li>부여 역할은 app_user_role 에서 읽는다. 요청 헤더의 역할(X-Actor-Role)은 쓰지 않는다.</li>
  *   <li>모든 사용자에게 EMPLOYEE(본인 정보)를 붙인다.</li>

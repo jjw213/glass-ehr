@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 import org.hibernate.annotations.Immutable;
 
 /**
- * 개인정보 조회·다운로드 로그(추가만). 테이블: V011 privacy_access_log. 원문 값은 남기지 않는다.
+ * 개인정보 조회·다운로드 로그(추가만). 테이블: V013 privacy_access_log. 원문 값은 남기지 않는다.
  * 개인정보 보호법 제29조·개인정보의 안전성 확보조치 기준(접속기록 보관): 누가(accessor), 언제(accessedAt),
  * 누구의(targetEmpId), 무엇을(item·action), 결과, 접속 IP.
  */
@@ -21,7 +21,7 @@ import org.hibernate.annotations.Immutable;
 @Table(name = "privacy_access_log")
 public class PrivacyAccessLog {
 
-    /** 무엇을(V011 ck_privacy_log_item 과 같아야 함). */
+    /** 무엇을(V013 ck_privacy_log_item 과 같아야 함). */
     public enum Item {
         /** 인적사항(생년월일·주소·이력·메모) */
         EMP_PERSONAL,
@@ -31,13 +31,13 @@ public class PrivacyAccessLog {
         RRN
     }
 
-    /** V011 ck_privacy_log_action 과 같아야 함. */
+    /** V013 ck_privacy_log_action 과 같아야 함. */
     public enum Action {
         VIEW,
         DOWNLOAD
     }
 
-    /** V011 ck_privacy_log_result 와 같아야 함. */
+    /** V013 ck_privacy_log_result 와 같아야 함. */
     public enum Result {
         SUCCESS,
         DENIED,

@@ -48,7 +48,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 /**
  * 권한 우회 시나리오(#19 완료 기준). 서비스는 mock 이고, 권한 검사는 실제 AuthInterceptor·컨트롤러가 한다.
- * 사용자·권한표는 {@link TestAuthUsers}(V011 권한표를 그대로 읽음).
+ * 사용자·권한표는 {@link TestAuthUsers}(V013 권한표를 그대로 읽음).
  */
 @WebMvcTest(controllers = {EmployeeController.class, OrgController.class, CommonCodeController.class,
         AuthController.class})

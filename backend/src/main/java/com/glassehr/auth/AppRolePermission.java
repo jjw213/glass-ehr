@@ -8,7 +8,7 @@ import jakarta.persistence.Table;
 import java.io.Serializable;
 import org.hibernate.annotations.Immutable;
 
-/** 역할별 권한(읽기 전용). 테이블: V011 app_role_permission. 바꾸려면 마이그레이션을 추가한다. */
+/** 역할별 권한(읽기 전용). 테이블: V013 app_role_permission. 바꾸려면 마이그레이션을 추가한다. */
 @Entity
 @Immutable
 @Table(name = "app_role_permission")

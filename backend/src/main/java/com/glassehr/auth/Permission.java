@@ -1,7 +1,7 @@
 package com.glassehr.auth;
 
 /**
- * API 권한. V011 app_permission 코드와 같아야 한다(AuthSchemaScriptTest). 역할별 부여는 app_role_permission.
+ * API 권한. V013 app_permission 코드와 같아야 한다(AuthSchemaScriptTest). 역할별 부여는 app_role_permission.
  */
 public enum Permission {
     /** 전체 사원 조회 */

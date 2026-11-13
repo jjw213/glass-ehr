@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
-/** 로그인 사용자와 부여 역할. 테이블: V011 app_user, app_user_role. 관리 화면은 후속 이슈(지금은 SQL로 넣음). */
+/** 로그인 사용자와 부여 역할. 테이블: V013 app_user, app_user_role. 관리 화면은 후속 이슈(지금은 SQL로 넣음). */
 @Entity
 @Table(name = "app_user")
 public class AppUser {
