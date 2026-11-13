@@ -59,6 +59,13 @@ class HolidaySchemaScriptTest {
     }
 
     @Test
+    void 한_날짜에_회사휴일_대체된_휴일은_하나만_둔다() throws IOException {
+        // 동시 요청 두 건이 같은 근로일을 함께 차지하지 못하게 DB에서 막는다(서비스 검사만으로는 경쟁 조건).
+        assertThat(sql()).containsPattern("CREATE UNIQUE INDEX ux_holiday_reserved_date ON holiday \\(\\s*"
+                + "CASE WHEN holiday_kind IN \\('COMPANY', 'REPLACEMENT'\\) THEN holiday_date END\\)");
+    }
+
+    @Test
     void 공휴일_날짜_데이터를_마이그레이션에_넣지_않는다() throws IOException {
         // 공휴일 자료는 사람이 넣은 CSV 로만 불러온다(#26 완료 기준).
         assertThat(sql()).doesNotContainPattern("(?i)INSERT\\s+INTO");

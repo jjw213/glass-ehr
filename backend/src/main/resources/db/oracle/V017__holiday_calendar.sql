@@ -74,3 +74,9 @@ CREATE TABLE holiday (
 );
 
 CREATE INDEX ix_holiday_agreement ON holiday (agreement_id);
+
+-- 회사휴일·대체된 휴일은 휴일이 없는 날(근로일)에만 만든다. 서비스 검사만으로는 동시 요청 두 건이 같은 날을 함께
+-- 차지할 수 있으므로(다른 공휴일 두 개를 같은 날로 대체 등), 한 날짜에 회사휴일·대체된 휴일은 하나만 두도록 DB에서 막는다.
+-- 다른 종류 행은 CASE 결과가 NULL 이라 인덱스에 들어가지 않는다.
+CREATE UNIQUE INDEX ux_holiday_reserved_date ON holiday (
+    CASE WHEN holiday_kind IN ('COMPANY', 'REPLACEMENT') THEN holiday_date END);

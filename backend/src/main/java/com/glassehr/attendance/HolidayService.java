@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,16 +45,20 @@ public class HolidayService {
 
     private final HolidayRepository holidays;
     private final WorkerRepAgreementRepository agreements;
+    private final PublicHolidayPaidRule paidRule;
     private final Clock clock;
 
     @Autowired
-    public HolidayService(HolidayRepository holidays, WorkerRepAgreementRepository agreements) {
-        this(holidays, agreements, Clock.system(SEOUL));
+    public HolidayService(HolidayRepository holidays, WorkerRepAgreementRepository agreements,
+            PublicHolidayPaidRule paidRule) {
+        this(holidays, agreements, paidRule, Clock.system(SEOUL));
     }
 
-    HolidayService(HolidayRepository holidays, WorkerRepAgreementRepository agreements, Clock clock) {
+    HolidayService(HolidayRepository holidays, WorkerRepAgreementRepository agreements, PublicHolidayPaidRule paidRule,
+            Clock clock) {
         this.holidays = holidays;
         this.agreements = agreements;
+        this.paidRule = paidRule;
         this.clock = clock;
     }
 
@@ -135,6 +140,10 @@ public class HolidayService {
     /**
      * 사람이 넣은 공휴일 CSV를 불러온다. 같은 날짜·이름·종류가 이미 있으면 건너뛰고, 같은 날짜·이름인데 종류가 다르면
      * 전체를 거부한다. 형식 오류가 하나라도 있으면 아무것도 저장하지 않는다.
+     *
+     * <p>근로기준법 제55조 제2항·부칙: 공휴일 행은 유급휴일로 저장하므로, 모든 행의 날짜에 대해 이 사업장 규모에
+     * 제55조 제2항이 적용되는지 먼저 확인한다({@link PublicHolidayPaidRule}). 기준값이 없으면 409(LegalRateException),
+     * 시행 전 날짜가 하나라도 있으면 422로 전체를 거부한다. 시행 전 날을 쉬게 했다면 회사휴일로 등록한다.
      */
     @Transactional
     public ImportResult importPublicHolidays(String csv, String actor) {
@@ -143,6 +152,12 @@ public class HolidayService {
             rows = PublicHolidayCsv.parse(csv);
         } catch (PublicHolidayCsv.FormatException e) {
             throw AttendanceException.badRequest(e.getMessage());
+        }
+        for (PublicHolidayCsv.Row r : rows) {
+            if (!paidRule.appliesOn(r.date())) {
+                throw rejected(r.line() + "번째 줄: " + r.date() + "은(는) 이 사업장 규모에 근로기준법 제55조 제2항이 "
+                        + "시행되기 전이라 유급 공휴일로 넣을 수 없어요. 쉬게 했다면 회사휴일로 등록해 주세요");
+            }
         }
         LocalDateTime now = now();
         Map<LocalDate, List<Holiday>> byDate = new HashMap<>();
@@ -173,8 +188,19 @@ public class HolidayService {
             throw AttendanceException.conflict(req.date() + "은(는) 이미 휴일 달력에 있어요");
         }
         boolean paid = req.paid() == null || req.paid();
-        return view(holidays.save(Holiday.company(req.date(), req.name().trim(), paid, clean(req.note()), actor,
-                now())));
+        return view(reserve(Holiday.company(req.date(), req.name().trim(), paid, clean(req.note()), actor, now())));
+    }
+
+    /**
+     * 회사휴일·대체된 휴일을 그 날짜에 하나만 둔다. 앞의 "그 날에 휴일이 없다" 검사만으로는 동시에 들어온 두 요청이 모두
+     * 통과할 수 있으므로, DB 유일 인덱스(V017 ux_holiday_reserved_date)로 직렬화하고 즉시 flush 해 충돌을 409로 돌려준다.
+     */
+    private Holiday reserve(Holiday h) {
+        try {
+            return holidays.saveAndFlush(h);
+        } catch (DataIntegrityViolationException e) {
+            throw AttendanceException.conflict(h.getHolidayDate() + "은(는) 방금 다른 휴일로 등록됐어요. 달력을 새로 보고 다시 시도해 주세요");
+        }
     }
 
     /**
@@ -251,7 +277,7 @@ public class HolidayService {
         String base = original.getHolidayName();
         int max = PublicHolidayCsv.NAME_MAX - REPLACEMENT_SUFFIX.length();
         String name = (base.length() > max ? base.substring(0, max) : base) + REPLACEMENT_SUFFIX;
-        return view(holidays.save(Holiday.replacement(to, name, original.getHolidayId(), agreement.getAgreementId(),
+        return view(reserve(Holiday.replacement(to, name, original.getHolidayId(), agreement.getAgreementId(),
                 clean(req.note()), actor, now())));
     }
 

@@ -12,7 +12,13 @@ import com.glassehr.attendance.HolidayDtos.CompanyHolidayRequest;
 import com.glassehr.attendance.HolidayDtos.HolidayView;
 import com.glassehr.attendance.HolidayDtos.ImportResult;
 import com.glassehr.attendance.HolidayDtos.SubstitutionRequest;
+import com.glassehr.legalrate.LegalRateException;
+import com.glassehr.legalrate.LegalRateItem;
+import com.glassehr.legalrate.LegalRateRow;
+import com.glassehr.legalrate.LegalRateService;
+import com.glassehr.legalrate.LegalRateUnit;
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -38,7 +45,11 @@ class HolidayServiceTest {
             + "2099-03-01,시험 공휴일,법정공휴일,시험 규정 제1조,2099-01-01\n"
             + "2099-03-02,시험 공휴일 대체공휴일,대체공휴일,시험 규정 제2조,2099-01-01\n";
 
+    private static final LocalDate PAID_FROM = LocalDate.of(2098, 1, 1);
+    private static final LocalDate PAID_FROM_SMALL = LocalDate.of(2099, 1, 1);
+
     private final List<Holiday> rows = new ArrayList<>();
+    private LocalDate reservedDateTaken;
     private final List<WorkerRepAgreement> agreementRows = new ArrayList<>();
     private HolidayService service;
 
@@ -46,12 +57,18 @@ class HolidayServiceTest {
     void setUp() {
         HolidayRepository holidays = mock(HolidayRepository.class);
         WorkerRepAgreementRepository agreements = mock(WorkerRepAgreementRepository.class);
-        when(holidays.save(any())).thenAnswer(inv -> {
+        org.mockito.stubbing.Answer<Holiday> store = inv -> {
             Holiday h = inv.getArgument(0);
+            if (reservedDateTaken != null && reservedDateTaken.equals(h.getHolidayDate())) {
+                // DB 유일 인덱스 ux_holiday_reserved_date 위반(동시 요청이 먼저 커밋한 상황)을 흉내 낸다.
+                throw new DataIntegrityViolationException("ux_holiday_reserved_date");
+            }
             setField(h, "holidayId", (long) rows.size() + 1);
             rows.add(h);
             return h;
-        });
+        };
+        when(holidays.save(any())).thenAnswer(store);
+        when(holidays.saveAndFlush(any())).thenAnswer(store);
         when(holidays.findById(anyLong())).thenAnswer(inv -> byId(inv.getArgument(0)));
         when(holidays.findForUpdate(anyLong())).thenAnswer(inv -> byId(inv.getArgument(0)));
         when(holidays.findAllById(any())).thenAnswer(inv -> {
@@ -92,7 +109,20 @@ class HolidayServiceTest {
             return out;
         });
         Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
-        service = new HolidayService(holidays, agreements, clock);
+        // 가짜 기준값(실제 법정 값 아님): 2098년에는 적용 규모 하한 50명, 2099년부터 20명. 2098년 전은 기준값 없음.
+        // 이 사업장 상시근로자 수는 30명으로 둔다.
+        LegalRateService rates = mock(LegalRateService.class);
+        when(rates.getEffective(org.mockito.ArgumentMatchers.eq(LegalRateItem.PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT), any()))
+                .thenAnswer(inv -> {
+                    LocalDate d = inv.getArgument(1);
+                    if (d.isBefore(PAID_FROM)) {
+                        throw mock(LegalRateException.class);
+                    }
+                    BigDecimal min = d.isBefore(PAID_FROM_SMALL) ? BigDecimal.valueOf(50) : BigDecimal.valueOf(20);
+                    return new LegalRateRow(LegalRateItem.PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT.code(), PAID_FROM, null, min,
+                            LegalRateUnit.COUNT, "시험 부칙", null);
+                });
+        service = new HolidayService(holidays, agreements, new PublicHolidayPaidRule(rates, 30), clock);
     }
 
     private Optional<Holiday> byId(Object id) {
@@ -154,6 +184,43 @@ class HolidayServiceTest {
         service.importPublicHolidays(CSV, "hr1");
         String other = "날짜,이름,종류,출처,검증일\n2099-03-01,시험 공휴일,대체공휴일,출처,2099-01-01\n";
         assertThatThrownBy(() -> service.importPublicHolidays(other, "hr1"))
+                .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    @Test
+    void 사업장_규모에_제55조_제2항이_시행되기_전_날짜가_있으면_422이고_아무것도_저장하지_않는다() {
+        // 2098년: 가짜 적용 규모 하한 50명 > 이 사업장 30명
+        String csv = CSV + "2098-12-31,시험 시행 전 공휴일,법정공휴일,시험 규정 제1조,2099-01-01\n";
+        assertThatThrownBy(() -> service.importPublicHolidays(csv, "hr1"))
+                .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY))
+                .hasMessageContaining("4번째 줄").hasMessageContaining("제55조 제2항");
+        assertThat(rows).isEmpty();
+    }
+
+    @Test
+    void 적용_규모_기준값이_없는_날짜가_있으면_유급으로_저장하지_않는다() {
+        String csv = CSV + "2097-12-31,시험 기준값 없는 공휴일,법정공휴일,시험 규정 제1조,2099-01-01\n";
+        assertThatThrownBy(() -> service.importPublicHolidays(csv, "hr1")).isInstanceOf(LegalRateException.class);
+        assertThat(rows).isEmpty();
+    }
+
+    @Test
+    void 적용_규모_하한이_바뀌는_날부터_유급_공휴일로_넣을_수_있다() {
+        String csv = "날짜,이름,종류,출처,검증일\n2099-01-01,시험 신정,법정공휴일,시험 규정 제1조,2099-01-01\n";
+        assertThat(service.importPublicHolidays(csv, "hr1").inserted()).isEqualTo(1);
+        assertThat(rows.get(0).isPaid()).isTrue();
+    }
+
+    @Test
+    void 같은_날을_동시에_차지하면_나중_요청은_409() {
+        LocalDate target = LocalDate.of(2099, 4, 7);
+        reservedDateTaken = target;
+        long agreementId = agreement(LocalDate.of(2099, 1, 1), LocalDate.of(2099, 1, 1), null);
+        long id = publicHolidayId();
+        assertThatThrownBy(() -> service.substitute(new SubstitutionRequest(id, target, agreementId, null), "hr1"))
+                .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT));
+        assertThatThrownBy(() -> service.createCompanyHoliday(
+                new CompanyHolidayRequest(target, "창립기념일", null, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT));
     }
 
