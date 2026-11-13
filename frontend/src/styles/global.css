@@ -762,6 +762,22 @@ input[type='date'] { color-scheme: dark; }
 .violations { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .violations li { white-space: normal; }
 
+/* 휴일 달력 (#26) */
+.holiday-year { display: flex; align-items: center; gap: 8px; }
+.holiday-actions, .holiday-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.holiday-months { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+.holiday-month h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.holiday-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; font-size: 12px; text-align: center; }
+.holiday-grid__wd { color: var(--text-2); font-size: 11px; }
+.holiday-day { padding: 3px 0; border-radius: 6px; font-variant-numeric: tabular-nums; }
+.holiday-day--PUBLIC { background: rgba(255, 99, 99, 0.45); }
+.holiday-day--SUBSTITUTE { background: rgba(255, 190, 80, 0.45); }
+.holiday-day--COMPANY { background: rgba(90, 160, 255, 0.45); }
+.holiday-day--REPLACEMENT { background: rgba(80, 210, 140, 0.45); }
+.holiday-day--moved { text-decoration: line-through; opacity: 0.6; }
+.holiday-day--today { outline: 1px solid rgba(255, 255, 255, 0.85); }
+.holiday-agreement { border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 10px; display: grid; gap: 8px; }
+
 /* 사원 목록·인사기록카드 (#15) */
 .emp-filters { display: flex; gap: 8px; flex-wrap: wrap; max-width: 520px; }
 .emp-filters select { flex: 1 1 160px; width: auto; }

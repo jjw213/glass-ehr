@@ -84,6 +84,12 @@ public class OracleItSchemaConfig {
         if (pattern == null || pattern == 0) {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V016__work_pattern.sql")).execute(dataSource);
         }
+        Integer holiday = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'HOLIDAY'", Integer.class);
+        if (holiday == null || holiday == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V017__holiday_calendar.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
