@@ -1,0 +1,5 @@
+case_id,기준일,item_code,기대_결과,기대_값,단위,출처,검증일
+"before_supported","2008-06-30","WEEKLY_STANDARD_WORK_HOURS","NOT_FOUND","","HOURS","근로기준법 제50조제1항; 법률 제8372호 부칙 제4조제5호; 법률 제15513호 부칙 제1조제2항제3호 | https://law.go.kr/LSW/lsRvsDocListP.do?lsId=001872&lsRvsGubun=all | https://www.law.go.kr/nwRvsLsInfoR.do?lsiSeq=202870","2026-11-13"
+"supported_on","2008-07-01","WEEKLY_STANDARD_WORK_HOURS","FOUND","40","HOURS","근로기준법 제50조제1항; 법률 제8372호 부칙 제4조제5호; 법률 제15513호 부칙 제1조제2항제3호 | https://law.go.kr/LSW/lsRvsDocListP.do?lsId=001872&lsRvsGubun=all | https://www.law.go.kr/nwRvsLsInfoR.do?lsiSeq=202870","2026-11-13"
+"definition_before","2021-06-30","WEEKLY_STANDARD_WORK_HOURS","FOUND","40","HOURS","근로기준법 제50조제1항; 법률 제8372호 부칙 제4조제5호; 법률 제15513호 부칙 제1조제2항제3호 | https://law.go.kr/LSW/lsRvsDocListP.do?lsId=001872&lsRvsGubun=all | https://www.law.go.kr/nwRvsLsInfoR.do?lsiSeq=202870","2026-11-13"
+"definition_on","2021-07-01","WEEKLY_STANDARD_WORK_HOURS","FOUND","40","HOURS","근로기준법 제50조제1항; 법률 제8372호 부칙 제4조제5호; 법률 제15513호 부칙 제1조제2항제3호 | https://law.go.kr/LSW/lsRvsDocListP.do?lsId=001872&lsRvsGubun=all | https://www.law.go.kr/nwRvsLsInfoR.do?lsiSeq=202870","2026-11-13"
