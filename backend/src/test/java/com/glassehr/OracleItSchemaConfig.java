@@ -67,6 +67,12 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V012__employment_contract.sql"))
                     .execute(dataSource);
         }
+        Integer appointment = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'HR_APPOINTMENT'", Integer.class);
+        if (appointment == null || appointment == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V014__hr_appointment.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
