@@ -39,7 +39,8 @@ class LegalRateItemRegistrationTest {
             "db/oracle/V003__legal_rate_items_hr_attendance.sql",
             "db/oracle/V005__legal_rate_items_hr_attendance_ext.sql",
             "db/oracle/V010__legal_rate_item_record_retention.sql",
-            "db/oracle/V011__legal_rate_items_work_pattern.sql");
+            "db/oracle/V011__legal_rate_item_fixed_term_limit.sql",
+            "db/oracle/V015__legal_rate_items_work_pattern.sql");
 
     /** #7 에서 등록한 인사·근태 항목 마이그레이션(V003·V005). */
     private static final List<String> HR_ATTENDANCE_ITEM_MIGRATIONS = ITEM_MIGRATIONS.subList(0, 2);
@@ -48,7 +49,7 @@ class LegalRateItemRegistrationTest {
     private static final List<String> UNIT_CHECK_MIGRATIONS = List.of(
             "db/oracle/V002__legal_rate_item_unit.sql",
             "db/oracle/V005__legal_rate_items_hr_attendance_ext.sql",
-            "db/oracle/V011__legal_rate_items_work_pattern.sql");
+            "db/oracle/V015__legal_rate_items_work_pattern.sql");
 
     private static Map<String, String[]> registeredItems() throws IOException {
         return registeredItems(ITEM_MIGRATIONS);
@@ -129,8 +130,8 @@ class LegalRateItemRegistrationTest {
 
     @Test
     void 근무유형_검사_항목이_조문과_함께_등록돼_있다() throws IOException {
-        // #25: 근로기준법 제50조·제54조·제55조. 값은 사람이 입력한다(V011 에는 값 행 없음).
-        Map<String, String[]> items = registeredItems(List.of("db/oracle/V011__legal_rate_items_work_pattern.sql"));
+        // #25: 근로기준법 제50조·제54조·제55조. 값은 시드(legal_rate_work_pattern.sql)로 넣는다(V015 에는 값 행 없음).
+        Map<String, String[]> items = registeredItems(List.of("db/oracle/V015__legal_rate_items_work_pattern.sql"));
         assertThat(items).containsOnlyKeys(
                 "WEEKLY_STANDARD_WORK_HOURS", "DAILY_STANDARD_WORK_HOURS",
                 "BREAK_SHORT_THRESHOLD_HOURS", "BREAK_SHORT_MIN_MINUTES",
@@ -141,6 +142,15 @@ class LegalRateItemRegistrationTest {
         assertThat(items.get("BREAK_LONG_MIN_MINUTES")[1]).isEqualTo(LegalRateUnit.MINUTES);
         assertThat(items.get("BREAK_SHORT_MIN_MINUTES")[2]).contains("근로기준법 제54조 제1항");
         assertThat(items.get("WEEKLY_PAID_HOLIDAY_MIN_COUNT")[2]).contains("근로기준법 제55조 제1항");
+    }
+
+    @Test
+    void 기간제_사용기간_상한_항목이_연_단위로_등록돼_있다() throws IOException {
+        // #17: 기간제법 제4조 제1항. 값은 사람이 입력한다(V011 에는 값 행 없음).
+        Map<String, String[]> items = registeredItems(List.of("db/oracle/V011__legal_rate_item_fixed_term_limit.sql"));
+        assertThat(items).containsOnlyKeys("FIXED_TERM_MAX_USE_YEARS");
+        assertThat(items.get("FIXED_TERM_MAX_USE_YEARS")[1]).isEqualTo(LegalRateUnit.YEARS);
+        assertThat(items.get("FIXED_TERM_MAX_USE_YEARS")[2]).contains("제4조");
     }
 
     @Test

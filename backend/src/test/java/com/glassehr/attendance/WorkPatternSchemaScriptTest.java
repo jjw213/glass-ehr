@@ -8,11 +8,11 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
-/** 근무유형 DDL(V012) 정적 검사. DB 없이 돈다. */
+/** 근무유형 DDL(V016) 정적 검사. DB 없이 돈다. */
 class WorkPatternSchemaScriptTest {
 
     private static String sql() throws IOException {
-        return new ClassPathResource("db/oracle/V012__work_pattern.sql").getContentAsString(StandardCharsets.UTF_8)
+        return new ClassPathResource("db/oracle/V016__work_pattern.sql").getContentAsString(StandardCharsets.UTF_8)
                 .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
     }
 

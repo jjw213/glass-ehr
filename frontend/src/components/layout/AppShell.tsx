@@ -13,6 +13,7 @@ import { OrgPage } from '../../pages/OrgPage';
 import { SettingsPage } from '../../pages/SettingsPage';
 import { CodesPage } from '../../pages/CodesPage';
 import { WorkPatternsPage } from '../../pages/WorkPatternsPage';
+import { PrivacyLogsPage } from '../../pages/PrivacyLogsPage';
 import { useEffect, useState, type JSX } from 'react';
 
 const PAGES: Record<PageId, () => JSX.Element> = {
@@ -26,6 +27,7 @@ const PAGES: Record<PageId, () => JSX.Element> = {
   settings: SettingsPage,
   codes: CodesPage,
   workPatterns: WorkPatternsPage,
+  privacyLogs: PrivacyLogsPage,
 };
 
 /** Desktop: top pill bar + floating dock (video 2). Mobile: glass sidebar (video 3). */

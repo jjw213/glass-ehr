@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.glassehr.attendance.WorkPatternDtos.AssignmentView;
 import com.glassehr.attendance.WorkPatternDtos.WorkPatternView;
+import com.glassehr.auth.TestAuth;
 import com.glassehr.legalrate.LegalRateException;
 import java.time.LocalDate;
 import java.util.List;
@@ -20,11 +21,13 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(WorkPatternController.class)
+@Import(TestAuth.class)
 class WorkPatternControllerTest {
 
     private static final String BODY = """
@@ -108,6 +111,8 @@ class WorkPatternControllerTest {
                         .content("{\"patternId\":1,\"validFrom\":\"2026-12-01\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.validFrom").value("2026-12-01"));
+        // 요청자는 서버가 확인한 로그인 사용자(hr1)로 기록된다.
+        verify(service).assign(eq(5L), any(), eq("hr1"));
 
         when(service.history(5)).thenReturn(List.of(a));
         mvc.perform(get("/api/attendance/employees/5/work-patterns"))
@@ -121,6 +126,43 @@ class WorkPatternControllerTest {
                         .content("{\"patternId\":1}"))
                 .andExpect(status().isBadRequest());
         verify(service, never()).assign(anyLong(), any(), any());
+    }
+
+    @Test
+    void 일반_사원은_근무유형을_볼_수_있지만_등록_배정은_403() throws Exception {
+        when(service.list()).thenReturn(List.of(view()));
+        mvc.perform(get("/api/attendance/work-patterns").header("X-Actor-Id", "emp1"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/attendance/work-patterns").header("X-Actor-Id", "emp1")
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/attendance/employees/5/work-patterns").header("X-Actor-Id", "emp1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"patternId\":1,\"validFrom\":\"2026-12-01\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/attendance/employees/5/work-patterns").header("X-Actor-Id", "emp1"))
+                .andExpect(status().isForbidden());
+        verify(service, never()).create(any());
+        verify(service, never()).assign(anyLong(), any(), any());
+        verify(service, never()).history(anyLong());
+    }
+
+    @Test
+    void 급여담당은_배정을_조회만_할_수_있다() throws Exception {
+        when(service.history(5)).thenReturn(List.of());
+        mvc.perform(get("/api/attendance/employees/5/work-patterns").header("X-Actor-Id", "pay1"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/attendance/work-patterns").header("X-Actor-Id", "pay1")
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isForbidden());
+        verify(service, never()).create(any());
+    }
+
+    @Test
+    void 사용자를_모르면_401() throws Exception {
+        mvc.perform(get("/api/attendance/work-patterns").header("X-Actor-Id", "nobody"))
+                .andExpect(status().isUnauthorized());
+        verify(service, never()).list();
     }
 
     @Test

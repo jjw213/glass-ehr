@@ -58,7 +58,7 @@
 -- SPOUSE_MATERNITY_LEAVE_SPLIT_COUNT          COUNT        남녀고용평등법 제18조의2
 -- PARENTAL_LEAVE_SPLIT_COUNT                  COUNT        남녀고용평등법 제19조, 제19조의4 제1항
 -- (남녀고용평등법 = 남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률)
--- --- V011(#25 근무유형 검사)에서 추가한 7개 ---
+-- --- V015(#25 근무유형 검사)에서 추가한 7개 ---
 -- WEEKLY_STANDARD_WORK_HOURS                  HOURS        근로기준법 제50조 제1항
 -- DAILY_STANDARD_WORK_HOURS                   HOURS        근로기준법 제50조 제2항
 -- BREAK_SHORT_THRESHOLD_HOURS                 HOURS        근로기준법 제54조 제1항

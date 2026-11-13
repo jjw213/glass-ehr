@@ -4,6 +4,9 @@ import com.glassehr.attendance.WorkPatternDtos.AssignRequest;
 import com.glassehr.attendance.WorkPatternDtos.AssignmentView;
 import com.glassehr.attendance.WorkPatternDtos.WorkPatternRequest;
 import com.glassehr.attendance.WorkPatternDtos.WorkPatternView;
+import com.glassehr.auth.AuthUser;
+import com.glassehr.auth.Permission;
+import com.glassehr.auth.RequiresPermission;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -17,7 +20,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -34,13 +36,13 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>GET  /api/attendance/employees/{empId}/work-patterns/effective?date= — 기준일 배정</li>
  *   <li>POST /api/attendance/employees/{empId}/work-patterns — 배정 추가(적용 시작일부터)</li>
  * </ul>
- * 쓰기 권한(인사담당) 검사는 백엔드 인증·권한 이슈에서 붙인다. 요청자는 임시로 {@code X-Actor-Id} 헤더에서 받는다.
+ * 권한(#19 AuthInterceptor): 근무유형 목록·미리보기는 로그인 사용자 모두(개인정보 없음), 근무유형 등록·수정과
+ * 배정은 {@link Permission#EMP_WRITE}(관리자·인사), 사원 배정 조회는 {@link Permission#EMP_READ_ALL}(관리자·인사·급여).
+ * 근로계약(#17)과 같은 구분이다. 배정 요청자는 서버가 확인한 {@link AuthUser}에서 받는다.
  */
 @RestController
 @RequestMapping("/api/attendance")
 public class WorkPatternController {
-
-    private static final String ANONYMOUS = "anonymous";
 
     private final WorkPatternService service;
 
@@ -48,11 +50,13 @@ public class WorkPatternController {
         this.service = service;
     }
 
+    @RequiresPermission
     @GetMapping("/work-patterns")
     public List<WorkPatternView> list() {
         return service.list();
     }
 
+    @RequiresPermission
     @PostMapping("/work-patterns/check")
     public Map<String, Object> check(@Valid @RequestBody WorkPatternRequest req) {
         WorkPatternRules.Result r = service.check(req.spec());
@@ -64,22 +68,26 @@ public class WorkPatternController {
         return m;
     }
 
+    @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/work-patterns")
     @ResponseStatus(HttpStatus.CREATED)
     public WorkPatternView create(@Valid @RequestBody WorkPatternRequest req) {
         return service.create(req);
     }
 
+    @RequiresPermission(Permission.EMP_WRITE)
     @PutMapping("/work-patterns/{patternId}")
     public WorkPatternView update(@PathVariable long patternId, @Valid @RequestBody WorkPatternRequest req) {
         return service.update(patternId, req);
     }
 
+    @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/employees/{empId}/work-patterns")
     public List<AssignmentView> history(@PathVariable long empId) {
         return service.history(empId);
     }
 
+    @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/employees/{empId}/work-patterns/effective")
     public ResponseEntity<AssignmentView> effective(@PathVariable long empId,
             @RequestParam(name = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -88,18 +96,10 @@ public class WorkPatternController {
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
+    @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/employees/{empId}/work-patterns")
     @ResponseStatus(HttpStatus.CREATED)
-    public AssignmentView assign(@PathVariable long empId, @Valid @RequestBody AssignRequest req,
-            @RequestHeader(name = "X-Actor-Id", required = false) String actorId) {
-        return service.assign(empId, req, actor(actorId));
-    }
-
-    private static String actor(String id) {
-        if (id == null || id.isBlank()) {
-            return ANONYMOUS;
-        }
-        String s = id.strip();
-        return s.length() > 50 ? s.substring(0, 50) : s;
+    public AssignmentView assign(@PathVariable long empId, @Valid @RequestBody AssignRequest req, AuthUser user) {
+        return service.assign(empId, req, user.loginId());
     }
 }
