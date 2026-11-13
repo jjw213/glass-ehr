@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, ApiError, type Bootstrap, type Dept, type NewLeave } from '../api';
 import { setActorId } from '../api/http';
 
-export type PageId = 'home' | 'attendance' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'workPatterns' | 'privacyLogs';
-export const PAGE_IDS: PageId[] = ['home', 'attendance', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings', 'codes', 'workPatterns', 'privacyLogs'];
+export type PageId = 'home' | 'attendance' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'workPatterns' | 'agreements' | 'privacyLogs';
+export const PAGE_IDS: PageId[] = ['home', 'attendance', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings', 'codes', 'workPatterns', 'agreements', 'privacyLogs'];
 export type SceneId = 'sunset' | 'dawn' | 'night';
 
 interface Toast { id: number; text: string }

@@ -18,6 +18,8 @@ export default defineConfig({
       // 근무유형·배정(#25)도 Spring. /api/attendance/toggle 등 나머지 근태 경로는 아직 Node 서버다.
       '/api/attendance/work-patterns': 'http://localhost:8080',
       '/api/attendance/employees': 'http://localhost:8080',
+      // 근로자대표 서면합의서(#27)도 Spring.
+      '/api/attendance/agreements': 'http://localhost:8080',
       '/api': 'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/

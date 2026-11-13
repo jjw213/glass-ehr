@@ -22,6 +22,12 @@ spring:
       hibernate:
         jdbc:
           time_zone: Asia/Seoul
+  servlet:
+    multipart:
+      # 서면합의서 첨부(#27, 앱 한도 glassehr.agreement.max-file-bytes = 10MB)보다 조금 크게 둔다.
+      # 한도를 넘으면 앱에서 413 메시지를 주기 위해서다. 사원 CSV(#20)도 이 한도를 쓴다.
+      max-file-size: 11MB
+      max-request-size: 12MB
   jackson:
     time-zone: Asia/Seoul
     deserialization:
@@ -47,3 +53,8 @@ glassehr:
   contract:
     expiry-alert-days: ${CONTRACT_EXPIRY_ALERT_DAYS:30}
     fixed-term-limit-alert-days: ${CONTRACT_FIXED_TERM_LIMIT_ALERT_DAYS:30}
+  # 근로자대표 서면합의서(#27). 만료 예정 알림 기간(일)과 첨부 1건 최대 크기(바이트). 법정 수치가 아니라 운영 설정이다.
+  # 첨부 크기를 키우면 spring.servlet.multipart 한도도 함께 키운다.
+  agreement:
+    expiry-alert-days: ${AGREEMENT_EXPIRY_ALERT_DAYS:30}
+    max-file-bytes: ${AGREEMENT_MAX_FILE_BYTES:10485760}

@@ -90,6 +90,13 @@ public class OracleItSchemaConfig {
         if (pattern == null || pattern == 0) {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V016__work_pattern.sql")).execute(dataSource);
         }
+        // V017·V018 은 다른 열린 PR(#68)이 쓴다. 이 브랜치에는 없다.
+        Integer agreement = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'LABOR_AGREEMENT'", Integer.class);
+        if (agreement == null || agreement == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V019__labor_agreement.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

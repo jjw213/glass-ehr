@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuShieldCheck } from 'react-icons/lu';
+import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuShieldCheck, LuFileSignature } from 'react-icons/lu';
 import type { Role } from './api/types';
 import type { PageId } from './state/store';
 
@@ -27,6 +27,7 @@ export const NAV: NavItem[] = [
   { id: 'settings', label: '설정', short: '설정', icon: LuSettings, section: 'system' },
   { id: 'codes', label: '공통코드 관리', short: '코드', icon: LuListTree, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'workPatterns', label: '근무유형 관리', short: '근무유형', icon: LuCalendarClock, section: 'system', roles: ['HR', 'ADMIN'] },
+  { id: 'agreements', label: '서면합의서 관리', short: '합의서', icon: LuFileSignature, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'privacyLogs', label: '개인정보 조회 로그', short: '로그', icon: LuShieldCheck, section: 'system', roles: ['ADMIN'] },
 ];
 
@@ -38,6 +39,9 @@ export const canManageCodes = (role: Role) => navFor(role).some((n) => n.id === 
 
 /** 근무유형을 관리하는 역할(인사담당자·관리자, #25). 화면에서만 막는다. 백엔드 권한 검사는 인증·권한 이슈에서 붙인다. */
 export const canManageWorkPatterns = (role: Role) => navFor(role).some((n) => n.id === 'workPatterns');
+
+/** 근로자대표 서면합의서를 관리하는 역할(인사담당자·관리자, #27). 메뉴 표시용이며 실제 차단은 서버 EMP_WRITE·EMP_READ_ALL 검사가 한다. */
+export const canManageAgreements = (role: Role) => navFor(role).some((n) => n.id === 'agreements');
 
 /** 개인정보 조회 로그를 보는 역할(관리자, #19). 메뉴 표시용이며 실제 차단은 서버 PRIVACY_LOG_READ 권한 검사가 한다. */
 export const canReadPrivacyLogs = (role: Role) => navFor(role).some((n) => n.id === 'privacyLogs');
