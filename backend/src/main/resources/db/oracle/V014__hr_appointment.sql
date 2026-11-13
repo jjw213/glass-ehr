@@ -52,7 +52,7 @@ CREATE TABLE hr_appointment (
     CONSTRAINT fk_hr_appt_after_dept FOREIGN KEY (after_dept_id) REFERENCES org_dept (dept_id),
     CONSTRAINT ck_hr_appt_no
         CHECK (REGEXP_LIKE(appt_no, '^AP-[0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]$', 'c')),
-    CONSTRAINT ck_hr_appt_reason CHECK (LENGTH(TRIM(reason)) > 0),
+    CONSTRAINT ck_hr_appt_reason CHECK (TRIM(reason) IS NOT NULL),
     CONSTRAINT ck_hr_appt_before_status
         CHECK (before_emp_status IS NULL OR before_emp_status IN ('ACTIVE', 'ON_LEAVE', 'RETIRED')),
     CONSTRAINT ck_hr_appt_after_status CHECK (after_emp_status IN ('ACTIVE', 'ON_LEAVE', 'RETIRED')),
