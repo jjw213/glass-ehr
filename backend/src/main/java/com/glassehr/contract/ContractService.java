@@ -120,8 +120,8 @@ public class ContractService {
     /** 서면 교부 전 계약만 고친다. 교부 뒤 변경은 새 계약으로 등록한다(교부한 서면과 기록이 달라지지 않게). */
     @Transactional
     public ContractView update(long contractId, ContractRequest req) {
-        EmploymentContract c = load(contractId);
-        Employee e = lockEmployee(c.getEmpId());
+        Employee e = lockEmployee(empIdOf(contractId));
+        EmploymentContract c = loadForUpdate(contractId);
         if (c.isDelivered()) {
             throw ContractException.conflict("서면을 교부한 계약(교부일 " + c.getWrittenDeliveredDate()
                     + ")은 고칠 수 없어요. 바뀐 근로조건은 새 계약으로 등록해 주세요");
@@ -141,8 +141,8 @@ public class ContractService {
     /** 서면 교부일 기록(근로기준법 제17조 제2항, 기간제법 제17조). 한 번 기록하면 바꾸지 않는다. */
     @Transactional
     public ContractView recordDelivery(long contractId, DeliveryRequest req) {
-        EmploymentContract c = load(contractId);
-        lockEmployee(c.getEmpId());
+        lockEmployee(empIdOf(contractId));
+        EmploymentContract c = loadForUpdate(contractId);
         if (c.isDelivered()) {
             throw ContractException.conflict("이미 서면 교부일이 기록돼 있어요(" + c.getWrittenDeliveredDate() + ")");
         }
@@ -256,6 +256,21 @@ public class ContractService {
 
     private EmploymentContract load(long contractId) {
         return contracts.findById(contractId)
+                .orElseThrow(() -> ContractException.notFound("근로계약이 없어요: " + contractId));
+    }
+
+    /** 쓰기용 1단계: 계약 엔티티를 올리지 않고 사원 ID만 읽는다(잠금 전 상태를 영속성 컨텍스트에 남기지 않게). */
+    private long empIdOf(long contractId) {
+        return contracts.findEmpIdByContractId(contractId)
+                .orElseThrow(() -> ContractException.notFound("근로계약이 없어요: " + contractId));
+    }
+
+    /**
+     * 쓰기용 2단계: 사원 잠금을 잡은 뒤 계약 행을 잠가 읽는다. 잠금 대기 중 다른 요청이 교부일을 기록했으면
+     * 그 결과를 읽어 교부된 계약을 고치거나 교부일을 덮어쓰지 않는다.
+     */
+    private EmploymentContract loadForUpdate(long contractId) {
+        return contracts.findForUpdate(contractId)
                 .orElseThrow(() -> ContractException.notFound("근로계약이 없어요: " + contractId));
     }
 

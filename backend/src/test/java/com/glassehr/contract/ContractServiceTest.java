@@ -4,7 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.glassehr.code.CodeGroups;
@@ -32,6 +36,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -52,6 +57,8 @@ class ContractServiceTest {
     private long nextId = 1;
 
     private FixedTermUsePeriodCalculator useLimit;
+    private EmploymentContractRepository contracts;
+    private EmployeeRepository employees;
     private ContractService service;
 
     private Employee emp(long id, LocalDate hire, LocalDate retire) {
@@ -79,8 +86,11 @@ class ContractServiceTest {
 
     @BeforeEach
     void setUp() {
-        EmploymentContractRepository contracts = mock(EmploymentContractRepository.class);
+        contracts = mock(EmploymentContractRepository.class);
         when(contracts.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(0))));
+        when(contracts.findForUpdate(anyLong())).thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(0))));
+        when(contracts.findEmpIdByContractId(anyLong())).thenAnswer(inv ->
+                Optional.ofNullable(store.get(inv.<Long>getArgument(0))).map(EmploymentContract::getEmpId));
         when(contracts.saveAndFlush(any())).thenAnswer(inv -> {
             EmploymentContract c = inv.getArgument(0);
             if (c.getContractId() == null) {
@@ -102,7 +112,7 @@ class ContractServiceTest {
                 sorted(Comparator.comparing(EmploymentContract::getEmpId)
                         .thenComparing(EmploymentContract::getStartDate)));
 
-        EmployeeRepository employees = mock(EmployeeRepository.class);
+        employees = mock(EmployeeRepository.class);
         when(employees.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(0))));
         when(employees.findForUpdate(anyLong()))
                 .thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(0))));
@@ -205,6 +215,24 @@ class ContractServiceTest {
     }
 
     // ---------------------------------------------------------------- 수정·교부
+
+    @Test
+    void 수정과_교부는_사원_잠금_뒤에_계약을_잠가_읽고_잠금_전에는_계약_엔티티를_읽지_않는다() {
+        long id = service.create(1, bare("REGULAR", HIRE, null)).contractId();
+        clearInvocations(contracts, employees);
+
+        service.update(id, req("REGULAR", HIRE, null));
+        service.recordDelivery(id, new DeliveryRequest(HIRE));
+
+        // 잠금 전에 엔티티를 올리면 대기 중 다른 트랜잭션이 기록한 교부일을 보지 못한다(Codex 리뷰 #61).
+        verify(contracts, never()).findById(anyLong());
+        InOrder order = inOrder(contracts, employees);
+        for (int i = 0; i < 2; i++) {
+            order.verify(contracts).findEmpIdByContractId(id);
+            order.verify(employees).findForUpdate(1L);
+            order.verify(contracts).findForUpdate(id);
+        }
+    }
 
     @Test
     void 교부_전에는_고치고_교부_뒤에는_고칠_수_없다() {
