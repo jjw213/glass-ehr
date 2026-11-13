@@ -30,9 +30,24 @@ class CommonCodeSeedScriptTest {
                 .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
     }
 
+    /** 공통코드 그룹·코드를 넣는 마이그레이션(적용 순서). V014는 발령 유형(#58). */
+    private static final List<String> SEED_FILES = List.of(
+            "db/oracle/V007__common_code_seed.sql", "db/oracle/V014__hr_appointment.sql");
+
+    /** 시드 파일들의 INSERT 문만 이어 붙인다(V014의 CREATE 문은 빼고). */
+    private static String seedSql() throws IOException {
+        StringBuilder sb = new StringBuilder();
+        for (String f : SEED_FILES) {
+            String text = sql(f);
+            int first = text.indexOf("INSERT INTO");
+            sb.append(first < 0 ? "" : text.substring(first)).append('\n');
+        }
+        return sb.toString();
+    }
+
     private static List<String> seedGroups() throws IOException {
         List<String> out = new ArrayList<>();
-        Matcher m = GROUP_INSERT.matcher(sql("db/oracle/V007__common_code_seed.sql"));
+        Matcher m = GROUP_INSERT.matcher(seedSql());
         while (m.find()) {
             out.add(m.group(1));
         }
@@ -41,7 +56,7 @@ class CommonCodeSeedScriptTest {
 
     private static List<Row> seedCodes() throws IOException {
         List<Row> out = new ArrayList<>();
-        Matcher m = CODE_INSERT.matcher(sql("db/oracle/V007__common_code_seed.sql"));
+        Matcher m = CODE_INSERT.matcher(seedSql());
         while (m.find()) {
             out.add(new Row(m.group(1), m.group(2), m.group(3)));
         }
@@ -55,7 +70,7 @@ class CommonCodeSeedScriptTest {
 
     @Test
     void 모든_INSERT_문을_빠짐없이_읽었다() throws IOException {
-        String text = sql("db/oracle/V007__common_code_seed.sql");
+        String text = seedSql();
         long inserts = Pattern.compile("INSERT INTO").matcher(text).results().count();
         assertThat(seedGroups().size() + seedCodes().size()).isEqualTo((int) inserts);
     }

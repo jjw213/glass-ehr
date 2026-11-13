@@ -45,6 +45,15 @@
 - 2026-11-13: #19 역할 권한과 개인정보 조회 로그 — V013(역할·권한·사용자·`privacy_access_log`), `AuthInterceptor`로 모든 `/api` 요청을 서버에서 검사(권한 표시 없는 API는 403, 역할은 DB에서 읽고 `X-Actor-Role`은 무시), 부서장은 조직도 기준 자기 부서+하위부서만, 인적사항 조회·명부 다운로드·주민번호 원문 조회를 거부 포함 로그로 남김. 관리자용 `GET /api/admin/privacy-logs`와 `개인정보 조회 로그` 화면을 추가하고, 프론트 모든 요청에 로그인 아이디(`X-Actor-Id`)를 싣게 했다. 권한 우회 테스트 19개 포함 백엔드 227개(Oracle 32개 건너뜀)·프론트 102개·lint·typecheck·build 통과. 마이그레이션 번호는 #61과 겹치지 않게 V011→V013으로 바꿈. 접속기록 보관 기간은 원문 미확인으로 미결(`docs/auth-design.md` 6장).
 - 2026-11-13: #19 origin/main(#17 근로계약) 병합 — DECISIONS·PROGRESS·OracleItSchemaConfig 충돌 해결(V011·V012 다음 V013 적용). 계약 API에 권한을 붙여 조회는 관리자·인사·급여, 등록·수정·교부는 관리자·인사만 허용하고 계약 권한 우회 테스트 6개 추가. 백엔드 291개(Oracle 34개 건너뜀)·프론트 102개·lint·build 통과.
 - 2026-11-13: #19 CI 실패 반영 — `app_user.active_yn`이 CHAR(1)인데 엔티티는 VARCHAR로 매핑돼 Oracle 스키마 검증이 실패했다. `AppUser.activeYn`에 `@JdbcTypeCode(SqlTypes.CHAR)`·`length = 1`을 붙였다. 다른 `*_yn`(code_group·common_code·biz_site의 use_yn)은 DDL이 VARCHAR2(1 CHAR)라 그대로 두었고, DDL에 다른 CHAR 컬럼은 없다. 백엔드 291개 통과(로컬 Oracle 없어 Oracle 34개 건너뜀, CI에서 확인 필요).
+- 2026-11-13: #58 인사발령 1 — V014(`hr_appointment`: 발령번호·유형·대상 사원·발령일·이전/이후 소속·직급·직책·재직상태·사유 필수·휴직 시작/종료 예정일·확정 여부/일시, 발령번호 시퀀스, 발령 유형 공통코드 7종)와 등록·수정(미확정만)·확정·삭제(미확정만)·조회 API를 추가했다. 확정된 발령은 고치거나 지울 수 없다. 사원 정보 반영은 다음 이슈에서 한다. 백엔드 테스트 281개 중 실패 0건, Oracle 36건은 로컬에서 건너뜀. law.go.kr 원문(근로기준법 제23조, 남녀고용평등법 제19조)은 자동 조회가 되지 않아 아직 확인하지 못했다. 상세는 `docs/hr-appointment-design.md`.
+- 2026-11-13: #58 origin/main(#19 권한·개인정보 로그) 병합 — PROGRESS·OracleItSchemaConfig 충돌 해결(V013 다음 V014 적용). #19의 권한 표시 필수 규칙(`ControllerAuthCoverageTest`)에 맞춰 발령 API에 계약 API와 같은 권한(조회 `EMP_READ_ALL`, 등록·수정·확정·삭제 `EMP_WRITE`)을 붙이고 컨트롤러 테스트에 `TestAuth`를 넣었다. 백엔드 테스트 326개 실패 0건(Oracle 36건 로컬 건너뜀).
+
+
+## 2026-11-14 — #58 / PR #65 Oracle 공백 사유 제약 수정
+
+- Oracle에서 공백 문자열의 TRIM 결과가 NULL이 되어 기존 LENGTH(TRIM(reason)) > 0 CHECK를 통과하던 문제를 TRIM(reason) IS NOT NULL로 수정했다.
+- DDL 정적 검사의 기대 제약도 갱신했다. 기존 AppointmentOracleTest의 공백 UPDATE 거부 검증은 유지한다.
+- 변경 전 CI: 326건 중 AppointmentOracleTest 1건 실패. 수정 후 검증은 이 커밋의 CI(Oracle 통합 포함)에서 확인한다.
 - 2026-11-13: #25 origin/main(#17·#19·법령 데이터 #64) 병합 — 마이그레이션을 V015·V016으로 옮김(V014는 #65). 근무유형 API에 #19 권한을 붙여(목록·미리보기 로그인 사용자, 등록·수정·배정 EMP_WRITE, 배정 조회 EMP_READ_ALL) 배정 요청자를 서버가 확인한 사용자로 기록. `WorkPatternLimitsFixtureTest`가 `work-pattern-limits.csv` 20건을 `legal_rate_work_pattern.sql` 시드 값으로 모두 통과. 백엔드 361개(Oracle 34개 건너뜀)·프론트 111개·lint·build 통과.
 - 2026-11-13: #20 사원 엑셀 일괄 등록·내려받기 — CSV 양식 내려받기·미리보기(행별 오류, 저장 안 함)·확정(다시 검사해 오류 없을 때만 한 트랜잭션 등록, 오류 시 422) API(EMP_WRITE)와 인사정보 화면의 `엑셀 일괄 등록`·`목록 내려받기` 버튼을 추가했다. 내려받기는 #19 그대로 인적사항 없이 범위 안 사원만 담고 사원마다 다운로드 로그를 남긴다. 마이그레이션 없음. 백엔드 379개(Oracle 34개 건너뜀)·프론트 122개·lint·typecheck·build 통과. 상세 `docs/employee-design.md` 5장.
 - 2026-11-13: #20 리뷰 반영 — 미리보기에서 `checkCreate`의 검사 실패(EmployeeException)가 공유 트랜잭션을 rollback-only로 만들어 500(UnexpectedRollbackException)이 나던 문제를 `noRollbackFor`로 막고, 실제 트랜잭션 프록시 테스트(`EmployeeImportTransactionTest`, 수정 전 실패 확인)를 추가. CSV에서 닫히지 않은 따옴표는 뒤 행을 삼키지 않게 파일 오류로 거부. 백엔드 전체 테스트 통과.
