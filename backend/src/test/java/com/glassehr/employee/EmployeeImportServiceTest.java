@@ -14,6 +14,7 @@ import com.glassehr.employee.EmployeeDtos.EmployeeCreateRequest;
 import com.glassehr.employee.EmployeeDtos.EmployeeView;
 import com.glassehr.employee.EmployeeImportService.NotConfirmableException;
 import com.glassehr.employee.EmployeeImportService.Preview;
+import com.glassehr.org.OrgWriteLock;
 import jakarta.validation.Validation;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -36,10 +37,12 @@ class EmployeeImportServiceTest {
     private RrnService rrns;
     private BizSiteRepository sites;
     private EmployeeImportService svc;
+    private OrgWriteLock orgLock;
 
     @BeforeEach
     void setUp() {
         employees = mock(EmployeeService.class);
+        orgLock = mock(OrgWriteLock.class);
         rrns = mock(RrnService.class);
         sites = mock(BizSiteRepository.class);
         BizSite site = mock(BizSite.class);
@@ -47,7 +50,7 @@ class EmployeeImportServiceTest {
         when(sites.findById("S01")).thenReturn(Optional.of(site));
         when(sites.findById("S99")).thenReturn(Optional.empty());
         svc = new EmployeeImportService(employees, rrns, sites,
-                Validation.buildDefaultValidatorFactory().getValidator());
+                Validation.buildDefaultValidatorFactory().getValidator(), orgLock);
     }
 
     /** 양식 열 순서대로 한 행. rrn 은 마지막 열. */
@@ -193,6 +196,22 @@ class EmployeeImportServiceTest {
         assertThat(first.weeklyContractMinutes()).isEqualTo(2400);
         assertThat(first.rrn()).isEqualTo(Rrn.parse("000000-0000001"));
         assertThat(req.getAllValues().get(1).birthDate()).isEqualTo(LocalDate.of(1998, 2, 3));
+    }
+
+    @Test
+    void 확정은_부서를_읽는_검사보다_먼저_조직_쓰기_잠금을_잡는다() {
+        // 잠금 전에 부서를 영속성 컨텍스트에 올리면, 그 사이 커밋된 부서 폐지를 create() 가 보지 못한다.
+        when(employees.create(any(), any())).thenReturn(view("S01-2026-001"), view("S01-2026-002"));
+        svc.confirm(file(OK1, OK2), ACTOR);
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(orgLock, employees);
+        order.verify(orgLock).acquire();
+        order.verify(employees, times(2)).checkCreate(any());
+    }
+
+    @Test
+    void 미리보기는_조직_쓰기_잠금을_잡지_않는다() {
+        svc.preview(file(OK1, OK2));
+        verify(orgLock, never()).acquire();
     }
 
     @Test

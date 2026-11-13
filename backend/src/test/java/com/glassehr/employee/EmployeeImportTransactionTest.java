@@ -126,7 +126,7 @@ class EmployeeImportTransactionTest {
         EmployeeImportService employeeImportService(EmployeeService employees, RrnService rrns,
                 BizSiteRepository sites) {
             return new EmployeeImportService(employees, rrns, sites,
-                    Validation.buildDefaultValidatorFactory().getValidator());
+                    Validation.buildDefaultValidatorFactory().getValidator(), mock(OrgWriteLock.class));
         }
     }
 

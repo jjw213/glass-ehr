@@ -3,6 +3,7 @@ package com.glassehr.employee;
 import com.glassehr.employee.EmployeeDtos.EmployeeCreateRequest;
 import com.glassehr.employee.EmployeeDtos.EmployeeView;
 import com.glassehr.employee.EmployeeImportCsv.Column;
+import com.glassehr.org.OrgWriteLock;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import java.time.DateTimeException;
@@ -39,13 +40,15 @@ public class EmployeeImportService {
     private final RrnService rrns;
     private final BizSiteRepository sites;
     private final Validator validator;
+    private final OrgWriteLock orgLock;
 
     public EmployeeImportService(EmployeeService employees, RrnService rrns, BizSiteRepository sites,
-            Validator validator) {
+            Validator validator, OrgWriteLock orgLock) {
         this.employees = employees;
         this.rrns = rrns;
         this.sites = sites;
         this.validator = validator;
+        this.orgLock = orgLock;
     }
 
     /** 한 행 검사 결과. rowNo 는 파일의 줄 번호(머리글이 1행). */
@@ -84,6 +87,9 @@ public class EmployeeImportService {
 
     @Transactional
     public Confirmed confirm(byte[] file, RequestActor actor) {
+        // 검사(checkCreate)가 부서를 이 트랜잭션의 영속성 컨텍스트에 먼저 올리므로, 그 전에 조직 쓰기 잠금을 잡는다.
+        // 잠금 없이 먼저 읽으면 그 사이 부서 폐지(OrgDeptService.close)가 커밋돼도 create() 가 캐시된 폐지 전 부서를 보고 통과한다.
+        orgLock.acquire();
         Parsed p = parseAndCheck(file);
         if (!p.preview().confirmable()) {
             throw new NotConfirmableException(p.preview());
