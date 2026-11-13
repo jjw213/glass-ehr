@@ -55,6 +55,18 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V010__legal_rate_item_record_retention.sql"))
                     .execute(dataSource);
         }
+        Integer fixedTerm = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM legal_rate_item WHERE item_code = 'FIXED_TERM_MAX_USE_YEARS'", Integer.class);
+        if (fixedTerm == null || fixedTerm == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V011__legal_rate_item_fixed_term_limit.sql"))
+                    .execute(dataSource);
+        }
+        Integer contract = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'EMPLOYMENT_CONTRACT'", Integer.class);
+        if (contract == null || contract == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V012__employment_contract.sql"))
+                    .execute(dataSource);
+        }
         Integer auth = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM user_tables WHERE table_name = 'APP_USER'", Integer.class);
         if (auth == null || auth == 0) {

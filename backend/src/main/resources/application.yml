@@ -24,6 +24,9 @@ spring:
           time_zone: Asia/Seoul
   jackson:
     time-zone: Asia/Seoul
+    deserialization:
+      # 금액·분 단위 정수 필드에 소수(2500000.5)가 오면 잘라 내지 않고 400 으로 거부한다(AGENTS.md: 금액은 원 단위 정수).
+      accept-float-as-int: false
 
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
@@ -39,3 +42,8 @@ glassehr:
     enc-keys: ${RRN_ENC_KEYS:}
     current-key-version: ${RRN_CURRENT_KEY_VERSION:}
     hmac-key: ${RRN_HMAC_KEY:}
+  # 근로계약 알림 기간(일). 법정 수치가 아니라 회사 운영 설정이다(이슈 #17 완료 기준 "계약 만료 30일 전").
+  # 기간제 사용기간 상한 자체(기간제법 제4조)는 legal_rate FIXED_TERM_MAX_USE_YEARS 에서 읽는다.
+  contract:
+    expiry-alert-days: ${CONTRACT_EXPIRY_ALERT_DAYS:30}
+    fixed-term-limit-alert-days: ${CONTRACT_FIXED_TERM_LIMIT_ALERT_DAYS:30}
