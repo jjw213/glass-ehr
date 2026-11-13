@@ -113,7 +113,13 @@ public class EmployeeImportService {
             fileErrors.add("파일이 비어 있어요");
             return new Parsed(new Preview(0, 0, false, fileErrors, results), requests);
         }
-        List<List<String>> table = EmployeeImportCsv.parse(EmployeeImportCsv.decode(file));
+        List<List<String>> table;
+        try {
+            table = EmployeeImportCsv.parse(EmployeeImportCsv.decode(file));
+        } catch (EmployeeImportCsv.MalformedCsvException e) {
+            fileErrors.add(e.getMessage());
+            return new Parsed(new Preview(0, 0, false, fileErrors, results), requests);
+        }
         if (table.isEmpty()) {
             fileErrors.add("머리글 행이 없어요. 양식을 내려받아 써 주세요");
             return new Parsed(new Preview(0, 0, false, fileErrors, results), requests);

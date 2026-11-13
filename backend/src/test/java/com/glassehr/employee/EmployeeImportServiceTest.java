@@ -194,6 +194,20 @@ class EmployeeImportServiceTest {
         assertThat(t).containsExactly(List.of("a", "b,\"c\"\nd", "e"), List.of("f"), List.of("g"));
     }
 
+    @Test
+    void 닫히지_않은_따옴표는_뒤_행을_삼키지_않고_파일_오류로_거부한다() {
+        assertThatThrownBy(() -> EmployeeImportCsv.parse("a,\"b\r\nc,d\r\n"))
+                .isInstanceOf(EmployeeImportCsv.MalformedCsvException.class);
+        // 종사업무 칸이 따옴표로 열린 채 닫히지 않아 뒤 사원 행이 그 칸에 빨려 들어가는 파일
+        String broken = OK1.replace(",개발,", ",\"개발,");
+        Preview p = svc.preview(file(broken, OK2));
+        assertThat(p.confirmable()).isFalse();
+        assertThat(p.fileErrors()).containsExactly("따옴표(\")로 시작한 칸이 닫히지 않았어요. 파일 형식을 확인해 주세요");
+        assertThat(p.rows()).isEmpty();
+        assertThatThrownBy(() -> svc.confirm(file(broken, OK2), ACTOR)).isInstanceOf(NotConfirmableException.class);
+        verify(employees, never()).create(any(), any());
+    }
+
     private static EmployeeView view(String empNo) {
         return new EmployeeView(1, empNo, "S01", "예시사원", "F", LocalDate.of(1999, 1, 1), "가상시", null, "개발", null,
                 LocalDate.of(2026, 3, 2), null, null, null, "REGULAR", 2400, null, null, 10L, "STAFF", null, null, null,

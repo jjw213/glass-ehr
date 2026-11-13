@@ -116,7 +116,11 @@ public class EmployeeService {
     /**
      * 엑셀 일괄 등록 미리보기용: {@link #create}와 같은 검사(날짜 순서·공통코드·첫 소속 부서)를 저장 없이 한다.
      * 실패하면 {@link EmployeeException}. 사업장·주민등록번호 중복은 {@link EmployeeImportService}가 따로 본다.
+     *
+     * <p>호출자(미리보기)가 이 예외를 행 오류로 모으므로, 예외가 둘러싼 트랜잭션을 rollback-only 로 만들지 않게
+     * {@code noRollbackFor}를 둔다. 없으면 미리보기 트랜잭션 종료 때 UnexpectedRollbackException(500)이 난다.
      */
+    @Transactional(readOnly = true, noRollbackFor = EmployeeException.class)
     public void checkCreate(EmployeeCreateRequest req) {
         BasicInfo info = basicInfo(req.name(), req.gender(), req.birthDate(), req.address(), req.careerHistory(),
                 req.jobDescription(), req.jobFamilyCode(), req.renewalDate(), req.contractStartDate(),

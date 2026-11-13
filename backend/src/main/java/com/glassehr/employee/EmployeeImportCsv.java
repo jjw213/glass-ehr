@@ -139,11 +139,22 @@ final class EmployeeImportCsv {
                 }
             }
         }
+        if (quoted) {
+            // 닫는 따옴표가 없으면 뒤 행들이 한 칸에 빨려 들어가므로 일부 표를 돌려주지 않고 거부한다.
+            throw new MalformedCsvException("따옴표(\")로 시작한 칸이 닫히지 않았어요. 파일 형식을 확인해 주세요");
+        }
         if (any || cell.length() > 0) {
             row.add(cell.toString());
             rows.add(row);
         }
         return rows;
+    }
+
+    /** CSV 형식 자체가 깨져 행·칸으로 나눌 수 없을 때. 메시지는 사용자에게 그대로 보여 준다(칸 값은 넣지 않음). */
+    static final class MalformedCsvException extends RuntimeException {
+        MalformedCsvException(String message) {
+            super(message);
+        }
     }
 
     private static boolean endRow(List<List<String>> rows, List<String> row, StringBuilder cell, boolean any) {
