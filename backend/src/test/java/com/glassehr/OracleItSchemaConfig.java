@@ -55,6 +55,12 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V010__legal_rate_item_record_retention.sql"))
                     .execute(dataSource);
         }
+        Integer auth = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'APP_USER'", Integer.class);
+        if (auth == null || auth == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V011__auth_role_privacy_log.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

@@ -4,6 +4,8 @@ import com.glassehr.code.CodeDtos.CodeCreateRequest;
 import com.glassehr.code.CodeDtos.CodeGroupView;
 import com.glassehr.code.CodeDtos.CodeUpdateRequest;
 import com.glassehr.code.CodeDtos.CodeView;
+import com.glassehr.auth.Permission;
+import com.glassehr.auth.RequiresPermission;
 import jakarta.validation.Valid;
 import java.util.Arrays;
 import java.util.List;
@@ -29,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>PUT  /api/code-groups/{group}/codes/{code} — 코드 수정(코드값 제외)</li>
  * </ul>
  * 삭제 API는 두지 않는다. 사원·발령 이력이 코드를 참조하므로 사용 여부로 끈다.
- * 추가·수정 권한(인사담당자) 검사는 백엔드 인증·권한 이슈에서 붙인다(docs/common-code-design.md).
+ * 조회는 로그인 사용자 모두, 추가·수정은 CODE_WRITE 권한(인사담당·관리자, #19).
  */
 @RestController
 @RequestMapping("/api")
@@ -42,17 +44,20 @@ public class CommonCodeController {
     }
 
     @GetMapping("/codes")
+    @RequiresPermission
     public Map<String, List<CodeView>> activeCodes(@RequestParam("groups") String groups) {
         List<String> list = Arrays.stream(groups.split(",")).map(String::strip).filter(s -> !s.isEmpty()).toList();
         return service.activeCodes(list);
     }
 
     @GetMapping("/code-groups")
+    @RequiresPermission
     public List<CodeGroupView> groups() {
         return service.listGroups();
     }
 
     @GetMapping("/code-groups/{groupCode}/codes")
+    @RequiresPermission
     public List<CodeView> codes(@PathVariable String groupCode,
             @RequestParam(name = "includeInactive", defaultValue = "false") boolean includeInactive) {
         return service.listCodes(groupCode, includeInactive);
@@ -60,11 +65,13 @@ public class CommonCodeController {
 
     @PostMapping("/code-groups/{groupCode}/codes")
     @ResponseStatus(HttpStatus.CREATED)
+    @RequiresPermission(Permission.CODE_WRITE)
     public CodeView create(@PathVariable String groupCode, @Valid @RequestBody CodeCreateRequest req) {
         return service.create(groupCode, req);
     }
 
     @PutMapping("/code-groups/{groupCode}/codes/{code}")
+    @RequiresPermission(Permission.CODE_WRITE)
     public CodeView update(@PathVariable String groupCode, @PathVariable String code,
             @Valid @RequestBody CodeUpdateRequest req) {
         return service.update(groupCode, code, req);
