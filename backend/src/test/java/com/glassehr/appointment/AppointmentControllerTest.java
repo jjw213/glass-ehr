@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.glassehr.appointment.AppointmentDtos.AppointmentRequest;
 import com.glassehr.appointment.AppointmentDtos.AppointmentView;
 import com.glassehr.appointment.HrAppointment.Snapshot;
+import com.glassehr.auth.TestAuth;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,12 +26,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AppointmentController.class)
+@Import(TestAuth.class)
 class AppointmentControllerTest {
 
     private static final LocalDate D = LocalDate.of(2026, 12, 1);

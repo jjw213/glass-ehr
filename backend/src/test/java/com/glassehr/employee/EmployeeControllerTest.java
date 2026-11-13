@@ -22,13 +22,16 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.glassehr.auth.TestAuth;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 @WebMvcTest(EmployeeController.class)
+@Import(TestAuth.class)
 class EmployeeControllerTest {
 
     private static final LocalDate HIRE = LocalDate.of(2026, 3, 2);

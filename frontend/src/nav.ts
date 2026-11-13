@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree } from 'react-icons/lu';
+import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuShieldCheck } from 'react-icons/lu';
 import type { Role } from './api/types';
 import type { PageId } from './state/store';
 
@@ -26,6 +26,7 @@ export const NAV: NavItem[] = [
   { id: 'org', label: '조직도', short: '조직', icon: LuNetwork, section: 'workspace' },
   { id: 'settings', label: '설정', short: '설정', icon: LuSettings, section: 'system' },
   { id: 'codes', label: '공통코드 관리', short: '코드', icon: LuListTree, section: 'system', roles: ['HR', 'ADMIN'] },
+  { id: 'privacyLogs', label: '개인정보 조회 로그', short: '로그', icon: LuShieldCheck, section: 'system', roles: ['ADMIN'] },
 ];
 
 /** Menus the signed-in role may see. */
@@ -33,6 +34,9 @@ export const navFor = (role: Role) => NAV.filter((n) => !n.roles || n.roles.incl
 
 /** 공통코드를 관리하는 역할(인사담당자·관리자). */
 export const canManageCodes = (role: Role) => navFor(role).some((n) => n.id === 'codes');
+
+/** 개인정보 조회 로그를 보는 역할(관리자, #19). 메뉴 표시용이며 실제 차단은 서버 PRIVACY_LOG_READ 권한 검사가 한다. */
+export const canReadPrivacyLogs = (role: Role) => navFor(role).some((n) => n.id === 'privacyLogs');
 
 /**
  * 조직도에서 부서를 추가·이동할 수 있는 역할(인사담당자·관리자, #13). 일반 사원은 조회만.

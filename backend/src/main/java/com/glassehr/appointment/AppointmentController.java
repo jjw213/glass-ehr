@@ -2,6 +2,8 @@ package com.glassehr.appointment;
 
 import com.glassehr.appointment.AppointmentDtos.AppointmentRequest;
 import com.glassehr.appointment.AppointmentDtos.AppointmentView;
+import com.glassehr.auth.Permission;
+import com.glassehr.auth.RequiresPermission;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 인사발령 API. 사유는 필수다(근로기준법 제23조 제1항).
+ * 권한은 근로계약 API와 같게 조회는 {@code EMP_READ_ALL}, 등록·수정·확정·삭제는 {@code EMP_WRITE}.
  * <ul>
  *   <li>GET    /api/employees/{empId}/appointments — 사원의 발령 이력(발령일 순)</li>
  *   <li>POST   /api/employees/{empId}/appointments — 발령 등록(미확정)</li>
@@ -37,17 +40,20 @@ public class AppointmentController {
         this.service = service;
     }
 
+    @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/employees/{empId}/appointments")
     public List<AppointmentView> listByEmployee(@PathVariable long empId) {
         return service.listByEmployee(empId);
     }
 
+    @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/api/employees/{empId}/appointments")
     @ResponseStatus(HttpStatus.CREATED)
     public AppointmentView create(@PathVariable long empId, @Valid @RequestBody AppointmentRequest req) {
         return service.create(empId, req);
     }
 
+    @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/appointments")
     public List<AppointmentView> search(@RequestParam(name = "confirmed", required = false) Boolean confirmed,
             @RequestParam(name = "type", required = false) String type,
@@ -56,21 +62,25 @@ public class AppointmentController {
         return service.search(confirmed, type, from, to);
     }
 
+    @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/appointments/{apptId}")
     public AppointmentView get(@PathVariable long apptId) {
         return service.get(apptId);
     }
 
+    @RequiresPermission(Permission.EMP_WRITE)
     @PutMapping("/api/appointments/{apptId}")
     public AppointmentView update(@PathVariable long apptId, @Valid @RequestBody AppointmentRequest req) {
         return service.update(apptId, req);
     }
 
+    @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/api/appointments/{apptId}/confirm")
     public AppointmentView confirm(@PathVariable long apptId) {
         return service.confirm(apptId);
     }
 
+    @RequiresPermission(Permission.EMP_WRITE)
     @DeleteMapping("/api/appointments/{apptId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable long apptId) {

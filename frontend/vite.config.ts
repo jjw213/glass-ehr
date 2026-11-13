@@ -12,7 +12,10 @@ export default defineConfig({
       // 조직(#12)·사원(#14)도 Spring 백엔드. 조직도 화면(#13)과 인사기록카드 화면(#15)이 쓴다.
       '/api/org': 'http://localhost:8080',
       '/api/employees': 'http://localhost:8080',
-      '/api': 'http://localhost:4000',
+      // 권한(#19): 내 권한 조회와 관리자용 개인정보 조회 로그.
+      '/api/auth': 'http://localhost:8080',
+      '/api/admin': 'http://localhost:8080',
+      '/api':'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/
     fs: { allow: ['..'] },
