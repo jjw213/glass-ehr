@@ -755,6 +755,13 @@ input[type='date'] { color-scheme: dark; }
 .code-table__actions { text-align: right; white-space: nowrap; }
 .code-empty { padding: 18px 4px; }
 
+/* 근무유형 관리 (#25) */
+.day-types { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.day-types .btn { padding: 8px 0; line-height: 1.25; justify-content: center; text-align: center; }
+.day-types .day-type--H { outline: 1px solid rgba(255, 200, 90, 0.7); }
+.violations { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.violations li { white-space: normal; }
+
 /* 사원 목록·인사기록카드 (#15) */
 .emp-filters { display: flex; gap: 8px; flex-wrap: wrap; max-width: 520px; }
 .emp-filters select { flex: 1 1 160px; width: auto; }

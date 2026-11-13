@@ -5,7 +5,8 @@ package com.glassehr.legalrate;
  *
  * <p>DB 등록은 {@code db/oracle/V003__legal_rate_items_hr_attendance.sql}과
  * {@code V005__legal_rate_items_hr_attendance_ext.sql}(추가 18개, 합계 47개),
- * {@code V010__legal_rate_item_record_retention.sql}(근로자 명부 보존 기간 1개, 합계 48개)이며, 이 enum과 목록·단위가 같아야 한다
+ * {@code V010__legal_rate_item_record_retention.sql}(근로자 명부 보존 기간 1개, 합계 48개),
+ * {@code V011__legal_rate_items_work_pattern.sql}(근로시간 한도·휴게·주휴일 7개, 합계 55개)이며, 이 enum과 목록·단위가 같아야 한다
  * (LegalRateItemRegistrationTest). 근거 조문은 legal_rate_item.legal_basis 에 있다.
  * 값은 {@link LegalRateService#getEffective(LegalRateItem, java.time.LocalDate)}로 적용일 기준 조회한다.
  */
@@ -85,7 +86,20 @@ public enum LegalRateItem {
     FAMILY_CARE_LEAVE_DAYS_PER_YEAR(LegalRateUnit.DAYS),
 
     // 근로기준법 제42조: 근로자 명부 등 계약 서류 보존 기간(퇴직일부터) (V010, #14)
-    EMPLOYEE_RECORD_RETENTION_YEARS(LegalRateUnit.YEARS);
+    EMPLOYEE_RECORD_RETENTION_YEARS(LegalRateUnit.YEARS),
+
+    // 근로기준법 제50조: 1주·1일 근로시간 한도 (V011, #25)
+    WEEKLY_STANDARD_WORK_HOURS(LegalRateUnit.HOURS),
+    DAILY_STANDARD_WORK_HOURS(LegalRateUnit.HOURS),
+
+    // 근로기준법 제54조 제1항: 근로시간 구간별 최소 휴게시간 (V011, #25)
+    BREAK_SHORT_THRESHOLD_HOURS(LegalRateUnit.HOURS),
+    BREAK_SHORT_MIN_MINUTES(LegalRateUnit.MINUTES),
+    BREAK_LONG_THRESHOLD_HOURS(LegalRateUnit.HOURS),
+    BREAK_LONG_MIN_MINUTES(LegalRateUnit.MINUTES),
+
+    // 근로기준법 제55조 제1항: 1주 유급휴일(주휴일) 최소 횟수 (V011, #25)
+    WEEKLY_PAID_HOLIDAY_MIN_COUNT(LegalRateUnit.COUNT);
 
     private final String unit;
 
