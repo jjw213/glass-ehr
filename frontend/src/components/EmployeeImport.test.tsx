@@ -115,6 +115,20 @@ describe('EmployeeImportDialog (엑셀 일괄 등록)', () => {
     expect(confirmButton().disabled).toBe(true);
   });
 
+  it('검사 중에는 다른 파일을 고를 수 없고, 닫은 뒤 늦게 온 미리보기는 버린다', async () => {
+    let resolve: (p: ImportPreview) => void = () => {};
+    const api = fakeApi({ preview: vi.fn(() => new Promise<ImportPreview>((r) => { resolve = r; })) });
+    await mount(api);
+    await pick();
+    expect(host.querySelector<HTMLInputElement>('input[type="file"]')!.disabled).toBe(true);
+    await act(async () => { byText(host, '.form__actions button', '닫기')!.click(); });
+    await act(async () => { resolve(OK); });
+    await flush();
+    expect(host.querySelector('section[aria-label="미리보기"]')).toBeNull();
+    expect(confirmButton().disabled).toBe(true);
+    expect(host.querySelector<HTMLInputElement>('input[type="file"]')!.disabled).toBe(false);
+  });
+
   it('파일 오류(머리글 등)를 보인다', async () => {
     const api = fakeApi({ preview: vi.fn(async () => ({ totalRows: 0, errorRows: 0, confirmable: false, fileErrors: ['필수 열이 없어요: 성명'], rows: [] })) });
     await mount(api);

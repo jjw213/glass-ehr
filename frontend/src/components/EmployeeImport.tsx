@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { LuDownload, LuUpload } from 'react-icons/lu';
 import { Badge, Modal } from './ui';
 import { ImportRejected, saveFile, type DownloadedFile, type EmployeeImportApi, type ImportConfirmed, type ImportPreview } from '../api/employeeImport';
@@ -18,7 +18,10 @@ export function EmployeeImportDialog({ api, open, onClose, onDone, save = saveFi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const reset = () => { setFile(null); setPreview(null); setError(null); };
+  // 응답이 늦게 도착해도 지금 선택된 파일의 것만 반영한다. 파일을 다시 고르거나 닫으면 번호가 바뀌어 이전 응답은 버린다.
+  const seq = useRef(0);
+
+  const reset = () => { seq.current += 1; setFile(null); setPreview(null); setError(null); };
   const close = () => { reset(); onClose(); };
 
   const run = async (f: () => Promise<void>) => {
@@ -32,18 +35,26 @@ export function EmployeeImportDialog({ api, open, onClose, onDone, save = saveFi
   });
 
   const check = (f: File) => run(async () => {
+    const my = ++seq.current;
     setFile(f);
     setPreview(null);
-    try { setPreview(await api.preview(f)); } catch (e) { setError(errText(e, '파일을 검사하지 못했어요')); }
+    try {
+      const p = await api.preview(f);
+      if (my === seq.current) setPreview(p);
+    } catch (e) {
+      if (my === seq.current) setError(errText(e, '파일을 검사하지 못했어요'));
+    }
   });
 
   const confirm = () => run(async () => {
     if (!file || !preview?.confirmable) return;
+    const my = seq.current;
     try {
       const r = await api.confirm(file);
-      reset();
+      if (my === seq.current) reset();
       onDone(r);
     } catch (e) {
+      if (my !== seq.current) return;
       if (e instanceof ImportRejected) setPreview(e.preview);
       setError(errText(e, '등록하지 못했어요'));
     }
@@ -63,7 +74,7 @@ export function EmployeeImportDialog({ api, open, onClose, onDone, save = saveFi
           <label className="glass pill">
             <LuUpload /> 파일 선택
             <input
-              type="file" accept=".csv,text/csv" hidden aria-label="일괄 등록 파일"
+              type="file" accept=".csv,text/csv" hidden aria-label="일괄 등록 파일" disabled={busy}
               onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void check(f); }}
             />
           </label>

@@ -162,12 +162,20 @@ public class EmployeeImportService {
             return new Parsed(new Preview(dataRows.size(), 0, false, fileErrors, results), requests);
         }
 
+        java.util.Set<Integer> mapped = new java.util.HashSet<>(index.values());
         Map<Rrn, Integer> rrnRows = new HashMap<>();
         int errorRows = 0;
         for (int r : dataRows) {
             List<String> cells = table.get(r);
             int rowNo = r + 1;
             List<String> errors = new ArrayList<>();
+            // 머리글이 없는 칸(머리글보다 긴 행, 빈 머리글 열)에 값이 있으면 조용히 버리지 않고 오류로 알린다.
+            // 값에 고유식별정보가 섞일 수 있어 메시지에는 칸 위치만 넣는다.
+            for (int i = 0; i < cells.size(); i++) {
+                if (!mapped.contains(i) && !cells.get(i).isBlank()) {
+                    errors.add((i + 1) + "번째 칸에 값이 있지만 머리글이 없어요. 쉼표가 들어간 값은 따옴표로 감싸 주세요");
+                }
+            }
             RowReader rd = new RowReader(cells, index, errors);
             EmployeeCreateRequest req = new EmployeeCreateRequest(rd.text(Column.SITE_CODE), rd.text(Column.NAME),
                     rd.text(Column.GENDER), rd.date(Column.BIRTH_DATE), rd.text(Column.ADDRESS),

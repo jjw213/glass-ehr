@@ -143,6 +143,24 @@ class EmployeeImportServiceTest {
     }
 
     @Test
+    void 머리글이_없는_칸에_값이_있으면_버리지_않고_행_오류로_알린다() {
+        Preview p = svc.preview(file(OK2 + ",나머지 메모", OK2 + ",,", OK1));
+        assertThat(p.confirmable()).isFalse();
+        assertThat(p.errorRows()).isEqualTo(1);
+        assertThat(p.rows().get(0).errors())
+                .containsExactly("22번째 칸에 값이 있지만 머리글이 없어요. 쉼표가 들어간 값은 따옴표로 감싸 주세요");
+        assertThat(p.rows().get(1).errors()).isEmpty();
+        assertThat(p.toString()).doesNotContain("나머지 메모");
+
+        // 빈 머리글 열 아래 값도 마찬가지
+        String csv = "입사일*,성명*,,사업장코드,성별(M/F),생년월일,주소,종사업무,고용형태코드\n"
+                + "2026-03-02,예시사원일,숨은값,S01,F,1999-01-01,가상시,개발,REGULAR\n";
+        Preview q = svc.preview(csv.getBytes(StandardCharsets.UTF_8));
+        assertThat(q.rows().get(0).errors()).containsExactly(
+                "3번째 칸에 값이 있지만 머리글이 없어요. 쉼표가 들어간 값은 따옴표로 감싸 주세요");
+    }
+
+    @Test
     void 한글_윈도우_엑셀의_MS949_CSV도_읽는다() {
         String csv = HEADER + "\r\n" + OK2 + "\r\n";
         Preview p = svc.preview(csv.getBytes(Charset.forName("MS949")));
