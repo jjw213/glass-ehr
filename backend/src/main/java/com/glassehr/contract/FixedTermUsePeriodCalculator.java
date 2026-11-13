@@ -14,9 +14,9 @@ import org.springframework.stereotype.Component;
  * <p>기간제법 제4조 제1항: 기간제근로자는 2년(계약 반복갱신 시 계속근로한 총기간)을 초과하지 않는 범위에서 사용할 수 있다.
  * 연 수는 코드에 쓰지 않고 legal_rate {@link LegalRateItem#FIXED_TERM_MAX_USE_YEARS}에서 <b>계속근로 시작일 기준 적용값</b>으로 읽는다.
  *
- * <p>기간 계산(민법 제157조·제160조, 2026-11-12 원문 미확인): 계속근로 시작일(오전 0시 시작이라 초일 산입)부터 N년.
+ * <p>기간 계산(민법 제157조·제160조, 원문 확인 2026-11-13: docs/fixed-term-value-sources.md): 계속근로 시작일(오전 0시 시작이라 초일 산입)부터 N년.
  * 마지막 해에서 시작일에 해당하는 날의 전날에 만료하고, 해당하는 날이 없으면(2월 29일 시작 → 평년) 그 달 말일에 만료한다.
- * 이 계산의 정답값은 tests/legal-fixtures 에 사람이 검수한 파일이 생기면 그것으로 검증한다(현재 없음, #17 질문).
+ * 정답값은 tests/legal-fixtures/fixed-term-use-period.csv 로 검증한다(FixedTermUsePeriodFixtureTest).
  */
 @Component
 public class FixedTermUsePeriodCalculator {

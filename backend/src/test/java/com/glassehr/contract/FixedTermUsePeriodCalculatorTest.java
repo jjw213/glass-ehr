@@ -16,8 +16,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
- * 기준값 조회 방식(적용일·단위·값 검사)만 검사한다. 만료일 정답값은 tests/legal-fixtures 에 사람이 검수한 파일이 생기면
- * 그 파일로 검증한다(#17 질문). 여기서 정답 날짜를 직접 만들지 않는다.
+ * 기준값 조회 방식(적용일·단위·값 검사)만 검사한다. 만료일 정답값은 tests/legal-fixtures/fixed-term-use-period.csv 로
+ * FixedTermUsePeriodFixtureTest 에서 검증한다. 여기서 정답 날짜를 직접 만들지 않는다.
  */
 class FixedTermUsePeriodCalculatorTest {
 

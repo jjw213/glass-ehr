@@ -46,11 +46,10 @@
 
 - 알림 일수 30일은 법정 수치가 아니라 이슈 완료 기준의 운영 설정이다(`application.yml`, 환경변수로 바꿀 수 있음).
 - 사용기간 상한의 마지막 날(`FixedTermUsePeriodCalculator`): N = legal_rate `FIXED_TERM_MAX_USE_YEARS`(계속근로 시작일 기준 적용값).
-  민법 제157조(오전 0시 시작이면 초일 산입)·제160조(마지막 해의 해당일 전날 만료, 해당일이 없으면 그 달 말일)로 계산한다. **정답값 fixture 없음 — 사람 검수 필요.**
+  민법 제157조(오전 0시 시작이면 초일 산입)·제160조(마지막 해의 해당일 전날 만료, 해당일이 없으면 그 달 말일)로 계산한다. 정답값은 `tests/legal-fixtures/fixed-term-use-period.csv`(8건, 2월 29일 시작 포함)로 `FixedTermUsePeriodFixtureTest`가 검증한다. 이 테스트는 시드 `legal_rate_fixed_term.sql`의 값(2년)을 legal_rate 조회 결과로 넣어 계산기를 돌리고, CSV의 연 수와 시드 값이 다르면 실패한다.
 
 ## 4. 미결 / 후속
-- **기간 계산 정답 fixture**: `tests/legal-fixtures/`에 사람이 검수한 사례(계속근로 시작일 → 사용기간 마지막 날, 2월 29일 시작 포함)가 필요하다. 생기면 `FixedTermUsePeriodCalculator` 테스트를 그 파일로 만든다.
-- **legal_rate 값 입력**: `FIXED_TERM_MAX_USE_YEARS` 값이 없으면 사용기간 알림이 `FIXED_TERM_LIMIT_UNKNOWN`만 나온다.
+- **legal_rate 값 입력**: 시드 `seed/legal_rate_fixed_term.sql`(2007-07-01~, 2년)은 있지만 실제 DB에는 아직 실행하지 않았다. 실행 전에는 사용기간 알림이 `FIXED_TERM_LIMIT_UNKNOWN`만 나온다.
 - **계속근로 공백 판단**: 지금은 앞 계약 종료일 다음 날까지 다음 계약이 시작해야 이어진 것으로 본다. 짧은 공백을 계속근로로 볼지는 법령 해석이 필요해 미결.
 - **기간제법 제4조 제1항 단서 예외**(사업 완료 기간, 휴직 대체, 고령자, 전문직 등)와 제4조 제2항(2년 초과 시 기간의 정함이 없는 근로자로 봄) 처리: 예외 사유 기록·무기계약 전환 기능은 후속 이슈.
 - **기간제+단시간 겹침**: 고용형태 코드가 하나라 단시간 기간제는 사용기간 계산에서 빠진다(`docs/common-code-design.md` 후속 일과 같음).
