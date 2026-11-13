@@ -36,6 +36,7 @@
 - 2026-11-12: #13 리뷰 반영 — 부서 이동 PUT은 적용일 기준 조직도에서 다시 읽은 부서명·부서장·정렬 순서를 보내 과거 조직도에서 이동해도 이후 변경을 되돌리지 않게 했다. 사원 목록을 못 받으면 인원을 0명 대신 '?'·'인원 확인 불가'로 보이고 다시 불러오기 버튼과 기준일 변경 시 재시도를 넣었다. 테스트 3개 추가, 전체 50개·lint·build 통과.
 - 2026-11-12: #15 사원 목록·인사기록카드 화면 — 인사정보 화면을 Spring `/api/employees`·`/api/org` 기반으로 바꿨다. 이름·사번 검색, 부서(하위 포함)·직급·재직상태 필터, 인적사항/발령 이력/근로계약/근태 요약 탭 카드, 신규 등록 폼, 역할별 개인정보 마스킹(주민번호 원문 보기는 인사·급여 담당만, 30초 뒤 다시 가림), 모바일 카드 목록을 넣었다. 프론트 테스트 43개를 새로 넣어 전체 67개 통과, lint·typecheck·build 통과. 발령 이력은 입사·퇴직만, 근태 요약은 안내 문구만 있다(후속 모듈). 서버 쪽 마스킹은 인증 이슈에서 해야 한다. 상세는 `docs/employee-screen-design.md`.
 - 2026-11-12: #15 origin/main 병합 — PROGRESS·global.css·vite.config.ts 충돌을 해결해 #13 조직도 화면과 #15 사원 화면 변경을 모두 남김.
+- 2026-11-13: #25 근무유형·배정 — V015(legal_rate 항목 7개: 1일·1주 근로시간 한도, 휴게 구간 2쌍, 주휴일 최소 횟수, 단위 MINUTES 추가, 값 없음), V016(`work_pattern`·`emp_work_pattern` 배정 이력)를 추가했다. 저장·배정 때 legal_rate 적용값으로 제50조·제54조·제55조를 검사해 위반하면 422로 거부한다. API와 HR·ADMIN 전용 `근무유형 관리` 화면도 넣었다. 백엔드 테스트 233개 통과(Oracle 32개는 로컬에서 건너뜀), 프론트 테스트 102개·lint·build 통과. 법정 기준값과 경계 fixture는 아직 없어서 Codex에 데이터를 요청했다. 데이터가 들어오면 fixture 테스트를 붙인다. 상세는 `docs/work-pattern-design.md`.
 - 2026-11-12: #17 근로계약 관리 — V011(legal_rate 항목 `FIXED_TERM_MAX_USE_YEARS`, 값 없음)과 V012(`employment_contract`: 계약기간·임금·소정근로시간·근로시간/휴게·근로일·휴일·휴가·장소·업무·서면 교부일)를 추가했다. 계약 이력 등록·수정(교부 전만)·교부일 기록·미교부 목록·만료/기간제 사용기간 알림 API도 넣었다. 명시사항이 빠져도 저장은 되고, 근거 조문이 붙은 `missingTerms` 경고를 함께 돌려준다. 백엔드 테스트 237개 중 203개가 통과했고, 34개는 Oracle 통합 테스트라 로컬에서 건너뛰었다. 사용기간 마지막 날의 정답 fixture가 없고 legal_rate 값도 비어 있어서 사람에게 질문했다. law.go.kr 원문도 자동 조회가 되지 않아 아직 확인하지 못했다. 상세는 `docs/employment-contract-design.md`.
 
 - 2026-11-13: #17 사용자 요청으로 FIXED_TERM_MAX_USE_YEARS=2(YEARS, 2007-07-01~) 별도 입력 시드와 기간 계산 CSV 8건(윤일 포함)을 추가. 기간제법 제4조·최초 부칙, 민법 제157조·제160조 원문 확인. CSV는 에이전트 도출 자료이며 사람 검수 완료가 아니다. 실제 DB 실행·CSV 소비 테스트는 이번 입력 작업에 포함하지 않았으며 다음 루프에서 테스트를 연결한다. 근거: docs/fixed-term-value-sources.md.
@@ -53,3 +54,4 @@
 - Oracle에서 공백 문자열의 TRIM 결과가 NULL이 되어 기존 LENGTH(TRIM(reason)) > 0 CHECK를 통과하던 문제를 TRIM(reason) IS NOT NULL로 수정했다.
 - DDL 정적 검사의 기대 제약도 갱신했다. 기존 AppointmentOracleTest의 공백 UPDATE 거부 검증은 유지한다.
 - 변경 전 CI: 326건 중 AppointmentOracleTest 1건 실패. 수정 후 검증은 이 커밋의 CI(Oracle 통합 포함)에서 확인한다.
+- 2026-11-13: #25 origin/main(#17·#19·법령 데이터 #64) 병합 — 마이그레이션을 V015·V016으로 옮김(V014는 #65). 근무유형 API에 #19 권한을 붙여(목록·미리보기 로그인 사용자, 등록·수정·배정 EMP_WRITE, 배정 조회 EMP_READ_ALL) 배정 요청자를 서버가 확인한 사용자로 기록. `WorkPatternLimitsFixtureTest`가 `work-pattern-limits.csv` 20건을 `legal_rate_work_pattern.sql` 시드 값으로 모두 통과. 백엔드 361개(Oracle 34개 건너뜀)·프론트 111개·lint·build 통과.

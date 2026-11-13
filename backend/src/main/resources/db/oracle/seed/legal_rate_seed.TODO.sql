@@ -58,6 +58,14 @@
 -- SPOUSE_MATERNITY_LEAVE_SPLIT_COUNT          COUNT        남녀고용평등법 제18조의2
 -- PARENTAL_LEAVE_SPLIT_COUNT                  COUNT        남녀고용평등법 제19조, 제19조의4 제1항
 -- (남녀고용평등법 = 남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률)
+-- --- V015(#25 근무유형 검사)에서 추가한 7개 ---
+-- WEEKLY_STANDARD_WORK_HOURS                  HOURS        근로기준법 제50조 제1항
+-- DAILY_STANDARD_WORK_HOURS                   HOURS        근로기준법 제50조 제2항
+-- BREAK_SHORT_THRESHOLD_HOURS                 HOURS        근로기준법 제54조 제1항
+-- BREAK_SHORT_MIN_MINUTES                     MINUTES      근로기준법 제54조 제1항
+-- BREAK_LONG_THRESHOLD_HOURS                  HOURS        근로기준법 제54조 제1항
+-- BREAK_LONG_MIN_MINUTES                      MINUTES      근로기준법 제54조 제1항
+-- WEEKLY_PAID_HOLIDAY_MIN_COUNT               COUNT        근로기준법 제55조 제1항
 -- 개정 이력이 있는 항목(예: 배우자 출산휴가·육아휴직·근로시간 단축 기간)은 시행일별로 여러 기간을 넣는다.
 --
 -- ===== 이후 모듈(급여) 항목 후보 — 코드 체계는 해당 이슈에서 확정 =====

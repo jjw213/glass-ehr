@@ -12,6 +12,7 @@ import { PeoplePage } from '../../pages/PeoplePage';
 import { OrgPage } from '../../pages/OrgPage';
 import { SettingsPage } from '../../pages/SettingsPage';
 import { CodesPage } from '../../pages/CodesPage';
+import { WorkPatternsPage } from '../../pages/WorkPatternsPage';
 import { PrivacyLogsPage } from '../../pages/PrivacyLogsPage';
 import { useEffect, useState, type JSX } from 'react';
 
@@ -25,6 +26,7 @@ const PAGES: Record<PageId, () => JSX.Element> = {
   org: OrgPage,
   settings: SettingsPage,
   codes: CodesPage,
+  workPatterns: WorkPatternsPage,
   privacyLogs: PrivacyLogsPage,
 };
 
