@@ -46,3 +46,10 @@
 - 2026-11-13: #19 CI 실패 반영 — `app_user.active_yn`이 CHAR(1)인데 엔티티는 VARCHAR로 매핑돼 Oracle 스키마 검증이 실패했다. `AppUser.activeYn`에 `@JdbcTypeCode(SqlTypes.CHAR)`·`length = 1`을 붙였다. 다른 `*_yn`(code_group·common_code·biz_site의 use_yn)은 DDL이 VARCHAR2(1 CHAR)라 그대로 두었고, DDL에 다른 CHAR 컬럼은 없다. 백엔드 291개 통과(로컬 Oracle 없어 Oracle 34개 건너뜀, CI에서 확인 필요).
 - 2026-11-13: #58 인사발령 1 — V014(`hr_appointment`: 발령번호·유형·대상 사원·발령일·이전/이후 소속·직급·직책·재직상태·사유 필수·휴직 시작/종료 예정일·확정 여부/일시, 발령번호 시퀀스, 발령 유형 공통코드 7종)와 등록·수정(미확정만)·확정·삭제(미확정만)·조회 API를 추가했다. 확정된 발령은 고치거나 지울 수 없다. 사원 정보 반영은 다음 이슈에서 한다. 백엔드 테스트 281개 중 실패 0건, Oracle 36건은 로컬에서 건너뜀. law.go.kr 원문(근로기준법 제23조, 남녀고용평등법 제19조)은 자동 조회가 되지 않아 아직 확인하지 못했다. 상세는 `docs/hr-appointment-design.md`.
 - 2026-11-13: #58 origin/main(#19 권한·개인정보 로그) 병합 — PROGRESS·OracleItSchemaConfig 충돌 해결(V013 다음 V014 적용). #19의 권한 표시 필수 규칙(`ControllerAuthCoverageTest`)에 맞춰 발령 API에 계약 API와 같은 권한(조회 `EMP_READ_ALL`, 등록·수정·확정·삭제 `EMP_WRITE`)을 붙이고 컨트롤러 테스트에 `TestAuth`를 넣었다. 백엔드 테스트 326개 실패 0건(Oracle 36건 로컬 건너뜀).
+
+
+## 2026-11-14 — #58 / PR #65 Oracle 공백 사유 제약 수정
+
+- Oracle에서 공백 문자열의 TRIM 결과가 NULL이 되어 기존 LENGTH(TRIM(reason)) > 0 CHECK를 통과하던 문제를 TRIM(reason) IS NOT NULL로 수정했다.
+- DDL 정적 검사의 기대 제약도 갱신했다. 기존 AppointmentOracleTest의 공백 UPDATE 거부 검증은 유지한다.
+- 변경 전 CI: 326건 중 AppointmentOracleTest 1건 실패. 수정 후 검증은 이 커밋의 CI(Oracle 통합 포함)에서 확인한다.
