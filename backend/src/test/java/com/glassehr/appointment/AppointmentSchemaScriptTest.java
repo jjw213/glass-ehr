@@ -52,7 +52,7 @@ class AppointmentSchemaScriptTest {
         }
         // 근로기준법 제23조 제1항: 사유 필수
         assertThat(table).containsPattern("reason\\s+VARCHAR2\\(1000 CHAR\\)\\s+NOT NULL");
-        assertThat(table).contains("CHECK (LENGTH(TRIM(reason)) > 0)");
+        assertThat(table).contains("CHECK (TRIM(reason) IS NOT NULL)");
         assertThat(table).contains("UNIQUE (appt_no)");
     }
 
