@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError, type Bootstrap, type Dept, type NewLeave } from '../api';
+import { setActorId } from '../api/http';
 
-export type PageId = 'home' | 'attendance' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes';
-export const PAGE_IDS: PageId[] = ['home', 'attendance', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings', 'codes'];
+export type PageId = 'home' | 'attendance' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'privacyLogs';
+export const PAGE_IDS: PageId[] = ['home', 'attendance', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings', 'codes', 'privacyLogs'];
 export type SceneId = 'sunset' | 'dawn' | 'night';
 
 interface Toast { id: number; text: string }
@@ -72,7 +73,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const guard = useCallback(async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
     try { return await fn(); }
     catch (e) {
-      if (e instanceof ApiError && e.status === 401) { setData(null); lostRef.current(); toast('세션이 만료됐어요. 다시 로그인해 주세요'); }
+      if (e instanceof ApiError && e.status === 401) { setActorId(null); setData(null); lostRef.current(); toast('세션이 만료됐어요. 다시 로그인해 주세요'); }
       else toast(e instanceof Error ? e.message : '알 수 없는 오류가 발생했어요');
       return undefined;
     }
@@ -82,11 +83,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (loginId: string, password: string) => {
     await api.login(loginId, password);   // throws ApiError on bad credentials
-    setData(await api.bootstrap());
+    const boot = await api.bootstrap();
+    // Spring 백엔드 요청에 로그인 아이디를 싣는다(#19). 화면이 그려지기 전에 정해 둬야 첫 요청부터 실린다.
+    // 역할·권한은 서버가 DB에서 읽으므로 화면 값은 메뉴 표시에만 쓴다.
+    setActorId(boot.me.loginId);
+    setData(boot);
   }, []);
 
   const signOut = useCallback(async () => {
     try { await api.logout(); } catch { /* already gone */ }
+    setActorId(null);
     setData(null);
   }, []);
 

@@ -144,6 +144,25 @@ public final class EmployeeDtos {
                     e.getRetireDate(), e.getRetireReasonCode(), e.getRetireReasonDetail(),
                     e.getRecordRetentionUntil(), e.getOtherNote(), rrnMasked);
         }
+
+        /**
+         * 인적사항 원문 권한이 없는 사람(부서장 등)에게 보내는 형태(#19, 서버 쪽 마스킹).
+         * 생년월일·이력·메모·퇴직 사유 상세·주민등록번호 마스킹 값은 빼고, 주소는 첫 단위(시·도)만 남긴다
+         * (화면 frontend/src/lib/privacy.ts 의 규칙과 같음).
+         */
+        public EmployeeView withoutPersonal() {
+            return new EmployeeView(empId, empNo, siteCode, name, gender, null, maskAddress(address), null,
+                    jobDescription, jobFamilyCode, hireDate, renewalDate, contractStartDate, contractEndDate,
+                    employmentTypeCode, weeklyContractMinutes, workLocationCode, null, currentDeptId, jobGradeCode,
+                    jobTitleCode, retireDate, retireReasonCode, null, recordRetentionUntil, null, null);
+        }
+
+        static String maskAddress(String a) {
+            if (a == null || a.isBlank()) {
+                return null;
+            }
+            return a.strip().split("\\s+")[0] + " ***";
+        }
     }
 
     /** 목록 한 줄. 주소·이력·주민등록번호는 넣지 않는다. */
