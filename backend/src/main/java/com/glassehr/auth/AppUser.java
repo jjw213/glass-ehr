@@ -13,6 +13,8 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** 로그인 사용자와 부여 역할. 테이블: V013 app_user, app_user_role. 관리 화면은 후속 이슈(지금은 SQL로 넣음). */
 @Entity
@@ -26,8 +28,11 @@ public class AppUser {
     @Column(name = "emp_id")
     private Long empId;
 
+    // V013 DDL이 CHAR(1)이므로 JDBC 타입을 CHAR로 맞춘다(ddl-auto=validate 통과용).
+    // 다른 *_yn 컬럼(V006·V009 use_yn)은 VARCHAR2(1 CHAR)라 기본 매핑을 그대로 둔다.
     @Convert(converter = YnConverter.class)
-    @Column(name = "active_yn", nullable = false)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "active_yn", nullable = false, length = 1)
     private boolean active;
 
     @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
