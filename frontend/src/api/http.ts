@@ -11,6 +11,8 @@ let actorId: string | null = null;
  * 역할·권한은 DB에서 읽는다(#19, docs/auth-design.md). 인증 이슈에서 세션·토큰으로 바뀌면 이 함수만 바꾼다.
  */
 export function setActorId(id: string | null) { actorId = id; }
+/** JSON 이 아닌 요청(파일 올리기·내려받기)에 붙일 사용자 헤더. */
+export function actorHeader(): Record<string, string> { return actorId ? { 'X-Actor-Id': actorId } : {}; }
 
 export async function call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
   const hasBody = method !== 'GET';

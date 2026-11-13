@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { LuSearch, LuX, LuPlus, LuRefreshCw, LuEye, LuEyeOff, LuLock, LuIdCard } from 'react-icons/lu';
+import { LuSearch, LuX, LuPlus, LuRefreshCw, LuEye, LuEyeOff, LuLock, LuIdCard, LuUpload } from 'react-icons/lu';
 import { Badge, Card, Modal, PageHead, cx, vars } from '../components/ui';
 import { codeApi, CODE_GROUP, type CodeApi } from '../api/codes';
 import {
@@ -7,7 +7,9 @@ import {
   type Actor, type EmployeeApi, type EmployeeCreate, type EmployeeSummary, type EmployeeView, type EmpStatus, type FlatDept, type StatusFilter,
 } from '../api/employees';
 import { useCodes } from '../hooks/useCodes';
-import { canRegisterEmployee, canRevealRrn, canViewPersonal, HIDDEN, shownPersonal, type ViewerRole } from '../lib/privacy';
+import { httpEmployeeImportApi, type EmployeeImportApi, type ImportConfirmed } from '../api/employeeImport';
+import { EmployeeExportButton, EmployeeImportDialog } from '../components/EmployeeImport';
+import { canExportEmployees, canRegisterEmployee, canRevealRrn, canViewPersonal, HIDDEN, shownPersonal, type ViewerRole } from '../lib/privacy';
 import { useData, useStore } from '../state/store';
 
 /** 인사정보 = 사원 목록 + 인사기록카드 + 신규 등록 (#15). 데이터는 Spring 백엔드 /api/employees·/api/org. */
@@ -43,8 +45,8 @@ function useNames(api: CodeApi) {
 type Names = ReturnType<typeof useNames>;
 
 /** 화면 본문. 스토어 없이 api·viewer·toast 만 받아서 테스트할 수 있다. today 는 Asia/Seoul 'YYYY-MM-DD'. */
-export function EmployeeDirectory({ api, codes, viewer, toast, today: todayProp }: {
-  api: EmployeeApi; codes: CodeApi; viewer: Viewer; toast: (text: string) => void; today?: string;
+export function EmployeeDirectory({ api, codes, viewer, toast, today: todayProp, importApi = httpEmployeeImportApi }: {
+  api: EmployeeApi; codes: CodeApi; viewer: Viewer; toast: (text: string) => void; today?: string; importApi?: EmployeeImportApi;
 }) {
   const today = todayProp ?? seoulToday();
   const names = useNames(codes);
@@ -58,6 +60,7 @@ export function EmployeeDirectory({ api, codes, viewer, toast, today: todayProp 
   const [status, setStatus] = useState<StatusFilter>('ACTIVE');
   const [sel, setSel] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -81,14 +84,27 @@ export function EmployeeDirectory({ api, codes, viewer, toast, today: todayProp 
     setSel(v.empId);
   };
 
+  const imported = (r: ImportConfirmed) => {
+    setImporting(false);
+    setReload((n) => n + 1);
+    toast(`${r.created}명을 등록했어요`);
+  };
+
   return (
     <>
+      {canRegisterEmployee(viewer.role) && (
+        <EmployeeImportDialog api={importApi} open={importing} onClose={() => setImporting(false)} onDone={imported} />
+      )}
       <PageHead
         title="인사정보"
         sub={list ? `재직 ${total}명 · 검색 결과 ${shown.length}명` : '불러오는 중…'}
         right={
           <>
             <button className="glass pill" onClick={() => setReload((n) => n + 1)} aria-label="새로 고침"><LuRefreshCw /> 새로 고침</button>
+            {canExportEmployees(viewer.role) && <EmployeeExportButton api={importApi} toast={toast} />}
+            {canRegisterEmployee(viewer.role) && (
+              <button className="glass pill" onClick={() => setImporting(true)}><LuUpload /> 엑셀 일괄 등록</button>
+            )}
             {canRegisterEmployee(viewer.role) && (
               <button className="btn btn--primary" onClick={() => setCreating(true)}><LuPlus /> 신규 등록</button>
             )}
