@@ -346,6 +346,21 @@ class AuthBypassTest {
     }
 
     @Test
+    void 급여담당_관리자_다운로드도_인적사항_없이_나가고_사원마다_기록된다() throws Exception {
+        for (String who : new String[] {"pay1", "admin1"}) {
+            clearInvocations(privacyLog);
+            byte[] body = mvc.perform(as(get("/api/employees/export"), who))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsByteArray();
+            String csv = new String(body, StandardCharsets.UTF_8);
+            assertThat(csv).contains("예시사원22").doesNotContain("가상시").doesNotContain("000000")
+                    .doesNotContain("1999-01-01").doesNotContain("(예시)");
+            verify(privacyLog).logEach(any(), any(), eq(Item.EMP_LIST), eq(Action.DOWNLOAD),
+                    eq("/api/employees/export"));
+        }
+    }
+
+    @Test
     void 내_권한_정보() throws Exception {
         mvc.perform(as(get("/api/auth/me"), "head1"))
                 .andExpect(status().isOk())
