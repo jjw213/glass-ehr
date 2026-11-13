@@ -38,4 +38,12 @@
  "recommended": 0}
 ```
 
+법령 정답 fixture(`tests/legal-fixtures/`)나 legal_rate 시드 값이 없어서 끝낼 수 없을 때는 직접 만들지 말고, 할 수 있는 데까지 커밋한 뒤 이 블록으로 끝낸다. 루프가 Codex에게 데이터를 요청하고, 사람이 승인해 머지하면 이어서 하게 된다.
+
+```agent-status
+{"status": "needs_legal_data",
+ "summary": "어디까지 했는지",
+ "request": "필요한 파일 경로와 형식(열 이름), 꼭 넣을 사례, legal_rate 키 이름, 근거 법령·조문"}
+```
+
 리뷰 반영 중 지적이 틀렸다고 판단되면 고치지 말고 `summary`에 반박 이유를 적은 뒤 `done`으로 끝낸다.
