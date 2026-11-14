@@ -23,6 +23,8 @@ export const canViewPersonal = (r: ViewerRole) => HR_STAFF.has(r);
 export const canRevealRrn = (r: ViewerRole) => RRN_REVEAL.has(r);
 /** 신규 사원 등록 */
 export const canRegisterEmployee = (r: ViewerRole) => REGISTER.has(r);
+/** 사원 목록 내려받기(서버 권한 EMP_EXPORT: 관리자·인사·급여) */
+export const canExportEmployees = (r: ViewerRole) => HR_STAFF.has(r);
 
 export const HIDDEN = '비공개';
 

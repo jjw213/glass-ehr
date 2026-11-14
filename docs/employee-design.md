@@ -54,7 +54,24 @@ SPEC 1장의 "사원: 기본정보(고유식별정보 암호화·마스킹), 입
   별도 트랜잭션으로 로그를 커밋한 뒤 응답한다. 응답에 `Cache-Control: no-store`.
 - `Rrn.toString()`·DTO `toString()`은 원문을 찍지 않는다. 오류 메시지에도 입력값을 되돌려 넣지 않는다.
 
-## 5. 남은 일 / 미결
+## 5. 엑셀 일괄 등록·목록 내려받기 (#20)
+- 파일 형식은 **CSV**(엑셀에서 열고 저장). 새 라이브러리 없이 기존 목록 내려받기(`EmployeeCsv`)와 같은 형식을 쓴다.
+  읽을 때 BOM·UTF-8이면 UTF-8, 아니면 MS949(한글 Windows 엑셀 기본 CSV)로 읽는다.
+- API(`EmployeeImportController`, 권한 EMP_WRITE = 관리자·인사):
+  - `GET /api/employees/import/template` — 양식(머리글만, 필수 열은 `*`). 예시 행은 넣지 않는다(지우지 않고 올리면 가짜 사원이 생김).
+  - `POST /api/employees/import/preview` (multipart `file`) — 행마다 입사 등록과 같은 검사(Bean Validation + `EmployeeService.checkCreate`
+    + 사업장 사용 여부 + 주민등록번호 파일 안/DB 중복)를 하고 행 번호별 오류를 돌려준다. 저장하지 않는다.
+  - `POST /api/employees/import/confirm` — 같은 파일을 다시 받아 처음부터 다시 검사한다. 오류가 한 행이라도 있으면 422 + 미리보기,
+    없으면 한 트랜잭션으로 모두 등록(201, 사번 목록). 중간 실패 시 전부 되돌린다. 미리보기 결과를 서버에 보관하지 않는다.
+- 열은 머리글 이름으로 찾으므로 순서를 바꿔도 된다. 날짜는 YYYY-MM-DD(엑셀이 바꾸는 YYYY/M/D·YYYY.M.D 허용). 한 파일 최대 1000행
+  (법령 기준값이 아닌 운영 상한, `EmployeeImportCsv.MAX_ROWS`).
+- 응답·오류 메시지에는 성명·사업장·입사일만 넣고 주민등록번호·생년월일·주소 값은 넣지 않는다.
+- 목록 내려받기(`GET /api/employees/export`, EMP_EXPORT = 관리자·인사·급여)는 #19 그대로: 데이터 범위 안의 사원만, 인적사항
+  (생년월일·주소·이력·메모·주민등록번호)은 어느 역할에도 넣지 않고, 파일에 든 사원마다 다운로드 로그(`EMP_LIST`/DOWNLOAD)를 남긴다.
+- 화면: 인사정보 상단 `목록 내려받기`(관리자·인사·급여), `엑셀 일괄 등록`(관리자·인사) → `components/EmployeeImport.tsx`.
+- 미결: 기존 사원 일괄 수정, 인적사항을 넣은 명부 내려받기(필요 시 역할별 열 정책을 따로 정함), xlsx 직접 읽기.
+
+## 6. 남은 일 / 미결
 - **요청자 식별은 임시로 `X-Actor-Id`·`X-Actor-Role` 헤더**를 쓴다(위조 가능). 백엔드 인증·권한 이슈에서 반드시 인증 정보로 바꾼다.
   등록·수정·퇴직 API의 쓰기 권한 검사도 그 이슈에서 붙인다.
 - 사번 미결 사항(전보·재입사·999명 초과·입사일 정정)은 `employee-number-design.md` 3장 그대로. 999 초과는 지금 409로 거부한다.

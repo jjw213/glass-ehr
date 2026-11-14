@@ -41,6 +41,11 @@ public class RrnService {
         this.clock = clock.withZone(SEOUL);
     }
 
+    /** 이미 어떤 사원에게 등록된 번호인가(일괄 등록 미리보기용). 누구인지는 돌려주지 않는다. */
+    public boolean isRegistered(Rrn rrn) {
+        return rrns.existsByRrnHash(crypto.hash(rrn));
+    }
+
     /** 등록하거나 정정한다. 다른 사원에게 같은 번호가 있으면 409(누구인지는 알리지 않음). */
     @Transactional
     public String save(long empId, Rrn rrn, RequestActor actor) {

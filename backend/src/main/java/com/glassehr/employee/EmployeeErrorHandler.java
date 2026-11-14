@@ -13,8 +13,23 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 /**
  * 사원 API 오류를 {"error": "..."} 형식으로 돌려준다. 메시지에 요청 값(주민등록번호 등)을 되돌려 넣지 않는다.
  */
-@RestControllerAdvice(assignableTypes = EmployeeController.class)
+@RestControllerAdvice(assignableTypes = {EmployeeController.class, EmployeeImportController.class})
 public class EmployeeErrorHandler {
+
+    /** 일괄 등록 확정 거부: 422 + 행별 오류(미리보기와 같은 형식). */
+    @ExceptionHandler(EmployeeImportService.NotConfirmableException.class)
+    ResponseEntity<Map<String, Object>> notConfirmable(EmployeeImportService.NotConfirmableException e) {
+        return ResponseEntity.status(EmployeeImportService.NOT_CONFIRMABLE)
+                .body(Map.of("error", e.getMessage(), "preview", e.preview()));
+    }
+
+    /** 일괄 등록에서 파일(file) 칸을 빠뜨린 요청. */
+    @ExceptionHandler({org.springframework.web.multipart.support.MissingServletRequestPartException.class,
+            org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.multipart.MultipartException.class})
+    ResponseEntity<Map<String, String>> missingFile(Exception e) {
+        return body(HttpStatus.BAD_REQUEST, "올릴 파일(file)을 선택해 주세요");
+    }
 
     @ExceptionHandler(EmployeeException.class)
     ResponseEntity<Map<String, String>> employee(EmployeeException e) {
