@@ -15,7 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Oracle 실DB에서 V019·JPA 매핑(ddl-auto: validate)·DB 제약을 검증한다. 실행 조건: {@code ORACLE_IT=true}. 각 테스트는 롤백한다.
+ * Oracle 실DB에서 V020·JPA 매핑(ddl-auto: validate)·DB 제약을 검증한다. 실행 조건: {@code ORACLE_IT=true}. 각 테스트는 롤백한다.
  * 다른 데이터와 겹치지 않게 아주 먼 과거 날짜를 쓴다.
  */
 @SpringBootTest

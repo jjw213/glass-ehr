@@ -21,14 +21,14 @@ const byLabel = <T extends HTMLElement = HTMLInputElement>(host: HTMLElement, la
 const base: AgreementInput = {
   agreementType: 'SELECTIVE', title: '합의서', signedDate: '2026-12-20', validFrom: '2027-01-01', validUntil: '2027-12-31',
   scopeType: 'ALL', scopeSiteCode: null, targetDesc: '연구직', repType: 'MAJORITY_UNION', repUnionName: '가상노조',
-  repEmpId: null, note: null,
+  repEmpId: null, note: null, documentRef: '인사팀 문서함 2026-010(예시)',
 };
 
 describe('서면합의서 메뉴 권한', () => {
   it('인사담당자·관리자에게만 보인다', () => {
     expect(canManageAgreements('HR')).toBe(true);
     expect(canManageAgreements('ADMIN')).toBe(true);
-    expect(canManageAgreements('PAYROLL')).toBe(false);
+    expect(canManageAgreements('EMPLOYEE')).toBe(false);
     expect(navFor('EMPLOYEE').map((n) => n.id)).not.toContain('agreements');
   });
 });
@@ -41,8 +41,11 @@ describe('형식 검사', () => {
   });
   it('근로자대표 구분별 필수값', () => {
     expect(validateAgreement({ ...base, repUnionName: ' ' })).toBe('노동조합 이름을 입력해 주세요');
-    expect(validateAgreement({ ...base, repType: 'MAJORITY_PERSON', repUnionName: null })).toBe('근로자 과반수를 대표하는 사원을 골라 주세요');
-    expect(validateAgreement({ ...base, repType: 'MAJORITY_PERSON', repEmpId: 3 })).toBeNull();
+    expect(validateAgreement({ ...base, repType: 'MAJORITY_REP', repUnionName: null })).toBe('근로자 과반수를 대표하는 사원을 골라 주세요');
+    expect(validateAgreement({ ...base, repType: 'MAJORITY_REP', repEmpId: 3 })).toBeNull();
+  });
+  it('합의서 문서 참조는 필수', () => {
+    expect(validateAgreement({ ...base, documentRef: '  ' })).toBe('합의서 문서(파일 번호·보관 위치)를 입력해 주세요');
   });
   it('사업장 한정이면 사업장 코드 필요', () => {
     expect(validateAgreement({ ...base, scopeType: 'SITE' })).toBe('대상 사업장을 골라 주세요');
@@ -79,7 +82,10 @@ describe('가짜 API의 유효 합의서 판정(서버와 같은 규칙)', () =>
     await api.create({ ...base, title: '내일 넘어감', validFrom: '2026-01-01', signedDate: '2026-01-01', validUntil: '2027-01-01' });
     await api.create({ ...base, title: '이미 만료', validFrom: '2026-01-01', signedDate: '2026-01-01', validUntil: '2026-11-30' });
     const e = await api.expiring();
-    expect(e.agreements.map((a) => a.daysUntilExpiry)).toEqual([30]);
+    // 예시 합의서(~2026-12-31)와 새로 넣은 '합의서'만 30일째(마지막 날 포함). 31일째·이미 만료는 빠진다.
+    expect(e.agreements.map((a) => [a.title, a.daysUntilExpiry])).toEqual([
+      ['연구소 선택적 근로시간제 합의서(예시)', 30], ['합의서', 30],
+    ]);
   });
   it('유형은 수정할 수 없다', async () => {
     const api = createMockAgreementApi(() => '2026-11-14');
@@ -127,6 +133,9 @@ describe('AgreementManager 화면', () => {
       type(byLabel(document.body, '대상 근로자 범위'), '전 직원');
       type(byLabel(document.body, '노동조합 이름'), '가상노조');
     });
+    await act(async () => buttonByText(document.body, '저장').click());
+    expect(document.body.textContent).toContain('합의서 문서(파일 번호·보관 위치)를 입력해 주세요');
+    await act(async () => type(byLabel(document.body, '합의서 문서'), '인사팀 문서함 2027-003(예시)'));
     await act(async () => buttonByText(document.body, '저장').click());
     await flush();
     expect(toast).toHaveBeenCalledWith('합의서를 등록했어요');

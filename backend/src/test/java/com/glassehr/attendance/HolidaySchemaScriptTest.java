@@ -33,7 +33,7 @@ class HolidaySchemaScriptTest {
 
     @Test
     void 합의_종류와_근로자대표_구분은_DB와_enum이_같다() throws IOException {
-        // V017 은 휴일 대체 하나로 시작했고, #27 의 V019 가 AgreementType 전체로 넓힌다(LaborAgreementSchemaScriptTest).
+        // V017 은 휴일 대체 하나로 시작했고, #27 의 V020 가 AgreementType 전체로 넓힌다(LaborAgreementSchemaScriptTest).
         assertThat(sql()).contains("agreement_kind IN ('" + AgreementType.HOLIDAY_SUBSTITUTION.name() + "')")
                 .contains("rep_type IN (" + quotedList(LaborAgreement.RepType.values()) + ")");
     }

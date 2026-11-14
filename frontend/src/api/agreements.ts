@@ -184,6 +184,10 @@ export function createMockAgreementApi(today: () => string = () => seoulToday(),
     note: null, documentRef: '인사팀 문서함 2026-001(예시)', updatedBy: 'hr1', updatedAt: '2026-01-02T09:00:00',
   }];
   let files: Array<AgreementFile & { blob: Blob }> = [];
+  const meta = (f: AgreementFile & { blob: Blob }): AgreementFile => ({
+    fileId: f.fileId, agreementId: f.agreementId, fileName: f.fileName, contentType: f.contentType,
+    fileSize: f.fileSize, sha256: f.sha256, uploadedBy: f.uploadedBy, uploadedAt: f.uploadedAt,
+  });
   let nextId = 2;
   let nextFile = 1;
   const view = (r: Row): Agreement => {
@@ -218,11 +222,11 @@ export function createMockAgreementApi(today: () => string = () => seoulToday(),
     async expiring() {
       const t = today();
       const list = rows.map(view).filter((a) => a.daysUntilExpiry !== null && a.validUntil! >= t && a.daysUntilExpiry <= expiryDays);
-      return { days: expiryDays, agreements: list.sort((a, b) => (a.validUntil! < b.validUntil! ? -1 : 1)) };
+      return { days: expiryDays, agreements: list.sort((a, b) => a.validUntil!.localeCompare(b.validUntil!) || a.agreementId - b.agreementId) };
     },
     async get(id) {
       const r = find(id);
-      return { agreement: view(r), files: files.filter((f) => f.agreementId === id).map(({ blob: _b, ...f }) => f) };
+      return { agreement: view(r), files: files.filter((f) => f.agreementId === id).map(meta) };
     },
     async create(i) {
       const row: Row = { ...clean(i), agreementId: nextId++, updatedBy: 'demo', updatedAt: new Date().toISOString() };
@@ -257,8 +261,7 @@ export function createMockAgreementApi(today: () => string = () => seoulToday(),
         fileSize: file.size, sha256: '0'.repeat(64), uploadedBy: 'demo', uploadedAt: new Date().toISOString(), blob: file,
       };
       files = [...files, f];
-      const { blob: _b, ...meta } = f;
-      return meta;
+      return meta(f);
     },
     async download(id, fileId) {
       const f = files.find((x) => x.agreementId === id && x.fileId === fileId);

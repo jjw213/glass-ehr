@@ -11,7 +11,7 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
-/** 서면합의서 첨부파일(#27). 테이블: V019 worker_rep_agreement_file. 목록은 내용 없이 {@link AgreementFileView}로 읽는다. */
+/** 서면합의서 첨부파일(#27). 테이블: V020 worker_rep_agreement_file. 목록은 내용 없이 {@link AgreementFileView}로 읽는다. */
 @Entity
 @Table(name = "worker_rep_agreement_file")
 public class LaborAgreementFile {

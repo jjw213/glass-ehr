@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuFileSignature } from 'react-icons/lu';
+import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature } from 'react-icons/lu';
 import type { Role } from './api/types';
 import type { PageId } from './state/store';
 
@@ -28,7 +28,7 @@ export const NAV: NavItem[] = [
   { id: 'settings', label: '설정', short: '설정', icon: LuSettings, section: 'system' },
   { id: 'codes', label: '공통코드 관리', short: '코드', icon: LuListTree, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'workPatterns', label: '근무유형 관리', short: '근무유형', icon: LuCalendarClock, section: 'system', roles: ['HR', 'ADMIN'] },
-  { id: 'agreements', label: '서면합의서 관리', short: '합의서', icon: LuFileSignature, section: 'system', roles: ['HR', 'ADMIN'] },
+  { id: 'agreements', label: '서면합의서 관리', short: '합의서', icon: LuSignature, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'privacyLogs', label: '개인정보 조회 로그', short: '로그', icon: LuShieldCheck, section: 'system', roles: ['ADMIN'] },
 ];
 

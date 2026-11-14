@@ -1,7 +1,7 @@
 package com.glassehr.attendance;
 
 /**
- * 근로자대표와의 서면합의가 전제인 제도(#27). 값은 V019 ck_wra_kind 와 같다(LaborAgreementSchemaScriptTest).
+ * 근로자대표와의 서면합의가 전제인 제도(#27). 값은 V020 ck_wra_kind 와 같다(LaborAgreementSchemaScriptTest).
  * HOLIDAY_SUBSTITUTION 은 #26(V017)이 먼저 쓰던 값이라 이름을 그대로 둔다.
  * 조문 표기는 이슈 #27 본문 기준이며, law.go.kr 현행 원문 대조는 docs/labor-agreement-design.md 7장(미확인 표시) 참고.
  */

@@ -30,7 +30,7 @@ export function AgreementsPage() {
 interface Draft {
   agreementType: AgreementType; title: string; signedDate: string; validFrom: string; validUntil: string;
   scopeType: Scope; scopeSiteCode: string; targetDesc: string; repType: RepType; repUnionName: string;
-  repEmpId: string; note: string;
+  repEmpId: string; note: string; documentRef: string;
 }
 type Editing = { mode: 'create' } | { mode: 'edit'; row: Agreement };
 
@@ -38,13 +38,14 @@ const emptyDraft = (): Draft => {
   const t = seoulToday();
   return {
     agreementType: 'FLEXIBLE_WRITTEN', title: '', signedDate: t, validFrom: t, validUntil: '', scopeType: 'ALL',
-    scopeSiteCode: '', targetDesc: '', repType: 'MAJORITY_UNION', repUnionName: '', repEmpId: '', note: '',
+    scopeSiteCode: '', targetDesc: '', repType: 'MAJORITY_UNION', repUnionName: '', repEmpId: '', note: '', documentRef: '',
   };
 };
 const fromRow = (r: Agreement): Draft => ({
   agreementType: r.agreementType, title: r.title, signedDate: r.signedDate, validFrom: r.validFrom,
-  validUntil: r.validUntil ?? '', scopeType: r.scopeType, scopeSiteCode: r.scopeSiteCode ?? '', targetDesc: r.targetDesc,
+  validUntil: r.validUntil ?? '', scopeType: r.scopeType, scopeSiteCode: r.scopeSiteCode ?? '', targetDesc: r.targetDesc ?? '',
   repType: r.repType, repUnionName: r.repUnionName ?? '', repEmpId: r.repEmpId === null ? '' : String(r.repEmpId), note: r.note ?? '',
+  documentRef: r.documentRef ?? '',
 });
 export const toInput = (d: Draft): AgreementInput => ({
   agreementType: d.agreementType, title: d.title, signedDate: d.signedDate, validFrom: d.validFrom,
@@ -52,15 +53,16 @@ export const toInput = (d: Draft): AgreementInput => ({
   scopeSiteCode: d.scopeType === 'SITE' ? d.scopeSiteCode.trim().toUpperCase() || null : null,
   targetDesc: d.targetDesc, repType: d.repType,
   repUnionName: d.repType === 'MAJORITY_UNION' ? d.repUnionName : null,
-  repEmpId: d.repType === 'MAJORITY_PERSON' && d.repEmpId.trim() ? Number(d.repEmpId) : null,
+  repEmpId: d.repType === 'MAJORITY_REP' && d.repEmpId.trim() ? Number(d.repEmpId) : null,
   note: d.note.trim() || null,
+  documentRef: d.documentRef,
 });
 
 const STATUS_TONE: Record<AgreementStatus, 'green' | 'blue' | 'neutral'> = { ACTIVE: 'green', UPCOMING: 'blue', EXPIRED: 'neutral' };
 const period = (a: { validFrom: string; validUntil: string | null }) => `${a.validFrom} ~ ${a.validUntil ?? '기간 정함 없음'}`;
 const repText = (a: Agreement) =>
   a.repType === 'MAJORITY_UNION' ? `${REP_LABEL.MAJORITY_UNION} · ${a.repUnionName ?? ''}`
-    : `${REP_LABEL.MAJORITY_PERSON} · ${a.repEmpName ?? `사원 ${a.repEmpId}`}${a.repEmpNo ? ` (${a.repEmpNo})` : ''}`;
+    : `${REP_LABEL.MAJORITY_REP} · ${a.repEmpName ?? `사원 ${a.repEmpId}`}${a.repEmpNo ? ` (${a.repEmpNo})` : ''}`;
 const kb = (n: number) => (n < 1024 ? `${n}B` : n < 1024 * 1024 ? `${Math.round(n / 1024)}KB` : `${(n / 1024 / 1024).toFixed(1)}MB`);
 
 /** 화면 본문. 스토어 없이 api·toast·save 만 받아서 테스트할 수 있다. */
@@ -188,7 +190,7 @@ export function AgreementManager({ api, toast, save }: {
                   <td>{r.typeLabel}<br /><span className="muted sm">{r.article}</span></td>
                   <td>{r.title} {r.fileCount > 0 && <Badge tone="blue"><LuPaperclip /> {r.fileCount}</Badge>}</td>
                   <td className="num">{period(r)}</td>
-                  <td className="hide-sm muted sm">{r.scopeType === 'ALL' ? '회사 전체' : `사업장 ${r.scopeSiteCode}`} · {r.targetDesc}</td>
+                  <td className="hide-sm muted sm">{r.scopeType === 'ALL' ? '회사 전체' : `사업장 ${r.scopeSiteCode}`} · {r.targetDesc ?? '대상 미입력'}</td>
                   <td className="hide-sm muted sm">{repText(r)}</td>
                   <td><Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge></td>
                   <td className="code-table__actions">
@@ -283,7 +285,7 @@ export function AgreementManager({ api, toast, save }: {
               <span className="field__label">근로자대표 (근로기준법 제24조 제3항)</span>
               <select className="input" aria-label="근로자대표 구분" value={draft.repType} onChange={(e) => set('repType', e.target.value as RepType)}>
                 <option value="MAJORITY_UNION">{REP_LABEL.MAJORITY_UNION}</option>
-                <option value="MAJORITY_PERSON">{REP_LABEL.MAJORITY_PERSON}</option>
+                <option value="MAJORITY_REP">{REP_LABEL.MAJORITY_REP}</option>
               </select>
             </label>
             {draft.repType === 'MAJORITY_UNION' ? (
@@ -300,7 +302,11 @@ export function AgreementManager({ api, toast, save }: {
           </div>
           <label className="field">
             <span className="field__label">비고 (선택)</span>
-            <input className="input" aria-label="비고" value={draft.note} maxLength={1000} onChange={(e) => set('note', e.target.value)} />
+            <input className="input" aria-label="비고" value={draft.note} maxLength={500} onChange={(e) => set('note', e.target.value)} />
+          </label>
+          <label className="field">
+            <span className="field__label">합의서 문서 (문서 번호·보관 위치, 스캔본은 첨부로 따로 올려요)</span>
+            <input className="input" aria-label="합의서 문서" value={draft.documentRef} maxLength={500} onChange={(e) => set('documentRef', e.target.value)} placeholder="예: 인사팀 문서함 2027-003" />
           </label>
           {formError && <p className="badge badge--red" role="alert">{formError}</p>}
           <div className="form__actions">

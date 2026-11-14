@@ -106,7 +106,7 @@ public class OracleItSchemaConfig {
         Integer agreementFile = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM user_tables WHERE table_name = 'WORKER_REP_AGREEMENT_FILE'", Integer.class);
         if (agreementFile == null || agreementFile == 0) {
-            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V019__worker_rep_agreement_ext.sql"))
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V020__worker_rep_agreement_ext.sql"))
                     .execute(dataSource);
         }
         return new Applied();

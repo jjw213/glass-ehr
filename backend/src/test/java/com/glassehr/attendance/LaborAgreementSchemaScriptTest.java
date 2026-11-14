@@ -9,11 +9,11 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
-/** 서면합의서 DDL(V019: V017 worker_rep_agreement 확장) 정적 검사. DB 없이 돈다. */
+/** 서면합의서 DDL(V020: V017 worker_rep_agreement 확장) 정적 검사. DB 없이 돈다. */
 class LaborAgreementSchemaScriptTest {
 
     private static String sql() throws IOException {
-        return new ClassPathResource("db/oracle/V019__worker_rep_agreement_ext.sql")
+        return new ClassPathResource("db/oracle/V020__worker_rep_agreement_ext.sql")
                 .getContentAsString(StandardCharsets.UTF_8)
                 .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
     }

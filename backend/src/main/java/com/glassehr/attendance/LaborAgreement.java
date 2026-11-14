@@ -12,7 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * 근로자대표 서면합의서(#27). 테이블: worker_rep_agreement(V017 #26 이 만들고 V019 가 넓힘).
+ * 근로자대표 서면합의서(#27). 테이블: worker_rep_agreement(V017 #26 이 만들고 V020 이 넓힘).
  * <p>
  * 유효기간: DB 는 V017 그대로 [effective_from, effective_to)(effective_to = 마지막 유효일 다음 날)로 저장하고,
  * 이 클래스 밖으로는 합의서에 적힌 대로 양 끝 포함 [validFrom, validUntil] 로 내보낸다. validUntil NULL = 기한 없음.
