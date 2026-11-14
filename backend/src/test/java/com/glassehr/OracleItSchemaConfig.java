@@ -85,10 +85,23 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V015__legal_rate_items_work_pattern.sql"))
                     .execute(dataSource);
         }
+        Integer holidayItem = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM legal_rate_item WHERE item_code = 'PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT'",
+                Integer.class);
+        if (holidayItem == null || holidayItem == 0) {
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V018__legal_rate_item_public_holiday_paid.sql")).execute(dataSource);
+        }
         Integer pattern = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM user_tables WHERE table_name = 'WORK_PATTERN'", Integer.class);
         if (pattern == null || pattern == 0) {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V016__work_pattern.sql")).execute(dataSource);
+        }
+        Integer holiday = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'HOLIDAY'", Integer.class);
+        if (holiday == null || holiday == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V017__holiday_calendar.sql"))
+                    .execute(dataSource);
         }
         return new Applied();
     }

@@ -7,7 +7,8 @@ package com.glassehr.legalrate;
  * {@code V005__legal_rate_items_hr_attendance_ext.sql}(추가 18개, 합계 47개),
  * {@code V010__legal_rate_item_record_retention.sql}(근로자 명부 보존 기간 1개),
  * {@code V011__legal_rate_item_fixed_term_limit.sql}(기간제 사용기간 상한 1개),
- * {@code V015__legal_rate_items_work_pattern.sql}(근로시간 한도·휴게·주휴일 7개, 합계 56개)이며, 이 enum과 목록·단위가 같아야 한다
+ * {@code V015__legal_rate_items_work_pattern.sql}(근로시간 한도·휴게·주휴일 7개, 합계 56개),
+ * {@code V018__legal_rate_item_public_holiday_paid.sql}(공휴일 유급휴일 적용 규모 1개, 합계 57개)이며, 이 enum과 목록·단위가 같아야 한다
  * (LegalRateItemRegistrationTest). 근거 조문은 legal_rate_item.legal_basis 에 있다.
  * 값은 {@link LegalRateService#getEffective(LegalRateItem, java.time.LocalDate)}로 적용일 기준 조회한다.
  */
@@ -103,7 +104,10 @@ public enum LegalRateItem {
     BREAK_LONG_MIN_MINUTES(LegalRateUnit.MINUTES),
 
     // 근로기준법 제55조 제1항: 1주 유급휴일(주휴일) 최소 횟수 (V015, #25)
-    WEEKLY_PAID_HOLIDAY_MIN_COUNT(LegalRateUnit.COUNT);
+    WEEKLY_PAID_HOLIDAY_MIN_COUNT(LegalRateUnit.COUNT),
+
+    // 근로기준법 제55조 제2항·부칙: 관공서 공휴일 유급휴일이 적용되는 상시근로자 수 하한(명, 시행일별) (V018, #26)
+    PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT(LegalRateUnit.COUNT);
 
     private final String unit;
 

@@ -14,8 +14,12 @@ export function setActorId(id: string | null) { actorId = id; }
 /** JSON 이 아닌 요청(파일 올리기·내려받기)에 붙일 사용자 헤더. */
 export function actorHeader(): Record<string, string> { return actorId ? { 'X-Actor-Id': actorId } : {}; }
 
-export async function call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
-  const hasBody = method !== 'GET';
+/**
+ * body 가 문자열이면 JSON 으로 바꾸지 않고 그대로 보낸다(예: 공휴일 CSV — Content-Type 은 extraHeaders 로).
+ * 204(본문 없음)는 undefined 를 돌려준다.
+ */
+export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
+  const hasBody = method !== 'GET' && method !== 'DELETE';
   const headers: Record<string, string> = {
     ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     ...(actorId ? { 'X-Actor-Id': actorId } : {}),
@@ -27,7 +31,7 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body
       method,
       credentials: 'same-origin',
       headers: Object.keys(headers).length > 0 ? headers : undefined,
-      body: hasBody ? JSON.stringify(body ?? {}) : undefined,
+      body: hasBody ? (typeof body === 'string' ? body : JSON.stringify(body ?? {})) : undefined,
     });
   } catch {
     throw new ApiError(0, '서버에 연결할 수 없어요. 서버가 켜져 있는지 확인해 주세요');
@@ -37,6 +41,7 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body
     try { msg = ((await res.json()) as { error?: string }).error ?? msg; } catch { /* not JSON */ }
     throw new ApiError(res.status, msg);
   }
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
