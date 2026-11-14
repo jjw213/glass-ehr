@@ -146,7 +146,9 @@ class AppointmentServiceTest {
         when(apptNos.next(anyInt())).thenAnswer(inv ->
                 AppointmentNoGenerator.format(inv.<Integer>getArgument(0), nextNo++));
 
-        service = new AppointmentService(appointments, employees, codes, depts, apptNos, CLOCK);
+        // 취소 발령 연결은 AppointmentApplyCancelTest 에서 다룬다. 여기서는 비어 있음
+        service = new AppointmentService(appointments, mock(HrAppointmentCancelRepository.class), employees, codes,
+                depts, apptNos, CLOCK);
         emp(1, null);
     }
 
@@ -365,8 +367,11 @@ class AppointmentServiceTest {
         assertThat(c.before().deptId()).isEqualTo(DEPT_B);
         assertThat(c.after()).isEqualTo(new HrAppointment.Snapshot(DEPT_B, "MANAGER", "MEMBER", EmpStatus.ACTIVE));
 
+        // #59: 이전 값은 사원 행이 아니라 발령일 기준 확정 이력에서 온다. 등록 뒤 같은 날 다른 전보가 먼저 확정되면
+        // 확정할 때 이전 소속이 바뀌어 규칙(지금 소속과 달라야 함)을 다시 검사한다
         AppointmentView t = service.create(1, req("TRANSFER", D, DEPT_A, null, null));
-        when(e.getCurrentDeptId()).thenReturn(DEPT_A);
+        assertThat(t.before().deptId()).isEqualTo(DEPT_B);
+        service.confirm(service.create(1, req("TRANSFER", D, DEPT_A, null, null)).apptId());
         assertStatus(() -> service.confirm(t.apptId()), HttpStatus.BAD_REQUEST, "같아요");
         assertThat(store.get(t.apptId()).isConfirmed()).isFalse();
     }
