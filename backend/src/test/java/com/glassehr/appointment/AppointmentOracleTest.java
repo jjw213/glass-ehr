@@ -71,9 +71,13 @@ class AppointmentOracleTest {
         long appt = service.create(emp, new AppointmentRequest("TRANSFER", future, dept, null, null,
                 "IT 미래 전입", null, null)).apptId();
         service.confirm(appt);
+        assertThat(service.countDeptMembersOnOrAfter(dept, future.minusDays(1))).isEqualTo(1);
         assertThatThrownBy(() -> orgs.close(dept, new com.glassehr.org.OrgDtos.DeptCloseRequest(
                 future.minusDays(1), "IT 폐지 시도")))
-                .isInstanceOf(com.glassehr.org.OrgException.class).hasMessageContaining("소속 재직자 1명");
+                .isInstanceOfSatisfying(com.glassehr.org.OrgException.class, e -> {
+                    assertThat(e.status()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
+                    assertThat(e.getMessage()).contains("소속 재직자가 1명");
+                });
     }
 
     @Test
