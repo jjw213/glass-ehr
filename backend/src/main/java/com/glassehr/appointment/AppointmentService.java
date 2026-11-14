@@ -61,23 +61,25 @@ public class AppointmentService {
     private final OrgDeptRepository depts;
     private final AppointmentNoGenerator apptNos;
     private final Clock clock;
+    private final com.glassehr.org.OrgWriteLock orgLock;
 
     @Autowired
     public AppointmentService(HrAppointmentRepository appointments, HrAppointmentCancelRepository cancels,
             EmployeeRepository employees, CommonCodeRepository codes, OrgDeptRepository depts,
-            AppointmentNoGenerator apptNos) {
-        this(appointments, cancels, employees, codes, depts, apptNos, Clock.system(SEOUL));
+            AppointmentNoGenerator apptNos, com.glassehr.org.OrgWriteLock orgLock) {
+        this(appointments, cancels, employees, codes, depts, apptNos, orgLock, Clock.system(SEOUL));
     }
 
     AppointmentService(HrAppointmentRepository appointments, HrAppointmentCancelRepository cancels,
             EmployeeRepository employees, CommonCodeRepository codes, OrgDeptRepository depts,
-            AppointmentNoGenerator apptNos, Clock clock) {
+            AppointmentNoGenerator apptNos, com.glassehr.org.OrgWriteLock orgLock, Clock clock) {
         this.appointments = appointments;
         this.cancels = cancels;
         this.employees = employees;
         this.codes = codes;
         this.depts = depts;
         this.apptNos = apptNos;
+        this.orgLock = orgLock;
         this.clock = clock.withZone(SEOUL);
     }
 
@@ -158,6 +160,16 @@ public class AppointmentService {
         return out;
     }
 
+    /** 부서 폐지 검사: 사원별 확정·미취소 발령 이력을 반영하며 한 사람은 한 번만 센다. */
+    public long countDeptMembersOnOrAfter(long deptId, LocalDate date) {
+        Map<Long, List<HrAppointment>> byEmp = appointments.findAllByOrderByEffectiveDateAscApptIdAsc().stream()
+                .collect(Collectors.groupingBy(HrAppointment::getEmpId));
+        Map<Long, Long> links = allLinks();
+        return employees.findAllByOrderByEmpNoAsc().stream()
+                .filter(e -> new AppointmentHistory(e, byEmp.getOrDefault(e.getEmpId(), List.of()), links)
+                        .belongsToDeptOnOrAfter(deptId, date)).count();
+    }
+
     // ---------------------------------------------------------------- 등록·수정·확정·삭제
 
     @Transactional
@@ -191,6 +203,8 @@ public class AppointmentService {
      */
     @Transactional
     public AppointmentView confirm(long apptId) {
+        // 부서 폐지 검사와 발령 확정을 직렬화한다. 사원 잠금보다 조직 잠금을 먼저 잡는다.
+        orgLock.acquire();
         Employee e = lockEmployee(empIdOf(apptId));
         HrAppointment a = loadForUpdate(apptId);
         requireUnconfirmed(a, "다시 확정할");

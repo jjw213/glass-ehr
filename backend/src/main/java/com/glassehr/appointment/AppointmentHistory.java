@@ -101,6 +101,16 @@ final class AppointmentHistory {
                 employee.getJobTitleCode(), status));
     }
 
+    /** 기준일 및 그 뒤 발령일의 최종 상태를 검사한다. 같은 날 발령은 마지막 확정 결과만 센다. */
+    boolean belongsToDeptOnOrAfter(long deptId, LocalDate date) {
+        LocalDate start = date.isBefore(employee.getHireDate()) ? employee.getHireDate() : date;
+        java.util.Set<LocalDate> points = new java.util.TreeSet<>();
+        points.add(start);
+        active.stream().map(HrAppointment::getEffectiveDate).filter(d -> d.isAfter(start)).forEach(points::add);
+        return points.stream().anyMatch(d -> stateOn(d)
+                .filter(s -> Objects.equals(s.deptId(), deptId) && s.status() != EmpStatus.RETIRED).isPresent());
+    }
+
     /**
      * 휴직 기간(확정·미취소 휴직 발령). 휴직 뒤 처음 나오는 복직·퇴직 발령의 발령일이 종료 예정일 이하이면 그 전날에 끝난다.
      * 휴직 시작 전에 복직·퇴직했으면 휴직 기간이 없다. from~to(양끝 포함)와 겹치는 것만 돌려준다.

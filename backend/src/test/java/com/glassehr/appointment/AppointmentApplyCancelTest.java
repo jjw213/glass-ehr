@@ -157,6 +157,7 @@ class AppointmentApplyCancelTest {
         when(employees.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(0))));
         when(employees.findForUpdate(anyLong())).thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(0))));
         when(employees.applyAppointment(anyLong(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(employees.findAllByOrderByEmpNoAsc()).thenAnswer(inv -> new ArrayList<>(emps.values()));
         when(employees.findAllById(any())).thenAnswer(inv -> ids(inv.<Iterable<Long>>getArgument(0)).stream()
                 .map(emps::get).filter(e -> e != null).toList());
 
@@ -184,7 +185,7 @@ class AppointmentApplyCancelTest {
     }
 
     private AppointmentService serviceOn(Clock clock) {
-        return new AppointmentService(appointments, cancels, employees, codes, depts, apptNos, clock);
+        return new AppointmentService(appointments, cancels, employees, codes, depts, apptNos, mock(com.glassehr.org.OrgWriteLock.class), clock);
     }
 
     private List<HrAppointment> sorted() {
@@ -453,6 +454,67 @@ class AppointmentApplyCancelTest {
         assertStatus(() -> service.leavePeriods(1, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 1, 1)),
                 HttpStatus.BAD_REQUEST, "종료일");
         assertStatus(() -> service.leavePeriods(null, LocalDate.of(2026, 1, 1)), HttpStatus.BAD_REQUEST, "입력");
+    }
+
+    // ---------------------------------------------------------------- 부서 폐지 검사
+
+    private long members(long dept, LocalDate date) {
+        return new com.glassehr.employee.EmployeeDeptMemberChecker(service).countMembersOnOrAfter(dept, date);
+    }
+
+    @Test
+    void 발령_확정은_사원보다_먼저_조직을_잠근다() {
+        long id = service.create(1, req("TRANSFER", FUTURE, DEPT_B, null, null)).apptId();
+        com.glassehr.org.OrgWriteLock lock = (com.glassehr.org.OrgWriteLock)
+                ReflectionTestUtils.getField(service, "orgLock");
+        clearInvocations(lock, employees, appointments);
+        service.confirm(id);
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(lock, employees, appointments);
+        order.verify(lock).acquire();
+        order.verify(employees).findForUpdate(1L);
+        order.verify(appointments).findForUpdate(id);
+    }
+
+    @Test
+    void 미래_전입은_폐지일_전후와_당일_모두_막고_미확정은_제외한다() {
+        AppointmentView draft = service.create(1, req("TRANSFER", FUTURE, DEPT_B, null, null));
+        assertThat(members(DEPT_B, FUTURE)).isZero();
+        service.confirm(draft.apptId());
+        assertThat(members(DEPT_B, FUTURE.minusDays(1))).isEqualTo(1);
+        assertThat(members(DEPT_B, FUTURE)).isEqualTo(1);
+        assertThat(members(DEPT_B, FUTURE.plusDays(1))).isEqualTo(1);
+    }
+
+    @Test
+    void 취소_발령은_확정된_뒤에만_원_발령을_폐지검사에서_제외한다() {
+        long t = confirmed(req("TRANSFER", FUTURE, DEPT_B, null, null));
+        long cancel = service.cancel(t, CANCEL).apptId();
+        assertThat(members(DEPT_B, FUTURE)).isEqualTo(1);
+        service.confirm(cancel);
+        assertThat(members(DEPT_B, FUTURE)).isZero();
+        assertThat(members(DEPT_A, FUTURE)).isEqualTo(1);
+    }
+
+    @Test
+    void 폐지일_전에_전출한_사원과_같은날_중간_소속은_세지_않는다() {
+        confirmed(req("TRANSFER", FUTURE, DEPT_B, null, null));
+        confirmed(req("TRANSFER", FUTURE, DEPT_C, null, null));
+        assertThat(members(DEPT_B, FUTURE)).isZero();
+        assertThat(members(DEPT_C, FUTURE)).isEqualTo(1);
+        assertThat(members(DEPT_A, FUTURE)).isZero();
+        assertThat(members(DEPT_A, FUTURE.minusDays(1))).isEqualTo(1);
+    }
+
+    @Test
+    void 현재소속과_반복발령은_사원별_한명만_세고_퇴직자는_제외한다() {
+        emp(2);
+        when(emps.get(2L).getRetireDate()).thenReturn(PAST);
+        assertThat(members(DEPT_A, FUTURE)).isEqualTo(1);
+        confirmed(req("TRANSFER", FUTURE, DEPT_B, null, null));
+        confirmed(req("PROMOTION", FUTURE.plusDays(1), null, "MANAGER", null));
+        assertThat(members(DEPT_B, FUTURE)).isEqualTo(1);
+        confirmed(req("RETIREMENT", FUTURE.plusDays(2), null, null, null));
+        assertThat(members(DEPT_B, FUTURE.plusDays(3))).isZero();
     }
 
     // ---------------------------------------------------------------- 직접 수정 경로 없음

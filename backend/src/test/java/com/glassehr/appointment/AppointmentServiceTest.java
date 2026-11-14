@@ -148,7 +148,7 @@ class AppointmentServiceTest {
 
         // 취소 발령 연결은 AppointmentApplyCancelTest 에서 다룬다. 여기서는 비어 있음
         service = new AppointmentService(appointments, mock(HrAppointmentCancelRepository.class), employees, codes,
-                depts, apptNos, CLOCK);
+                depts, apptNos, mock(com.glassehr.org.OrgWriteLock.class), CLOCK);
         emp(1, null);
     }
 
