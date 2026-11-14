@@ -25,8 +25,14 @@ public final class LaborAgreementRules {
         if (f.targetDesc() == null) {
             errors.add("대상 근로자 범위를 입력해 주세요");
         }
+        if (f.documentRef() == null) {
+            errors.add("합의서 문서(파일 번호·보관 위치)를 입력해 주세요");
+        }
         if (f.validUntil() != null && f.validUntil().isBefore(f.validFrom())) {
             errors.add("유효기간 종료일은 시작일 이후여야 해요");
+        }
+        if (f.validUntil() != null && f.validFrom() != null && f.validUntil().getYear() >= 9999) {
+            errors.add("유효기간 종료일이 너무 멀어요. 기간이 없으면 비워 두세요");
         }
         if (f.signedDate() != null && f.validUntil() != null && f.signedDate().isAfter(f.validUntil())) {
             errors.add("체결일이 유효기간 종료일보다 늦어요");
@@ -38,7 +44,7 @@ public final class LaborAgreementRules {
         if (f.repType() == LaborAgreement.RepType.MAJORITY_UNION && f.repUnionName() == null) {
             errors.add("노동조합 이름을 입력해 주세요");
         }
-        if (f.repType() == LaborAgreement.RepType.MAJORITY_PERSON && f.repEmpId() == null) {
+        if (f.repType() == LaborAgreement.RepType.MAJORITY_REP && f.repEmpId() == null) {
             errors.add("근로자 과반수를 대표하는 사원을 골라 주세요");
         }
         return errors;

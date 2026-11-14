@@ -36,36 +36,41 @@ class LaborAgreementOracleTest {
 
     private AgreementView create(AgreementType type, LocalDate from, LocalDate until) {
         return service.create(new AgreementRequest(type, "IT 합의서", from, from, until, LaborAgreement.Scope.ALL,
-                null, "IT 대상", LaborAgreement.RepType.MAJORITY_UNION, "가상노동조합IT", null, null), "it-hr");
+                null, "IT 대상", LaborAgreement.RepType.MAJORITY_UNION, "가상노동조합IT", null, null, "IT 문서함-1"), "it-hr");
     }
 
     @Test
     void 저장_첨부_확인이_된다() {
-        AgreementView v = create(AgreementType.HOLIDAY_SUBSTITUTE, D0, D0.plusMonths(1));
+        AgreementView v = create(AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1));
         AgreementFileView f = service.addFile(v.agreementId(), "a.pdf", "%PDF-1.7 it".getBytes(), "it-hr");
         assertThat(service.get(v.agreementId()).files()).singleElement()
                 .satisfies(x -> assertThat(x.fileId()).isEqualTo(f.fileId()));
         assertThat(service.file(v.agreementId(), f.fileId()).getContent()).isEqualTo("%PDF-1.7 it".getBytes());
-        assertThat(guard.check(AgreementType.HOLIDAY_SUBSTITUTE, D0, D0.plusMonths(1), null).agreementId())
+        assertThat(guard.check(AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1), null).agreementId())
                 .isEqualTo(v.agreementId());
-        assertThat(guard.check(AgreementType.HOLIDAY_SUBSTITUTE, D0, D0.plusMonths(1).plusDays(1), null).ok())
+        assertThat(guard.check(AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1).plusDays(1), null).ok())
                 .isFalse();
+        // 저장은 V017 형식 그대로 배타 종료일(마지막 유효일 다음 날)이고, API 는 마지막 유효일을 돌려준다.
+        assertThat(jdbc.queryForObject("SELECT effective_to FROM worker_rep_agreement WHERE agreement_id = ?",
+                java.sql.Date.class, v.agreementId()).toLocalDate()).isEqualTo(D0.plusMonths(1).plusDays(1));
+        assertThat(service.get(v.agreementId()).agreement().validUntil()).isEqualTo(D0.plusMonths(1));
     }
 
     @Test
     void DB는_거꾸로_된_기간과_대표_구분_불일치와_공백_제목을_거부한다() {
         AgreementView v = create(AgreementType.COMPENSATORY_LEAVE, D0, null);
         assertThatThrownBy(() -> jdbc.update(
-                "UPDATE labor_agreement SET valid_until = DATE '1902-12-31' WHERE agreement_id = ?", v.agreementId()))
+                "UPDATE worker_rep_agreement SET effective_to = DATE '1902-12-31' WHERE agreement_id = ?",
+                v.agreementId()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update(
-                "UPDATE labor_agreement SET rep_type = 'MAJORITY_PERSON' WHERE agreement_id = ?", v.agreementId()))
+                "UPDATE worker_rep_agreement SET rep_type = 'MAJORITY_REP' WHERE agreement_id = ?", v.agreementId()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update(
-                "UPDATE labor_agreement SET title = '   ' WHERE agreement_id = ?", v.agreementId()))
+                "UPDATE worker_rep_agreement SET title = '   ' WHERE agreement_id = ?", v.agreementId()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update(
-                "UPDATE labor_agreement SET agreement_type = 'NOPE' WHERE agreement_id = ?", v.agreementId()))
+                "UPDATE worker_rep_agreement SET agreement_kind = 'NOPE' WHERE agreement_id = ?", v.agreementId()))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

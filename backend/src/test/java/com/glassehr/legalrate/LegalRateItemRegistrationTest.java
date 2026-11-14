@@ -40,7 +40,8 @@ class LegalRateItemRegistrationTest {
             "db/oracle/V005__legal_rate_items_hr_attendance_ext.sql",
             "db/oracle/V010__legal_rate_item_record_retention.sql",
             "db/oracle/V011__legal_rate_item_fixed_term_limit.sql",
-            "db/oracle/V015__legal_rate_items_work_pattern.sql");
+            "db/oracle/V015__legal_rate_items_work_pattern.sql",
+            "db/oracle/V018__legal_rate_item_public_holiday_paid.sql");
 
     /** #7 에서 등록한 인사·근태 항목 마이그레이션(V003·V005). */
     private static final List<String> HR_ATTENDANCE_ITEM_MIGRATIONS = ITEM_MIGRATIONS.subList(0, 2);
@@ -151,6 +152,15 @@ class LegalRateItemRegistrationTest {
         assertThat(items).containsOnlyKeys("FIXED_TERM_MAX_USE_YEARS");
         assertThat(items.get("FIXED_TERM_MAX_USE_YEARS")[1]).isEqualTo(LegalRateUnit.YEARS);
         assertThat(items.get("FIXED_TERM_MAX_USE_YEARS")[2]).contains("제4조");
+    }
+
+    @Test
+    void 공휴일_유급휴일_적용_규모_항목이_횟수_단위로_등록돼_있다() throws IOException {
+        // #26: 근로기준법 제55조 제2항·부칙. 값은 사람이 입력한다(V018 에는 값 행 없음).
+        Map<String, String[]> items = registeredItems(List.of("db/oracle/V018__legal_rate_item_public_holiday_paid.sql"));
+        assertThat(items).containsOnlyKeys("PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT");
+        assertThat(items.get("PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT")[1]).isEqualTo(LegalRateUnit.COUNT);
+        assertThat(items.get("PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT")[2]).contains("제55조 제2항");
     }
 
     @Test

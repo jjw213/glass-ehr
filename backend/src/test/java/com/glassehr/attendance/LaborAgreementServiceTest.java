@@ -65,8 +65,8 @@ class LaborAgreementServiceTest {
 
     private static AgreementRequest req(AgreementType type, LaborAgreement.Scope scope, String site, Long repEmp) {
         return new AgreementRequest(type, "합의서", TODAY, TODAY, TODAY.plusYears(1), scope, site, "생산직 전원",
-                repEmp == null ? LaborAgreement.RepType.MAJORITY_UNION : LaborAgreement.RepType.MAJORITY_PERSON,
-                repEmp == null ? "가상노동조합" : null, repEmp, null);
+                repEmp == null ? LaborAgreement.RepType.MAJORITY_UNION : LaborAgreement.RepType.MAJORITY_REP,
+                repEmp == null ? "가상노동조합" : null, repEmp, null, "문서함 A-1");
     }
 
     @Test
@@ -110,7 +110,7 @@ class LaborAgreementServiceTest {
         LaborAgreement upcoming = agreement(1, AgreementType.SELECTIVE, TODAY.plusDays(1), null, LaborAgreement.Scope.ALL, null);
         LaborAgreement expired = agreement(2, AgreementType.SELECTIVE, TODAY.minusYears(1), TODAY.minusDays(1), LaborAgreement.Scope.ALL, null);
         LaborAgreement lastDay = agreement(3, AgreementType.SELECTIVE, TODAY.minusYears(1), TODAY, LaborAgreement.Scope.ALL, null);
-        when(agreements.findAllByOrderByValidFromDescAgreementIdDesc()).thenReturn(List.of(upcoming, expired, lastDay));
+        when(agreements.findAllByOrderByEffectiveFromDescAgreementIdDesc()).thenReturn(List.of(upcoming, expired, lastDay));
         assertThat(service.list()).extracting(AgreementView::status)
                 .containsExactly(Status.UPCOMING, Status.EXPIRED, Status.ACTIVE);
     }
@@ -125,6 +125,42 @@ class LaborAgreementServiceTest {
         when(agreements.findExpiring(TODAY, TODAY)).thenReturn(List.of());
         assertThat(service.expiring(0).agreements()).isEmpty();
         assertThatThrownBy(() -> service.expiring(-1)).isInstanceOf(AttendanceException.class);
+    }
+
+    @Test
+    void 만료_예정_조회는_배타_종료일로_하루_밀어_찾는다() {
+        // DB 는 마지막 유효일 다음 날(effective_to)을 저장한다. 마지막 유효일 [오늘, 오늘+30] = effective_to [오늘+1, 오늘+31].
+        LaborAgreementRepository repo = mock(LaborAgreementRepository.class,
+                org.mockito.Mockito.withSettings().defaultAnswer(org.mockito.Answers.CALLS_REAL_METHODS));
+        org.mockito.Mockito.doReturn(List.of()).when(repo).findExpiringRaw(any(), any());
+        repo.findExpiring(TODAY, TODAY.plusDays(30));
+        verify(repo).findExpiringRaw(TODAY.plusDays(1), TODAY.plusDays(31));
+    }
+
+    @Test
+    void 저장은_배타_종료일이고_밖으로는_마지막_유효일이다() {
+        LaborAgreement a = agreement(1, AgreementType.SELECTIVE, TODAY, TODAY.plusDays(9), LaborAgreement.Scope.ALL, null);
+        assertThat(a.getValidUntil()).isEqualTo(TODAY.plusDays(9));
+        assertThat(a.isEffectiveOn(TODAY.plusDays(9))).isTrue();
+        assertThat(a.isEffectiveOn(TODAY.plusDays(10))).isFalse();
+        assertThat(a.isEffectiveOn(TODAY.minusDays(1))).isFalse();
+        try {
+            java.lang.reflect.Field f = LaborAgreement.class.getDeclaredField("effectiveTo");
+            f.setAccessible(true);
+            assertThat(f.get(a)).isEqualTo(TODAY.plusDays(10));
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Test
+    void 문서_참조가_없으면_거부() {
+        AgreementRequest r = req(AgreementType.SELECTIVE, LaborAgreement.Scope.ALL, null, null);
+        AgreementRequest noDoc = new AgreementRequest(r.agreementType(), r.title(), r.signedDate(), r.validFrom(),
+                r.validUntil(), r.scopeType(), r.scopeSiteCode(), r.targetDesc(), r.repType(), r.repUnionName(),
+                r.repEmpId(), r.note(), "  ");
+        assertThatThrownBy(() -> service.create(noDoc, "hr1")).hasMessageContaining("합의서 문서");
+        verify(agreements, never()).save(any());
     }
 
     @Test

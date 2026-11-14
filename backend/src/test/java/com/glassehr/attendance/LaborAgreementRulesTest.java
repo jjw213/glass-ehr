@@ -16,7 +16,7 @@ class LaborAgreementRulesTest {
 
     static LaborAgreementDtos.Fields fields(LocalDate from, LocalDate until, LaborAgreement.Scope scope, String site) {
         return new LaborAgreementDtos.Fields("2026 선택적 근로시간제 합의", from.minusDays(10), from, until, scope, site,
-                "연구개발 직군 전원", LaborAgreement.RepType.MAJORITY_UNION, "가상노동조합", null, null);
+                "연구개발 직군 전원", LaborAgreement.RepType.MAJORITY_UNION, "가상노동조합", null, null, "문서함 A-1");
     }
 
     static LaborAgreement agreement(long id, AgreementType type, LocalDate from, LocalDate until,
@@ -100,23 +100,29 @@ class LaborAgreementRulesTest {
         assertThat(LaborAgreementRules.validate(fields(JAN1, DEC31, LaborAgreement.Scope.SITE, null)))
                 .contains("대상 사업장을 골라 주세요");
         LaborAgreementDtos.Fields noRep = new LaborAgreementDtos.Fields("t", JAN1, JAN1, null,
-                LaborAgreement.Scope.ALL, null, "대상", LaborAgreement.RepType.MAJORITY_PERSON, null, null, null);
+                LaborAgreement.Scope.ALL, null, "대상", LaborAgreement.RepType.MAJORITY_REP, null, null, null, "D");
         assertThat(LaborAgreementRules.validate(noRep)).containsExactly("근로자 과반수를 대표하는 사원을 골라 주세요");
         LaborAgreementDtos.Fields noUnion = new LaborAgreementDtos.Fields("t", JAN1, JAN1, null,
-                LaborAgreement.Scope.ALL, null, "대상", LaborAgreement.RepType.MAJORITY_UNION, null, null, null);
+                LaborAgreement.Scope.ALL, null, "대상", LaborAgreement.RepType.MAJORITY_UNION, null, null, null, "D");
         assertThat(LaborAgreementRules.validate(noUnion)).containsExactly("노동조합 이름을 입력해 주세요");
+        LaborAgreementDtos.Fields noDoc = new LaborAgreementDtos.Fields("t", JAN1, JAN1, null,
+                LaborAgreement.Scope.ALL, null, "대상", LaborAgreement.RepType.MAJORITY_UNION, "노조", null, null, null);
+        assertThat(LaborAgreementRules.validate(noDoc)).containsExactly("합의서 문서(파일 번호·보관 위치)를 입력해 주세요");
+        // 시작일 하루짜리 합의(종료일 = 시작일)는 허용한다(경계).
+        assertThat(LaborAgreementRules.validate(fields(JAN1, JAN1, LaborAgreement.Scope.ALL, null))).isEmpty();
     }
 
     @Test
     void 요청의_대표_구분과_맞지_않는_값은_버린다() {
         LaborAgreementDtos.AgreementRequest req = new LaborAgreementDtos.AgreementRequest(AgreementType.SELECTIVE,
                 " 합의 ", JAN1, JAN1, null, LaborAgreement.Scope.ALL, "S01", " 전원 ",
-                LaborAgreement.RepType.MAJORITY_PERSON, "노조", 7L, "  ");
+                LaborAgreement.RepType.MAJORITY_REP, "노조", 7L, "  ", " 문서함 A-1 ");
         LaborAgreementDtos.Fields f = req.fields();
         assertThat(f.title()).isEqualTo("합의");
         assertThat(f.scopeSiteCode()).isNull();
         assertThat(f.repUnionName()).isNull();
         assertThat(f.repEmpId()).isEqualTo(7L);
         assertThat(f.note()).isNull();
+        assertThat(f.documentRef()).isEqualTo("문서함 A-1");
     }
 }

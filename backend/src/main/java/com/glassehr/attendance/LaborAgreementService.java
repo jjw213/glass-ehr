@@ -99,7 +99,7 @@ public class LaborAgreementService {
     @Transactional(readOnly = true)
     public List<AgreementView> list() {
         LocalDate today = today();
-        return agreements.findAllByOrderByValidFromDescAgreementIdDesc().stream().map(a -> view(a, today)).toList();
+        return agreements.findAllByOrderByEffectiveFromDescAgreementIdDesc().stream().map(a -> view(a, today)).toList();
     }
 
     @Transactional(readOnly = true)

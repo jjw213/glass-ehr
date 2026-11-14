@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuShieldCheck, LuFileSignature } from 'react-icons/lu';
+import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuFileSignature } from 'react-icons/lu';
 import type { Role } from './api/types';
 import type { PageId } from './state/store';
 
@@ -24,6 +24,7 @@ export const NAV: NavItem[] = [
   { id: 'messages', label: '메시지', short: '메시지', icon: LuMessageCircle, section: 'workspace' },
   { id: 'people', label: '인사정보', short: '인사', icon: LuUsers, section: 'workspace' },
   { id: 'org', label: '조직도', short: '조직', icon: LuNetwork, section: 'workspace' },
+  { id: 'holidays', label: '휴일 달력', short: '휴일', icon: LuCalendarDays, section: 'workspace' },
   { id: 'settings', label: '설정', short: '설정', icon: LuSettings, section: 'system' },
   { id: 'codes', label: '공통코드 관리', short: '코드', icon: LuListTree, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'workPatterns', label: '근무유형 관리', short: '근무유형', icon: LuCalendarClock, section: 'system', roles: ['HR', 'ADMIN'] },
@@ -42,6 +43,12 @@ export const canManageWorkPatterns = (role: Role) => navFor(role).some((n) => n.
 
 /** 근로자대표 서면합의서를 관리하는 역할(인사담당자·관리자, #27). 메뉴 표시용이며 실제 차단은 서버 EMP_WRITE·EMP_READ_ALL 검사가 한다. */
 export const canManageAgreements = (role: Role) => navFor(role).some((n) => n.id === 'agreements');
+
+/**
+ * 휴일 달력을 관리(공휴일 자료 불러오기·회사휴일·휴일 대체)하는 역할(#26). 달력 보기는 모두 가능.
+ * 화면 표시용이며 실제 차단은 서버 EMP_WRITE 권한 검사가 한다. 근무유형 관리와 같은 역할(인사담당자·관리자).
+ */
+export const canManageHolidays = (role: Role) => canManageWorkPatterns(role);
 
 /** 개인정보 조회 로그를 보는 역할(관리자, #19). 메뉴 표시용이며 실제 차단은 서버 PRIVACY_LOG_READ 권한 검사가 한다. */
 export const canReadPrivacyLogs = (role: Role) => navFor(role).some((n) => n.id === 'privacyLogs');

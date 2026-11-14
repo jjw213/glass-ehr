@@ -1,6 +1,7 @@
 package com.glassehr.attendance;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
@@ -27,14 +28,16 @@ public final class LaborAgreementDtos {
             @NotNull(message = "근로자대표 구분을 골라 주세요") LaborAgreement.RepType repType,
             @Size(max = 200, message = "노동조합 이름은 200자 이내로 써 주세요") String repUnionName,
             Long repEmpId,
-            @Size(max = 1000, message = "비고는 1000자 이내로 써 주세요") String note) {
+            @Size(max = 500, message = "비고는 500자 이내로 써 주세요") String note,
+            @NotBlank(message = "합의서 문서(파일 번호·보관 위치)를 입력해 주세요")
+            @Size(max = 500, message = "합의서 문서 참조는 500자 이내로 써 주세요") String documentRef) {
 
         /** 공백 정리 후 저장 값. 형식 오류는 {@link LaborAgreementRules#validate}가 잡는다. */
         public Fields fields() {
             return new Fields(trim(title), signedDate, validFrom, validUntil, scopeType,
                     scopeType == LaborAgreement.Scope.SITE ? trim(scopeSiteCode) : null, trim(targetDesc), repType,
                     repType == LaborAgreement.RepType.MAJORITY_UNION ? trim(repUnionName) : null,
-                    repType == LaborAgreement.RepType.MAJORITY_PERSON ? repEmpId : null, trim(note));
+                    repType == LaborAgreement.RepType.MAJORITY_REP ? repEmpId : null, trim(note), trim(documentRef));
         }
 
         private static String trim(String s) {
@@ -45,7 +48,7 @@ public final class LaborAgreementDtos {
     /** 정리된 저장 값. */
     public record Fields(String title, LocalDate signedDate, LocalDate validFrom, LocalDate validUntil,
             LaborAgreement.Scope scopeType, String scopeSiteCode, String targetDesc, LaborAgreement.RepType repType,
-            String repUnionName, Long repEmpId, String note) {
+            String repUnionName, Long repEmpId, String note, String documentRef) {
     }
 
     /** 합의서 상태(기준일 대비). */
@@ -55,7 +58,8 @@ public final class LaborAgreementDtos {
             String title, LocalDate signedDate, LocalDate validFrom, LocalDate validUntil,
             LaborAgreement.Scope scopeType, String scopeSiteCode, String targetDesc,
             LaborAgreement.RepType repType, String repUnionName, Long repEmpId, String repEmpName, String repEmpNo,
-            String note, Status status, Long daysUntilExpiry, long fileCount, String updatedBy, LocalDateTime updatedAt) {
+            String note, String documentRef, Status status, Long daysUntilExpiry, long fileCount, String updatedBy,
+            LocalDateTime updatedAt) {
 
         static AgreementView of(LaborAgreement a, String repEmpName, String repEmpNo, long fileCount, LocalDate today) {
             Status status = a.getValidFrom().isAfter(today) ? Status.UPCOMING
@@ -64,7 +68,7 @@ public final class LaborAgreementDtos {
             return new AgreementView(a.getAgreementId(), a.getAgreementType(), a.getAgreementType().label(),
                     a.getAgreementType().article(), a.getTitle(), a.getSignedDate(), a.getValidFrom(), a.getValidUntil(),
                     a.getScopeType(), a.getScopeSiteCode(), a.getTargetDesc(), a.getRepType(), a.getRepUnionName(),
-                    a.getRepEmpId(), repEmpName, repEmpNo, a.getNote(), status, days, fileCount, a.getUpdatedBy(),
+                    a.getRepEmpId(), repEmpName, repEmpNo, a.getNote(), a.getDocumentRef(), status, days, fileCount, a.getUpdatedBy(),
                     a.getUpdatedAt());
         }
     }

@@ -14,6 +14,7 @@ import { SettingsPage } from '../../pages/SettingsPage';
 import { CodesPage } from '../../pages/CodesPage';
 import { WorkPatternsPage } from '../../pages/WorkPatternsPage';
 import { PrivacyLogsPage } from '../../pages/PrivacyLogsPage';
+import { HolidaysPage } from '../../pages/HolidaysPage';
 import { AgreementsPage } from '../../pages/AgreementsPage';
 import { useEffect, useState, type JSX } from 'react';
 
@@ -28,6 +29,7 @@ const PAGES: Record<PageId, () => JSX.Element> = {
   settings: SettingsPage,
   codes: CodesPage,
   workPatterns: WorkPatternsPage,
+  holidays: HolidaysPage,
   agreements: AgreementsPage,
   privacyLogs: PrivacyLogsPage,
 };

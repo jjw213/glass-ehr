@@ -42,7 +42,7 @@ class LaborAgreementControllerTest {
     private static final String BODY = """
             {"agreementType":"SELECTIVE","title":"선택적 근로시간제 합의","signedDate":"2025-12-20",
              "validFrom":"2026-01-01","validUntil":"2026-12-31","scopeType":"ALL","targetDesc":"연구직 전원",
-             "repType":"MAJORITY_UNION","repUnionName":"가상노동조합"}""";
+             "repType":"MAJORITY_UNION","repUnionName":"가상노동조합","documentRef":"문서함 A-1"}""";
 
     @Autowired
     private MockMvc mvc;
@@ -56,7 +56,7 @@ class LaborAgreementControllerTest {
     private static AgreementView view() {
         return new AgreementView(1, AgreementType.SELECTIVE, "선택적 근로시간제", "근로기준법 제52조", "합의", D, D,
                 D.plusYears(1).minusDays(1), LaborAgreement.Scope.ALL, null, "연구직 전원",
-                LaborAgreement.RepType.MAJORITY_UNION, "가상노동조합", null, null, null, null, Status.ACTIVE, 30L, 0,
+                LaborAgreement.RepType.MAJORITY_UNION, "가상노동조합", null, null, null, null, "문서함 A-1", Status.ACTIVE, 30L, 0,
                 "hr1", LocalDateTime.of(2026, 1, 1, 9, 0));
     }
 
@@ -86,6 +86,16 @@ class LaborAgreementControllerTest {
         mvc.perform(post("/api/attendance/agreements").contentType(MediaType.APPLICATION_JSON)
                         .content(BODY.replace("SELECTIVE", "NOPE")))
                 .andExpect(status().isBadRequest());
+        verify(service, never()).create(any(), any());
+    }
+
+    /** #26 HolidayControllerTest 에 있던 검사. 서면합의 등록 API 가 이 컨트롤러로 옮겨 와 여기서 확인한다. */
+    @Test
+    void 서면합의_등록은_문서_참조가_필수() throws Exception {
+        mvc.perform(post("/api/attendance/agreements").contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY.replace("\"documentRef\":\"문서함 A-1\"", "\"documentRef\":\" \"")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("합의서 문서(파일 번호·보관 위치)를 입력해 주세요"));
         verify(service, never()).create(any(), any());
     }
 

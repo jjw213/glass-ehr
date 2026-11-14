@@ -7,11 +7,11 @@ import { actorHeader, call } from './http';
 import { ApiError } from './types';
 
 export type AgreementType =
-  | 'FLEXIBLE_WRITTEN' | 'FLEXIBLE_LONG' | 'SELECTIVE' | 'HOLIDAY_SUBSTITUTE'
+  | 'FLEXIBLE_WRITTEN' | 'FLEXIBLE_LONG' | 'SELECTIVE' | 'HOLIDAY_SUBSTITUTION'
   | 'COMPENSATORY_LEAVE' | 'DISCRETIONARY' | 'ANNUAL_LEAVE_SUBSTITUTE';
 export type Scope = 'ALL' | 'SITE';
 /** 근로기준법 제24조 제3항: 과반수 노동조합 / 근로자 과반수를 대표하는 자 */
-export type RepType = 'MAJORITY_UNION' | 'MAJORITY_PERSON';
+export type RepType = 'MAJORITY_UNION' | 'MAJORITY_REP';
 export type AgreementStatus = 'UPCOMING' | 'ACTIVE' | 'EXPIRED';
 
 export interface TypeView { code: AgreementType; label: string; article: string }
@@ -29,8 +29,12 @@ export interface AgreementInput {
   repUnionName: string | null;
   repEmpId: number | null;
   note: string | null;
+  /** 합의서 원본의 문서 번호·보관 위치(필수). 스캔본은 첨부파일로 따로 올린다. */
+  documentRef: string;
 }
-export interface Agreement extends AgreementInput {
+export interface Agreement extends Omit<AgreementInput, 'targetDesc'> {
+  /** #26 휴일 달력에서 먼저 등록한 합의서는 비어 있을 수 있다(수정할 때 채워야 한다). */
+  targetDesc: string | null;
   agreementId: number;
   typeLabel: string;
   article: string;
@@ -85,17 +89,19 @@ export function validateAgreement(i: AgreementInput): string | null {
   if (!i.targetDesc.trim()) return '대상 근로자 범위를 입력해 주세요';
   if (i.targetDesc.length > 1000) return '대상 근로자 범위는 1000자 이내로 써 주세요';
   if (i.repType === 'MAJORITY_UNION' && !i.repUnionName?.trim()) return '노동조합 이름을 입력해 주세요';
-  if (i.repType === 'MAJORITY_PERSON' && (i.repEmpId === null || !Number.isInteger(i.repEmpId) || i.repEmpId <= 0)) {
+  if (i.repType === 'MAJORITY_REP' && (i.repEmpId === null || !Number.isInteger(i.repEmpId) || i.repEmpId <= 0)) {
     return '근로자 과반수를 대표하는 사원을 골라 주세요';
   }
-  if (i.note && i.note.length > 1000) return '비고는 1000자 이내로 써 주세요';
+  if (i.note && i.note.length > 500) return '비고는 500자 이내로 써 주세요';
+  if (!i.documentRef.trim()) return '합의서 문서(파일 번호·보관 위치)를 입력해 주세요';
+  if (i.documentRef.length > 500) return '합의서 문서 참조는 500자 이내로 써 주세요';
   return null;
 }
 
 export const STATUS_LABEL: Record<AgreementStatus, string> = { UPCOMING: '시작 전', ACTIVE: '유효', EXPIRED: '만료' };
 export const REP_LABEL: Record<RepType, string> = {
   MAJORITY_UNION: '과반수 노동조합',
-  MAJORITY_PERSON: '근로자 과반수 대표자',
+  MAJORITY_REP: '근로자 과반수 대표자',
 };
 
 async function send(path: string, init: RequestInit): Promise<Response> {
@@ -154,7 +160,7 @@ const TYPES: TypeView[] = [
   { code: 'FLEXIBLE_WRITTEN', label: '탄력적 근로시간제(3개월 이내)', article: '근로기준법 제51조 제2항' },
   { code: 'FLEXIBLE_LONG', label: '탄력적 근로시간제(3개월 초과)', article: '근로기준법 제51조의2' },
   { code: 'SELECTIVE', label: '선택적 근로시간제', article: '근로기준법 제52조' },
-  { code: 'HOLIDAY_SUBSTITUTE', label: '휴일 대체', article: '근로기준법 제55조 제2항 단서' },
+  { code: 'HOLIDAY_SUBSTITUTION', label: '휴일 대체', article: '근로기준법 제55조 제2항 단서' },
   { code: 'COMPENSATORY_LEAVE', label: '보상휴가제', article: '근로기준법 제57조' },
   { code: 'DISCRETIONARY', label: '재량근로', article: '근로기준법 제58조 제3항' },
   { code: 'ANNUAL_LEAVE_SUBSTITUTE', label: '연차 유급휴가 대체', article: '근로기준법 제62조' },
@@ -175,7 +181,7 @@ export function createMockAgreementApi(today: () => string = () => seoulToday(),
     agreementId: 1, agreementType: 'SELECTIVE', title: '연구소 선택적 근로시간제 합의서(예시)', signedDate: '2026-01-02',
     validFrom: '2026-01-05', validUntil: '2026-12-31', scopeType: 'ALL', scopeSiteCode: null,
     targetDesc: '연구개발 직군 전원(예시)', repType: 'MAJORITY_UNION', repUnionName: '가상노동조합', repEmpId: null,
-    note: null, updatedBy: 'hr1', updatedAt: '2026-01-02T09:00:00',
+    note: null, documentRef: '인사팀 문서함 2026-001(예시)', updatedBy: 'hr1', updatedAt: '2026-01-02T09:00:00',
   }];
   let files: Array<AgreementFile & { blob: Blob }> = [];
   let nextId = 2;
@@ -200,9 +206,10 @@ export function createMockAgreementApi(today: () => string = () => seoulToday(),
     if (err) throw new ApiError(400, err);
     return {
       ...i, title: i.title.trim(), targetDesc: i.targetDesc.trim(), note: i.note?.trim() || null,
+      documentRef: i.documentRef.trim(),
       scopeSiteCode: i.scopeType === 'SITE' ? i.scopeSiteCode!.trim() : null,
       repUnionName: i.repType === 'MAJORITY_UNION' ? i.repUnionName!.trim() : null,
-      repEmpId: i.repType === 'MAJORITY_PERSON' ? i.repEmpId : null,
+      repEmpId: i.repType === 'MAJORITY_REP' ? i.repEmpId : null,
     };
   };
   return {

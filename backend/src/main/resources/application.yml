@@ -50,6 +50,10 @@ glassehr:
     hmac-key: ${RRN_HMAC_KEY:}
   # 근로계약 알림 기간(일). 법정 수치가 아니라 회사 운영 설정이다(이슈 #17 완료 기준 "계약 만료 30일 전").
   # 기간제 사용기간 상한 자체(기간제법 제4조)는 legal_rate FIXED_TERM_MAX_USE_YEARS 에서 읽는다.
+  # 이 사업장의 상시근로자 수(명). 법정 수치가 아니라 회사 설정이다(AGENTS.md: 상시근로자 30인 이상 사업장 대상).
+  # 규모별 시행일이 다른 조문(근로기준법 제55조 제2항 등)은 legal_rate 의 적용 규모 하한과 이 값을 비교한다.
+  workplace:
+    regular-headcount: ${WORKPLACE_REGULAR_HEADCOUNT:30}
   contract:
     expiry-alert-days: ${CONTRACT_EXPIRY_ALERT_DAYS:30}
     fixed-term-limit-alert-days: ${CONTRACT_FIXED_TERM_LIMIT_ALERT_DAYS:30}
