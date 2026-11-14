@@ -7,6 +7,8 @@
  */
 import { call } from './http';
 import { ApiError } from './types';
+import { createMockAgreementApi, httpAgreementApi, type Agreement, type AgreementInput, type RepType } from './agreements';
+export type { Agreement, AgreementInput, RepType } from './agreements';
 
 export type HolidayKind = 'PUBLIC' | 'SUBSTITUTE' | 'COMPANY' | 'REPLACEMENT';
 export const KIND_LABEL: Record<HolidayKind, string> = {
@@ -32,13 +34,7 @@ export interface Holiday {
   verifiedDate: string | null;
   note: string | null;
 }
-export type RepType = 'MAJORITY_UNION' | 'MAJORITY_REP';
 export const REP_TYPE_LABEL: Record<RepType, string> = { MAJORITY_UNION: '과반수 노동조합', MAJORITY_REP: '근로자 과반수 대표자' };
-export interface AgreementInput {
-  title: string; repType: RepType; signedDate: string; effectiveFrom: string; effectiveTo: string | null;
-  documentRef: string; note: string | null;
-}
-export interface Agreement extends AgreementInput { agreementId: number; kind: 'HOLIDAY_SUBSTITUTION' }
 export interface CompanyHolidayInput { date: string; name: string; paid: boolean; note: string | null }
 export interface SubstitutionInput { originalHolidayId: number; substituteDate: string; agreementId: number | null; note: string | null }
 export interface ImportResult { inserted: number; skipped: number; rows: Holiday[] }
@@ -59,8 +55,8 @@ export const httpHolidayApi: HolidayApi = {
   createCompany: (i) => call('POST', '/attendance/holidays/company', i),
   substitute: (i) => call('POST', '/attendance/holidays/substitutions', i),
   remove: (id) => call('DELETE', `/attendance/holidays/${id}`),
-  agreements: () => call('GET', '/attendance/agreements'),
-  createAgreement: (i) => call('POST', '/attendance/agreements', i),
+  agreements: () => httpAgreementApi.list(),
+  createAgreement: (i) => httpAgreementApi.create(i),
 };
 
 // ---- 공휴일 CSV (backend PublicHolidayCsv 와 같은 형식) ----
@@ -134,7 +130,7 @@ export const seoulToday = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'As
 export function createMockHolidayApi(today: () => string = seoulToday): HolidayApi {
   type Row = Omit<Holiday, 'effective' | 'replacedBy' | 'replaces' | 'agreementTitle' | 'kindLabel'> & { replacesId: number | null };
   let rows: Row[] = [];
-  let agreements: Agreement[] = [];
+  const agreementApi = createMockAgreementApi(today);
   let nextId = 1;
   const y = Number(today().slice(0, 4));
   rows.push({ holidayId: nextId++, date: `${y}-05-10`, name: '창립기념일(예시)', kind: 'COMPANY', paid: true, agreementId: null, sourceRef: null, verifiedDate: null, note: '데모 예시', replacesId: null });
@@ -145,12 +141,12 @@ export function createMockHolidayApi(today: () => string = seoulToday): HolidayA
     return {
       ...rest, kindLabel: KIND_LABEL[r.kind], effective: !by, replacedBy: ref(by),
       replaces: ref(rows.find((x) => x.holidayId === replacesId)),
-      agreementTitle: agreements.find((a) => a.agreementId === r.agreementId)?.title ?? null,
+      agreementTitle: null,
     };
   };
-  const inEffect = (a: Agreement, d: string) => a.effectiveFrom <= d && (!a.effectiveTo || d < a.effectiveTo);
+  const inEffect = (a: Agreement, d: string) => a.validFrom <= d && (!a.validUntil || d <= a.validUntil);
   return {
-    async year(yy) { return rows.filter((r) => r.date.startsWith(`${yy}-`)).sort((a, b) => a.date.localeCompare(b.date) || a.holidayId - b.holidayId).map(view); },
+    async year(yy) { const agreements = await agreementApi.list(); return rows.filter((r) => r.date.startsWith(`${yy}-`)).sort((a, b) => a.date.localeCompare(b.date) || a.holidayId - b.holidayId).map((r) => ({ ...view(r), agreementTitle: agreements.find((a) => a.agreementId === r.agreementId)?.title ?? null })); },
     async importCsv(csv) {
       const parsed = parseHolidayCsv(csv);
       if (typeof parsed === 'string') throw new ApiError(400, parsed);
@@ -178,7 +174,7 @@ export function createMockHolidayApi(today: () => string = seoulToday): HolidayA
     },
     async substitute(i) {
       if (i.agreementId === null) throw new ApiError(400, '근로자대표 서면합의 문서를 연결해 주세요(근로기준법 제55조 제2항 단서)');
-      const a = agreements.find((x) => x.agreementId === i.agreementId);
+      const a = (await agreementApi.list()).find((x) => x.agreementId === i.agreementId);
       if (!a) throw new ApiError(400, `근로자대표 서면합의 문서가 없어요: ${i.agreementId}`);
       const o = rows.find((r) => r.holidayId === i.originalHolidayId);
       if (!o) throw new ApiError(404, `공휴일이 없어요: ${i.originalHolidayId}`);
@@ -186,12 +182,13 @@ export function createMockHolidayApi(today: () => string = seoulToday): HolidayA
       if (rows.some((r) => r.replacesId === o.holidayId)) throw new ApiError(409, '이미 다른 날로 대체됐어요');
       if (i.substituteDate === o.date) throw new ApiError(400, '대신 쉴 날은 원래 공휴일과 달라야 해요');
       if (rows.some((r) => r.date === i.substituteDate)) throw new ApiError(409, `${i.substituteDate}은(는) 이미 휴일이에요. 근로일로만 대체할 수 있어요`);
+      if (a.agreementType !== 'HOLIDAY_SUBSTITUTION' || a.scopeType !== 'ALL') throw new ApiError(422, '회사 전체 대상 휴일 대체 합의서를 골라 주세요');
       if (!inEffect(a, o.date) || !inEffect(a, i.substituteDate)) throw new ApiError(422, '원래 공휴일과 대신 쉴 날이 모두 서면합의 유효기간 안이어야 해요');
       const earlier = o.date < i.substituteDate ? o.date : i.substituteDate;
       if (a.signedDate > earlier) throw new ApiError(422, '서면합의는 대체하는 날보다 먼저 체결돼 있어야 해요');
       const r: Row = { holidayId: nextId++, date: i.substituteDate, name: `${o.name} 대체`, kind: 'REPLACEMENT', paid: true, agreementId: a.agreementId, sourceRef: null, verifiedDate: null, note: i.note?.trim() || null, replacesId: o.holidayId };
       rows = [...rows, r];
-      return view(r);
+      return { ...view(r), agreementTitle: a.title };
     },
     async remove(id) {
       const r = rows.find((x) => x.holidayId === id);
@@ -201,16 +198,8 @@ export function createMockHolidayApi(today: () => string = seoulToday): HolidayA
       if (r.date <= today() || (o && o.date <= today())) throw new ApiError(409, '이미 지난 휴일은 지우거나 취소할 수 없어요');
       rows = rows.filter((x) => x !== r);
     },
-    async agreements() { return structuredClone(agreements).sort((a, b) => b.signedDate.localeCompare(a.signedDate) || b.agreementId - a.agreementId); },
-    async createAgreement(i) {
-      if (!i.title.trim()) throw new ApiError(400, '합의서 제목을 입력해 주세요');
-      if (!i.documentRef.trim()) throw new ApiError(400, '합의서 문서(파일 번호·보관 위치)를 입력해 주세요');
-      if (!isIsoDate(i.signedDate) || !isIsoDate(i.effectiveFrom)) throw new ApiError(400, '체결일·효력 시작일을 입력해 주세요');
-      if (i.effectiveTo && i.effectiveTo <= i.effectiveFrom) throw new ApiError(400, '합의 효력 종료일은 시작일보다 뒤여야 해요');
-      const a: Agreement = { ...i, title: i.title.trim(), documentRef: i.documentRef.trim(), agreementId: agreements.length + 1, kind: 'HOLIDAY_SUBSTITUTION' };
-      agreements = [...agreements, a];
-      return structuredClone(a);
-    },
+    agreements: () => agreementApi.list(),
+    createAgreement: (i) => agreementApi.create(i),
   };
 }
 

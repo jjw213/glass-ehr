@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.glassehr.attendance.HolidayDtos.AgreementRequest;
 import com.glassehr.attendance.HolidayDtos.CompanyHolidayRequest;
 import com.glassehr.attendance.HolidayDtos.HolidayView;
 import com.glassehr.attendance.HolidayDtos.ImportResult;
@@ -50,13 +49,13 @@ class HolidayServiceTest {
 
     private final List<Holiday> rows = new ArrayList<>();
     private LocalDate reservedDateTaken;
-    private final List<WorkerRepAgreement> agreementRows = new ArrayList<>();
+    private final List<LaborAgreement> agreementRows = new ArrayList<>();
     private HolidayService service;
 
     @BeforeEach
     void setUp() {
         HolidayRepository holidays = mock(HolidayRepository.class);
-        WorkerRepAgreementRepository agreements = mock(WorkerRepAgreementRepository.class);
+        LaborAgreementRepository agreements = mock(LaborAgreementRepository.class);
         org.mockito.stubbing.Answer<Holiday> store = inv -> {
             Holiday h = inv.getArgument(0);
             if (reservedDateTaken != null && reservedDateTaken.equals(h.getHolidayDate())) {
@@ -94,17 +93,11 @@ class HolidayServiceTest {
                     .sorted((a, b) -> a.getHolidayDate().compareTo(b.getHolidayDate())).toList();
         });
         org.mockito.Mockito.doAnswer(inv -> rows.remove((Holiday) inv.getArgument(0))).when(holidays).delete(any());
-        when(agreements.save(any())).thenAnswer(inv -> {
-            WorkerRepAgreement a = inv.getArgument(0);
-            setField(a, "agreementId", (long) agreementRows.size() + 1);
-            agreementRows.add(a);
-            return a;
-        });
-        when(agreements.findById(anyLong())).thenAnswer(inv ->
+        when(agreements.findForUpdate(anyLong())).thenAnswer(inv ->
                 agreementRows.stream().filter(a -> a.getAgreementId().equals(inv.getArgument(0))).findFirst());
         when(agreements.findAllById(any())).thenAnswer(inv -> {
             Iterable<Long> ids = inv.getArgument(0);
-            List<WorkerRepAgreement> out = new ArrayList<>();
+            List<LaborAgreement> out = new ArrayList<>();
             ids.forEach(id -> agreementRows.stream().filter(a -> a.getAgreementId().equals(id)).forEach(out::add));
             return out;
         });
@@ -139,9 +132,27 @@ class HolidayServiceTest {
         }
     }
 
+    /**
+     * 휴일 대체 합의를 저장소에 넣는다. to 는 #26 때와 같이 배타 종료일(마지막 유효일 다음 날, NULL = 기한 없음).
+     * 등록 API·검사는 #27 LaborAgreementService 로 옮겨 같은 형식 검사({@link LaborAgreementRules#validate})를 거친다.
+     */
     private long agreement(LocalDate signed, LocalDate from, LocalDate to) {
-        return service.createAgreement(new AgreementRequest("시험 휴일대체 합의", WorkerRepAgreement.RepType.MAJORITY_UNION,
-                signed, from, to, "문서함 TEST-001", null), "hr1").agreementId();
+        return agreement(AgreementType.HOLIDAY_SUBSTITUTION, LaborAgreement.Scope.ALL, signed, from, to);
+    }
+
+    private long agreement(AgreementType type, LaborAgreement.Scope scope, LocalDate signed, LocalDate from,
+            LocalDate to) {
+        LaborAgreementDtos.Fields f = new LaborAgreementDtos.Fields("시험 휴일대체 합의", signed, from,
+                to == null ? null : to.minusDays(1), scope, scope == LaborAgreement.Scope.SITE ? "S01" : null,
+                "전 직원", LaborAgreement.RepType.MAJORITY_UNION, "시험 노동조합", null, null, "문서함 TEST-001");
+        List<String> errors = LaborAgreementRules.validate(f);
+        if (!errors.isEmpty()) {
+            throw AttendanceException.badRequest(errors.get(0));
+        }
+        LaborAgreement a = new LaborAgreement(type, f, "hr1", NOW);
+        setField(a, "agreementId", (long) agreementRows.size() + 1);
+        agreementRows.add(a);
+        return a.getAgreementId();
     }
 
     private long publicHolidayId() {
@@ -372,6 +383,23 @@ class HolidayServiceTest {
     void 합의_종료일이_시작일_이전이면_400() {
         assertThatThrownBy(() -> agreement(LocalDate.of(2099, 1, 1), LocalDate.of(2099, 2, 1), LocalDate.of(2099, 2, 1)))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void 다른_제도의_합의나_사업장_한정_합의로는_회사_휴일을_대체할_수_없다() {
+        long original = publicHolidayId();
+        long selective = agreement(AgreementType.SELECTIVE, LaborAgreement.Scope.ALL,
+                LocalDate.of(2099, 1, 1), LocalDate.of(2099, 1, 1), null);
+        assertThatThrownBy(() -> service.substitute(
+                new SubstitutionRequest(original, LocalDate.of(2099, 3, 5), selective, null), "hr1"))
+                .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY))
+                .hasMessageContaining("휴일 대체에 관한 서면합의가 아니에요");
+        long siteOnly = agreement(AgreementType.HOLIDAY_SUBSTITUTION, LaborAgreement.Scope.SITE,
+                LocalDate.of(2099, 1, 1), LocalDate.of(2099, 1, 1), null);
+        assertThatThrownBy(() -> service.substitute(
+                new SubstitutionRequest(original, LocalDate.of(2099, 3, 5), siteOnly, null), "hr1"))
+                .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY))
+                .hasMessageContaining("회사 전체");
     }
 
     @Test

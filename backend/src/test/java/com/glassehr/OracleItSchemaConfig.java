@@ -103,6 +103,12 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V017__holiday_calendar.sql"))
                     .execute(dataSource);
         }
+        Integer agreementFile = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'WORKER_REP_AGREEMENT_FILE'", Integer.class);
+        if (agreementFile == null || agreementFile == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V020__worker_rep_agreement_ext.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

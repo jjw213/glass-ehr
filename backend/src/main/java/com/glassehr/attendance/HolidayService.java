@@ -1,7 +1,5 @@
 package com.glassehr.attendance;
 
-import com.glassehr.attendance.HolidayDtos.AgreementRequest;
-import com.glassehr.attendance.HolidayDtos.AgreementView;
 import com.glassehr.attendance.HolidayDtos.CompanyHolidayRequest;
 import com.glassehr.attendance.HolidayDtos.HolidayRef;
 import com.glassehr.attendance.HolidayDtos.HolidayView;
@@ -44,17 +42,17 @@ public class HolidayService {
     private static final String REPLACEMENT_SUFFIX = " 대체";
 
     private final HolidayRepository holidays;
-    private final WorkerRepAgreementRepository agreements;
+    private final LaborAgreementRepository agreements;
     private final PublicHolidayPaidRule paidRule;
     private final Clock clock;
 
     @Autowired
-    public HolidayService(HolidayRepository holidays, WorkerRepAgreementRepository agreements,
+    public HolidayService(HolidayRepository holidays, LaborAgreementRepository agreements,
             PublicHolidayPaidRule paidRule) {
         this(holidays, agreements, paidRule, Clock.system(SEOUL));
     }
 
-    HolidayService(HolidayRepository holidays, WorkerRepAgreementRepository agreements, PublicHolidayPaidRule paidRule,
+    HolidayService(HolidayRepository holidays, LaborAgreementRepository agreements, PublicHolidayPaidRule paidRule,
             Clock clock) {
         this.holidays = holidays;
         this.agreements = agreements;
@@ -117,12 +115,12 @@ public class HolidayService {
                         .collect(Collectors.toMap(Holiday::getHolidayId, Function.identity()));
         Set<Long> agreementIds = rows.stream().map(Holiday::getAgreementId).filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        Map<Long, WorkerRepAgreement> agreementById = agreementIds.isEmpty() ? Map.of()
+        Map<Long, LaborAgreement> agreementById = agreementIds.isEmpty() ? Map.of()
                 : agreements.findAllById(agreementIds).stream()
-                        .collect(Collectors.toMap(WorkerRepAgreement::getAgreementId, Function.identity()));
+                        .collect(Collectors.toMap(LaborAgreement::getAgreementId, Function.identity()));
         return rows.stream().map(h -> {
             Holiday by = replacedBy.get(h.getHolidayId());
-            WorkerRepAgreement a = h.getAgreementId() == null ? null : agreementById.get(h.getAgreementId());
+            LaborAgreement a = h.getAgreementId() == null ? null : agreementById.get(h.getAgreementId());
             return new HolidayView(h.getHolidayId(), h.getHolidayDate(), h.getHolidayName(), h.getKind().name(),
                     h.getKind().label(), h.isPaid(), by == null, HolidayRef.of(by),
                     HolidayRef.of(h.getReplacesHolidayId() == null ? null : originals.get(h.getReplacesHolidayId())),
@@ -243,7 +241,7 @@ public class HolidayService {
      */
     @Transactional
     public HolidayView substitute(SubstitutionRequest req, String actor) {
-        WorkerRepAgreement agreement = agreements.findById(req.agreementId())
+        LaborAgreement agreement = agreements.findForUpdate(req.agreementId())
                 .orElseThrow(() -> AttendanceException.badRequest(
                         "근로자대표 서면합의 문서가 없어요: " + req.agreementId() + " (근로기준법 제55조 제2항 단서)"));
         Holiday original = holidays.findForUpdate(req.originalHolidayId())
@@ -264,11 +262,15 @@ public class HolidayService {
         if (!holidays.findByHolidayDate(to).isEmpty()) {
             throw AttendanceException.conflict(to + "은(는) 이미 휴일이에요. 근로일로만 대체할 수 있어요(근로기준법 제55조 제2항 단서)");
         }
-        if (agreement.getKind() != WorkerRepAgreement.Kind.HOLIDAY_SUBSTITUTION) {
+        if (agreement.getAgreementType() != AgreementType.HOLIDAY_SUBSTITUTION) {
             throw rejected("휴일 대체에 관한 서면합의가 아니에요: " + agreement.getTitle());
         }
         if (!agreement.isEffectiveOn(from) || !agreement.isEffectiveOn(to)) {
             throw rejected("원래 공휴일(" + from + ")과 대신 쉴 날(" + to + ")이 모두 서면합의 유효기간 안이어야 해요");
+        }
+        // 휴일 달력은 회사 공통이라 사업장 한 곳 대상 합의로는 회사 전체 휴일을 대체할 수 없다(#27 대상 범위).
+        if (agreement.getScopeType() != LaborAgreement.Scope.ALL) {
+            throw rejected("휴일 달력은 회사 공통이라 회사 전체를 대상으로 한 서면합의가 있어야 해요: " + agreement.getTitle());
         }
         LocalDate earlier = from.isBefore(to) ? from : to;
         if (agreement.getSignedDate().isAfter(earlier)) {
@@ -285,25 +287,7 @@ public class HolidayService {
         return new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY, message, List.of());
     }
 
-    // ---- 서면합의 ----
-
-    @Transactional(readOnly = true)
-    public List<AgreementView> agreements() {
-        return agreements.findByKindOrderBySignedDateDescAgreementIdDesc(WorkerRepAgreement.Kind.HOLIDAY_SUBSTITUTION)
-                .stream().map(AgreementView::of).toList();
-    }
-
-    /** 휴일 대체용 근로자대표 서면합의를 등록한다. 합의서 문서 참조는 필수(DTO·DB CHECK). */
-    @Transactional
-    public AgreementView createAgreement(AgreementRequest req, String actor) {
-        if (req.effectiveTo() != null && !req.effectiveTo().isAfter(req.effectiveFrom())) {
-            throw AttendanceException.badRequest("합의 효력 종료일은 시작일보다 뒤여야 해요");
-        }
-        WorkerRepAgreement a = new WorkerRepAgreement(WorkerRepAgreement.Kind.HOLIDAY_SUBSTITUTION, req.title().trim(),
-                req.repType(), req.signedDate(), req.effectiveFrom(), req.effectiveTo(), req.documentRef().trim(),
-                clean(req.note()), actor, now());
-        return AgreementView.of(agreements.save(a));
-    }
+    // 서면합의 등록·조회는 #27 서면합의서 관리(LaborAgreementService, /api/attendance/agreements)로 옮겼다.
 
     private static String clean(String s) {
         return s == null || s.isBlank() ? null : s.trim();
