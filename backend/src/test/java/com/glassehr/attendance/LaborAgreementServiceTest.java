@@ -36,6 +36,7 @@ class LaborAgreementServiceTest {
     private LaborAgreementFileRepository files;
     private EmployeeRepository employees;
     private BizSiteRepository sites;
+    private HolidayRepository holidays;
     private LaborAgreementService service;
 
     @BeforeEach
@@ -44,9 +45,10 @@ class LaborAgreementServiceTest {
         files = mock(LaborAgreementFileRepository.class);
         employees = mock(EmployeeRepository.class);
         sites = mock(BizSiteRepository.class);
+        holidays = mock(HolidayRepository.class);
         // 서울 2026-11-14 00:30 = UTC 2026-11-13 15:30 (서울 기준 날짜를 쓰는지 확인)
         Clock clock = Clock.fixed(Instant.parse("2026-11-13T15:30:00Z"), ZoneId.of("UTC"));
-        service = new LaborAgreementService(agreements, files, employees, sites, 30, MAX, clock);
+        service = new LaborAgreementService(agreements, files, employees, sites, holidays, 30, MAX, clock);
         when(agreements.save(any())).thenAnswer(inv -> withId(inv.getArgument(0), "agreementId", 10L));
         when(files.save(any())).thenAnswer(inv -> withId(inv.getArgument(0), "fileId", 20L));
     }
@@ -97,10 +99,59 @@ class LaborAgreementServiceTest {
     @Test
     void 유형은_수정할_수_없다() {
         LaborAgreement a = agreement(3, AgreementType.SELECTIVE, TODAY, null, LaborAgreement.Scope.ALL, null);
-        when(agreements.findById(3L)).thenReturn(Optional.of(a));
+        when(agreements.findForUpdate(3L)).thenReturn(Optional.of(a));
         assertThatThrownBy(() -> service.update(3, req(AgreementType.DISCRETIONARY, LaborAgreement.Scope.ALL, null, null), "hr1"))
                 .isInstanceOfSatisfying(AttendanceException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST));
         AgreementView v = service.update(3, req(AgreementType.SELECTIVE, LaborAgreement.Scope.ALL, null, null), "hr2");
+        assertThat(v.validUntil()).isEqualTo(TODAY.plusYears(1));
+        assertThat(v.updatedBy()).isEqualTo("hr2");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"start", "end", "signed", "scope"})
+    void 기존_휴일대체를_무효화하는_합의서_수정은_거부(String change) {
+        LaborAgreement a = agreement(3, AgreementType.HOLIDAY_SUBSTITUTION,
+                TODAY, TODAY.plusYears(1), LaborAgreement.Scope.ALL, null);
+        when(agreements.findForUpdate(3L)).thenReturn(Optional.of(a));
+        LocalDate originalDate = TODAY.plusDays(10);
+        LocalDate replacementDate = TODAY.plusDays(20);
+        Holiday original = Holiday.statutory(originalDate, "시험 공휴일", HolidayKind.PUBLIC,
+                "시험 자료", TODAY, "hr1", TODAY.atStartOfDay());
+        Holiday replacement = Holiday.replacement(replacementDate, "시험 대체", 100, 3,
+                null, "hr1", TODAY.atStartOfDay());
+        when(holidays.findByAgreementId(3)).thenReturn(List.of(replacement));
+        when(holidays.findById(100L)).thenReturn(Optional.of(original));
+        if (change.equals("scope")) when(sites.existsById("S01")).thenReturn(true);
+        AgreementRequest r = new AgreementRequest(AgreementType.HOLIDAY_SUBSTITUTION, "변경 합의서",
+                change.equals("signed") ? originalDate.plusDays(1) : TODAY,
+                change.equals("start") ? originalDate.plusDays(1) : TODAY,
+                change.equals("end") ? replacementDate.minusDays(1) : TODAY.plusYears(1),
+                change.equals("scope") ? LaborAgreement.Scope.SITE : LaborAgreement.Scope.ALL,
+                change.equals("scope") ? "S01" : null, "전체 근로자", LaborAgreement.RepType.MAJORITY_UNION,
+                "가상노동조합", null, null, "문서함 A-1");
+        assertThatThrownBy(() -> service.update(3, r, "hr2"))
+                .isInstanceOfSatisfying(AttendanceException.class,
+                        e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
+        assertThat(a.getTitle()).isNotEqualTo("변경 합의서");
+        assertThat(a.getScopeType()).isEqualTo(LaborAgreement.Scope.ALL);
+        assertThat(a.getValidFrom()).isEqualTo(TODAY);
+        assertThat(a.getValidUntil()).isEqualTo(TODAY.plusYears(1));
+    }
+
+    @Test
+    void 기존_휴일대체의_양끝날을_포함하는_수정은_허용() {
+        LaborAgreement a = agreement(3, AgreementType.HOLIDAY_SUBSTITUTION,
+                TODAY, TODAY.plusYears(1), LaborAgreement.Scope.ALL, null);
+        when(agreements.findForUpdate(3L)).thenReturn(Optional.of(a));
+        Holiday original = Holiday.statutory(TODAY, "시험 공휴일", HolidayKind.PUBLIC,
+                "시험 자료", TODAY, "hr1", TODAY.atStartOfDay());
+        Holiday replacement = Holiday.replacement(TODAY.plusYears(1), "시험 대체", 100, 3,
+                null, "hr1", TODAY.atStartOfDay());
+        when(holidays.findByAgreementId(3)).thenReturn(List.of(replacement));
+        when(holidays.findById(100L)).thenReturn(Optional.of(original));
+        AgreementView v = service.update(3,
+                req(AgreementType.HOLIDAY_SUBSTITUTION, LaborAgreement.Scope.ALL, null, null), "hr2");
+        assertThat(v.validFrom()).isEqualTo(TODAY);
         assertThat(v.validUntil()).isEqualTo(TODAY.plusYears(1));
         assertThat(v.updatedBy()).isEqualTo("hr2");
     }

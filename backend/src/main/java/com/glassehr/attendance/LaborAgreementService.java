@@ -58,6 +58,7 @@ public class LaborAgreementService {
 
     private final LaborAgreementRepository agreements;
     private final LaborAgreementFileRepository files;
+    private final HolidayRepository holidays;
     private final EmployeeRepository employees;
     private final BizSiteRepository sites;
     private final int expiryAlertDays;
@@ -66,19 +67,20 @@ public class LaborAgreementService {
 
     @Autowired
     public LaborAgreementService(LaborAgreementRepository agreements, LaborAgreementFileRepository files,
-            EmployeeRepository employees, BizSiteRepository sites,
+            EmployeeRepository employees, BizSiteRepository sites, HolidayRepository holidays,
             @Value("${glassehr.agreement.expiry-alert-days}") int expiryAlertDays,
             @Value("${glassehr.agreement.max-file-bytes}") long maxFileBytes) {
-        this(agreements, files, employees, sites, expiryAlertDays, maxFileBytes, Clock.system(SEOUL));
+        this(agreements, files, employees, sites, holidays, expiryAlertDays, maxFileBytes, Clock.system(SEOUL));
     }
 
     LaborAgreementService(LaborAgreementRepository agreements, LaborAgreementFileRepository files,
-            EmployeeRepository employees, BizSiteRepository sites, int expiryAlertDays, long maxFileBytes,
+            EmployeeRepository employees, BizSiteRepository sites, HolidayRepository holidays, int expiryAlertDays, long maxFileBytes,
             Clock clock) {
         this.agreements = agreements;
         this.files = files;
         this.employees = employees;
         this.sites = sites;
+        this.holidays = holidays;
         this.expiryAlertDays = expiryAlertDays;
         this.maxFileBytes = maxFileBytes;
         this.clock = clock;
@@ -117,12 +119,30 @@ public class LaborAgreementService {
 
     @Transactional
     public AgreementView update(long agreementId, AgreementRequest req, String actor) {
-        LaborAgreement a = find(agreementId);
+        LaborAgreement a = agreements.findForUpdate(agreementId)
+                .orElseThrow(() -> AttendanceException.notFound("합의서가 없어요: " + agreementId));
         if (a.getAgreementType() != req.agreementType()) {
             throw AttendanceException.badRequest("합의 유형은 바꿀 수 없어요. 새 합의서로 등록해 주세요");
         }
-        a.apply(checked(req), actor, now());
+        Fields f = checked(req);
+        preserveHolidaySubstitutions(agreementId, f);
+        a.apply(f, actor, now());
         return view(a, today());
+    }
+
+    /** 근로기준법 제55조 제2항 단서: 이미 등록된 휴일 대체의 서면합의 조건을 유지한다. */
+    private void preserveHolidaySubstitutions(long agreementId, Fields f) {
+        for (Holiday replacement : holidays.findByAgreementId(agreementId)) {
+            Holiday original = holidays.findById(replacement.getReplacesHolidayId())
+                    .orElseThrow(() -> AttendanceException.conflict("휴일 대체의 원래 공휴일을 확인할 수 없어요"));
+            for (LocalDate date : List.of(original.getHolidayDate(), replacement.getHolidayDate())) {
+                if (f.scopeType() != LaborAgreement.Scope.ALL || date.isBefore(f.validFrom())
+                        || (f.validUntil() != null && date.isAfter(f.validUntil()))
+                        || f.signedDate().isAfter(date)) {
+                    throw AttendanceException.conflict("이미 등록된 휴일 대체의 유효기간·체결일·회사 전체 대상 범위를 유지해 주세요");
+                }
+            }
+        }
     }
 
     /** 만료 예정 알림: 오늘부터 days 일 안(오늘·마지막 날 포함)에 유효기간이 끝나는 합의서. days 미지정 = 설정값. */

@@ -34,6 +34,9 @@ class LaborAgreementOracleTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private HolidayRepository holidays;
+
     private AgreementView create(AgreementType type, LocalDate from, LocalDate until) {
         return service.create(new AgreementRequest(type, "IT 합의서", from, from, until, LaborAgreement.Scope.ALL,
                 null, "IT 대상", LaborAgreement.RepType.MAJORITY_UNION, "가상노동조합IT", null, null, "IT 문서함-1"), "it-hr");
@@ -54,6 +57,20 @@ class LaborAgreementOracleTest {
         assertThat(jdbc.queryForObject("SELECT effective_to FROM worker_rep_agreement WHERE agreement_id = ?",
                 java.sql.Date.class, v.agreementId()).toLocalDate()).isEqualTo(D0.plusMonths(1).plusDays(1));
         assertThat(service.get(v.agreementId()).agreement().validUntil()).isEqualTo(D0.plusMonths(1));
+    }
+
+    @Test
+    void 저장된_휴일대체를_무효화하는_합의서_수정은_거부한다() {
+        AgreementView v = create(AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1));
+        Holiday original = holidays.saveAndFlush(Holiday.statutory(D0, "IT 시험 공휴일", HolidayKind.PUBLIC,
+                "IT 가상 자료", D0, "it-hr", D0.atStartOfDay()));
+        holidays.saveAndFlush(Holiday.replacement(D0.plusDays(2), "IT 시험 대체", original.getHolidayId(),
+                v.agreementId(), null, "it-hr", D0.atStartOfDay()));
+        AgreementRequest shorter = new AgreementRequest(AgreementType.HOLIDAY_SUBSTITUTION, "IT 변경 합의서",
+                D0, D0, D0.plusDays(1), LaborAgreement.Scope.ALL, null, "IT 대상",
+                LaborAgreement.RepType.MAJORITY_UNION, "가상노동조합IT", null, null, "IT 문서함-1");
+        assertThatThrownBy(() -> service.update(v.agreementId(), shorter, "it-hr"))
+                .isInstanceOf(AttendanceException.class).hasMessageContaining("이미 등록된 휴일 대체");
     }
 
     @Test

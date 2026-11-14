@@ -93,7 +93,7 @@ class HolidayServiceTest {
                     .sorted((a, b) -> a.getHolidayDate().compareTo(b.getHolidayDate())).toList();
         });
         org.mockito.Mockito.doAnswer(inv -> rows.remove((Holiday) inv.getArgument(0))).when(holidays).delete(any());
-        when(agreements.findById(anyLong())).thenAnswer(inv ->
+        when(agreements.findForUpdate(anyLong())).thenAnswer(inv ->
                 agreementRows.stream().filter(a -> a.getAgreementId().equals(inv.getArgument(0))).findFirst());
         when(agreements.findAllById(any())).thenAnswer(inv -> {
             Iterable<Long> ids = inv.getArgument(0);

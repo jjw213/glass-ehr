@@ -2,6 +2,9 @@ package com.glassehr.attendance;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,6 +12,11 @@ import org.springframework.data.repository.query.Param;
 public interface LaborAgreementRepository extends JpaRepository<LaborAgreement, Long> {
 
     List<LaborAgreement> findAllByOrderByEffectiveFromDescAgreementIdDesc();
+
+    /** 수정과 휴일 대체 등록이 같은 합의서를 동시에 검증하지 않도록 직렬화한다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM LaborAgreement a WHERE a.agreementId = :id")
+    Optional<LaborAgreement> findForUpdate(@Param("id") long id);
 
     List<LaborAgreement> findByAgreementType(AgreementType type);
 

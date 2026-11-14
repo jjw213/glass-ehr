@@ -241,7 +241,7 @@ public class HolidayService {
      */
     @Transactional
     public HolidayView substitute(SubstitutionRequest req, String actor) {
-        LaborAgreement agreement = agreements.findById(req.agreementId())
+        LaborAgreement agreement = agreements.findForUpdate(req.agreementId())
                 .orElseThrow(() -> AttendanceException.badRequest(
                         "근로자대표 서면합의 문서가 없어요: " + req.agreementId() + " (근로기준법 제55조 제2항 단서)"));
         Holiday original = holidays.findForUpdate(req.originalHolidayId())
