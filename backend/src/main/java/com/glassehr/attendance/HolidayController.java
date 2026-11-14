@@ -1,7 +1,5 @@
 package com.glassehr.attendance;
 
-import com.glassehr.attendance.HolidayDtos.AgreementRequest;
-import com.glassehr.attendance.HolidayDtos.AgreementView;
 import com.glassehr.attendance.HolidayDtos.CompanyHolidayRequest;
 import com.glassehr.attendance.HolidayDtos.HolidayView;
 import com.glassehr.attendance.HolidayDtos.ImportResult;
@@ -31,10 +29,9 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>POST   /api/attendance/holidays/company — 회사휴일 등록</li>
  *   <li>POST   /api/attendance/holidays/substitutions — 휴일 대체 등록(근로자대표 서면합의 필수)</li>
  *   <li>DELETE /api/attendance/holidays/{id} — 앞으로 올 회사휴일·휴일 대체 취소</li>
- *   <li>GET    /api/attendance/agreements — 휴일 대체 서면합의 목록</li>
- *   <li>POST   /api/attendance/agreements — 서면합의 등록</li>
  * </ul>
- * 권한(#19): 달력 조회는 로그인 사용자 모두(개인정보 없음). 그 밖의 등록·취소와 서면합의 조회는
+ * 서면합의 등록·조회는 #27 {@link LaborAgreementController}(/api/attendance/agreements)가 맡는다.
+ * 권한(#19): 달력 조회는 로그인 사용자 모두(개인정보 없음). 그 밖의 등록·취소는
  * {@link Permission#EMP_WRITE}(관리자·인사). 등록자는 서버가 확인한 {@link AuthUser}에서 받는다.
  */
 @RestController
@@ -78,18 +75,5 @@ public class HolidayController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable long holidayId) {
         service.delete(holidayId);
-    }
-
-    @RequiresPermission(Permission.EMP_WRITE)
-    @GetMapping("/agreements")
-    public List<AgreementView> agreements() {
-        return service.agreements();
-    }
-
-    @RequiresPermission(Permission.EMP_WRITE)
-    @PostMapping("/agreements")
-    @ResponseStatus(HttpStatus.CREATED)
-    public AgreementView createAgreement(@Valid @RequestBody AgreementRequest req, AuthUser user) {
-        return service.createAgreement(req, user.loginId());
     }
 }

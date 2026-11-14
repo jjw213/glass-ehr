@@ -99,14 +99,8 @@ class HolidayControllerTest {
                 .andExpect(jsonPath("$.inserted").value(1));
     }
 
-    @Test
-    void 서면합의_등록은_문서_참조가_필수() throws Exception {
-        mvc.perform(post("/api/attendance/agreements").contentType(MediaType.APPLICATION_JSON).content("""
-                        {"title":"시험 합의","repType":"MAJORITY_UNION","signedDate":"2099-01-01",
-                         "effectiveFrom":"2099-01-01","documentRef":" "}"""))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("합의서 문서(파일 번호·보관 위치)를 입력해 주세요"));
-    }
+    // 서면합의 등록·조회 API 는 #27 LaborAgreementController 로 옮겼다. 문서 참조 필수·일반 사원 403 검사는
+    // LaborAgreementControllerTest(서면합의_등록은_문서_참조가_필수, 일반_사원은_조회도_403)에 있다.
 
     @Test
     void 일반_사원은_등록_취소_불러오기와_합의_조회가_403() throws Exception {
@@ -120,8 +114,6 @@ class HolidayControllerTest {
                         .contentType("text/csv").content("x"))
                 .andExpect(status().isForbidden());
         mvc.perform(delete("/api/attendance/holidays/1").header("X-Actor-Id", "emp1"))
-                .andExpect(status().isForbidden());
-        mvc.perform(get("/api/attendance/agreements").header("X-Actor-Id", "emp1"))
                 .andExpect(status().isForbidden());
         verify(service, never()).delete(1L);
     }

@@ -5,6 +5,7 @@ import {
   KIND_LABEL, REP_TYPE_LABEL, holidayApi, isIsoDate, isStatutory, parseHolidayCsv, seoulToday,
   type Agreement, type AgreementInput, type Holiday, type HolidayApi, type HolidayKind, type RepType,
 } from '../api/holidays';
+import { validateAgreement } from '../api/agreements';
 import { canManageHolidays } from '../nav';
 import { useData, useStore } from '../state/store';
 
@@ -24,8 +25,8 @@ const weekday = (s: string) => new Date(`${s}T00:00:00Z`).getUTCDay();
 const dayText = (s: string) => `${s.slice(5).replace('-', '.')}(${WEEK[weekday(s)]})`;
 
 type Dialog = 'company' | 'substitute' | null;
-interface AgreementDraft { title: string; repType: RepType; signedDate: string; effectiveFrom: string; effectiveTo: string; documentRef: string }
-const emptyAgreement = (): AgreementDraft => ({ title: '', repType: 'MAJORITY_UNION', signedDate: '', effectiveFrom: '', effectiveTo: '', documentRef: '' });
+interface AgreementDraft { title: string; repType: RepType; signedDate: string; validFrom: string; validUntil: string; documentRef: string; repUnionName: string; repEmpId: string; targetDesc: string }
+const emptyAgreement = (): AgreementDraft => ({ title: '', repType: 'MAJORITY_UNION', signedDate: '', validFrom: '', validUntil: '', documentRef: '', repUnionName: '', repEmpId: '', targetDesc: '' });
 
 /** 화면 본문. 스토어 없이 api·toast 만 받아서 테스트할 수 있다. */
 export function HolidayCalendar({ api, toast, canManage, today }: { api: HolidayApi; toast: (t: string) => void; canManage: boolean; today: string }) {
@@ -95,9 +96,18 @@ export function HolidayCalendar({ api, toast, canManage, today }: { api: Holiday
     if (!newAgreement) return;
     const a = newAgreement;
     if (!a.title.trim()) { setError('합의서 제목을 입력해 주세요'); return; }
-    if (!isIsoDate(a.signedDate) || !isIsoDate(a.effectiveFrom)) { setError('체결일·효력 시작일을 입력해 주세요'); return; }
+    if (!isIsoDate(a.signedDate) || !isIsoDate(a.validFrom)) { setError('체결일·효력 시작일을 입력해 주세요'); return; }
     if (!a.documentRef.trim()) { setError('합의서 문서(파일 번호·보관 위치)를 입력해 주세요'); return; }
-    const input: AgreementInput = { ...a, effectiveTo: a.effectiveTo || null, note: null };
+    const input: AgreementInput = {
+      agreementType: 'HOLIDAY_SUBSTITUTION', title: a.title, signedDate: a.signedDate,
+      validFrom: a.validFrom, validUntil: a.validUntil || null, scopeType: 'ALL', scopeSiteCode: null,
+      targetDesc: a.targetDesc, repType: a.repType,
+      repUnionName: a.repType === 'MAJORITY_UNION' ? a.repUnionName : null,
+      repEmpId: a.repType === 'MAJORITY_REP' && a.repEmpId ? Number(a.repEmpId) : null,
+      documentRef: a.documentRef, note: null,
+    };
+    const validation = validateAgreement(input);
+    if (validation) { setError(validation); return; }
     void run(async () => {
       const created = await api.createAgreement(input);
       setAgreements((l) => [created, ...l]);
@@ -283,7 +293,7 @@ export function HolidayCalendar({ api, toast, canManage, today }: { api: Holiday
           <label className="field"><span className="field__label">근로자대표 서면합의 (필수)</span>
             <select className="input" aria-label="서면합의" value={subst.agreementId} onChange={(e) => setSubst({ ...subst, agreementId: e.target.value })}>
               <option value="">골라 주세요</option>
-              {agreements.map((a) => <option key={a.agreementId} value={a.agreementId}>{a.title} ({a.signedDate} 체결, {a.effectiveFrom}~{a.effectiveTo ?? ''})</option>)}
+              {agreements.filter((a) => a.agreementType === 'HOLIDAY_SUBSTITUTION' && a.scopeType === 'ALL').map((a) => <option key={a.agreementId} value={a.agreementId}>{a.title} ({a.signedDate} 체결, {a.validFrom}~{a.validUntil ?? ''})</option>)}
             </select></label>
           {newAgreement === null ? (
             <button type="button" className="btn btn--ghost" onClick={() => setNewAgreement(emptyAgreement())}><LuPlus /> 서면합의 등록</button>
@@ -301,10 +311,19 @@ export function HolidayCalendar({ api, toast, canManage, today }: { api: Holiday
                 <label className="field"><span className="field__label">체결일</span>
                   <input className="input" type="date" aria-label="체결일" value={newAgreement.signedDate} onChange={(e) => setNewAgreement({ ...newAgreement, signedDate: e.target.value })} /></label>
                 <label className="field"><span className="field__label">효력 시작일</span>
-                  <input className="input" type="date" aria-label="효력 시작일" value={newAgreement.effectiveFrom} onChange={(e) => setNewAgreement({ ...newAgreement, effectiveFrom: e.target.value })} /></label>
-                <label className="field"><span className="field__label">효력 종료일(그날 전까지, 선택)</span>
-                  <input className="input" type="date" aria-label="효력 종료일" value={newAgreement.effectiveTo} onChange={(e) => setNewAgreement({ ...newAgreement, effectiveTo: e.target.value })} /></label>
+                  <input className="input" type="date" aria-label="효력 시작일" value={newAgreement.validFrom} onChange={(e) => setNewAgreement({ ...newAgreement, validFrom: e.target.value })} /></label>
+                <label className="field"><span className="field__label">효력 종료일(그날 포함, 선택)</span>
+                  <input className="input" type="date" aria-label="효력 종료일" value={newAgreement.validUntil} onChange={(e) => setNewAgreement({ ...newAgreement, validUntil: e.target.value })} /></label>
               </div>
+              {newAgreement.repType === 'MAJORITY_UNION' ? (
+                <label className="field"><span className="field__label">노동조합 이름</span>
+                  <input className="input" aria-label="노동조합 이름" maxLength={200} value={newAgreement.repUnionName} onChange={(e) => setNewAgreement({ ...newAgreement, repUnionName: e.target.value })} /></label>
+              ) : (
+                <label className="field"><span className="field__label">대표 사원 ID</span>
+                  <input className="input" type="number" min="1" step="1" aria-label="대표 사원 ID" value={newAgreement.repEmpId} onChange={(e) => setNewAgreement({ ...newAgreement, repEmpId: e.target.value })} /></label>
+              )}
+              <label className="field"><span className="field__label">대상 근로자 범위</span>
+                <input className="input" aria-label="대상 근로자 범위" maxLength={1000} value={newAgreement.targetDesc} onChange={(e) => setNewAgreement({ ...newAgreement, targetDesc: e.target.value })} /></label>
               <label className="field"><span className="field__label">합의서 문서 (파일 번호·보관 위치, 필수)</span>
                 <input className="input" aria-label="합의서 문서" maxLength={500} value={newAgreement.documentRef} onChange={(e) => setNewAgreement({ ...newAgreement, documentRef: e.target.value })} /></label>
               <div className="form__actions">

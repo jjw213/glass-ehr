@@ -28,25 +28,6 @@ public final class HolidayDtos {
             @Size(max = 500, message = "비고는 500자 이내로 써 주세요") String note) {
     }
 
-    /** 근로자대표 서면합의 등록. 합의서 문서 참조(document_ref)는 필수. */
-    public record AgreementRequest(
-            @NotBlank(message = "합의서 제목을 입력해 주세요") @Size(max = 200, message = "합의서 제목은 200자 이내로 써 주세요") String title,
-            @NotNull(message = "근로자대표 구분을 골라 주세요") WorkerRepAgreement.RepType repType,
-            @NotNull(message = "체결일을 입력해 주세요") LocalDate signedDate,
-            @NotNull(message = "합의 효력 시작일을 입력해 주세요") LocalDate effectiveFrom,
-            LocalDate effectiveTo,
-            @NotBlank(message = "합의서 문서(파일 번호·보관 위치)를 입력해 주세요") @Size(max = 500, message = "문서 참조는 500자 이내로 써 주세요") String documentRef,
-            @Size(max = 500, message = "비고는 500자 이내로 써 주세요") String note) {
-    }
-
-    public record AgreementView(long agreementId, String kind, String title, String repType, LocalDate signedDate,
-            LocalDate effectiveFrom, LocalDate effectiveTo, String documentRef, String note) {
-        static AgreementView of(WorkerRepAgreement a) {
-            return new AgreementView(a.getAgreementId(), a.getKind().name(), a.getTitle(), a.getRepType().name(),
-                    a.getSignedDate(), a.getEffectiveFrom(), a.getEffectiveTo(), a.getDocumentRef(), a.getNote());
-        }
-    }
-
     /** 다른 휴일 행을 가리킬 때(대체 관계). */
     public record HolidayRef(long holidayId, LocalDate date, String name) {
         static HolidayRef of(Holiday h) {

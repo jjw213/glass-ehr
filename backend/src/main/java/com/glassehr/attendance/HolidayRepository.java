@@ -17,6 +17,8 @@ public interface HolidayRepository extends JpaRepository<Holiday, Long> {
             + " ORDER BY h.holidayDate, h.holidayId")
     List<Holiday> findInRange(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
+    List<Holiday> findByAgreementId(long agreementId);
+
     List<Holiday> findByHolidayDate(LocalDate date);
 
     Optional<Holiday> findByReplacesHolidayId(long replacesHolidayId);

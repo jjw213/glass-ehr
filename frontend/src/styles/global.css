@@ -762,6 +762,12 @@ input[type='date'] { color-scheme: dark; }
 .violations { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .violations li { white-space: normal; }
 
+/* 서면합의서 관리 (#27) */
+.agreement-expiring { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
+.agreement-files { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.agreement-files li { display: flex; align-items: center; gap: 8px; }
+.agreement-files li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
 /* 휴일 달력 (#26) */
 .holiday-year { display: flex; align-items: center; gap: 8px; }
 .holiday-actions, .holiday-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }

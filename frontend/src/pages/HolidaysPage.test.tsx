@@ -80,6 +80,7 @@ describe('HolidayCalendar', () => {
     const api = createMockHolidayApi(() => TODAY);
     await api.importCsv(CSV);
     const substitute = vi.spyOn(api, 'substitute');
+    const createAgreement = vi.spyOn(api, 'createAgreement');
     const toast = await mount(api);
     expect(host.querySelector('[data-date="2099-03-01"]')!.className).toContain('holiday-day--PUBLIC');
 
@@ -97,10 +98,16 @@ describe('HolidayCalendar', () => {
       setValue(byLabel(host, '체결일'), '2099-01-05');
       setValue(byLabel(host, '효력 시작일'), '2099-01-01');
       setValue(byLabel(host, '합의서 문서'), '문서함 TEST-001');
+      setValue(byLabel(host, '노동조합 이름'), '가상 노동조합');
+      setValue(byLabel(host, '대상 근로자 범위'), '전체 근로자');
     });
     await act(async () => { buttonByText(host, '합의 등록').click(); });
     await flush();
-    expect(byLabel<HTMLSelectElement>(host, '서면합의').value).toBe('1');
+    expect(byLabel<HTMLSelectElement>(host, '서면합의').value).toBe('2');
+    expect(createAgreement).toHaveBeenCalledWith(expect.objectContaining({
+      agreementType: 'HOLIDAY_SUBSTITUTION', validFrom: '2099-01-01', validUntil: null,
+      scopeType: 'ALL', repUnionName: '가상 노동조합', repEmpId: null, targetDesc: '전체 근로자',
+    }));
 
     await act(async () => { host.querySelector<HTMLFormElement>('.modal form')!.requestSubmit(); });
     await flush();
@@ -114,12 +121,29 @@ describe('HolidayCalendar', () => {
   it('이미 휴일인 날로는 대체할 수 없다(서버 오류를 보인다)', async () => {
     const api = createMockHolidayApi(() => TODAY);
     await api.importCsv(CSV);
-    const a = await api.createAgreement({ title: '합의', repType: 'MAJORITY_REP', signedDate: '2099-01-01', effectiveFrom: '2099-01-01', effectiveTo: null, documentRef: 'DOC', note: null });
+    const a = await api.createAgreement({ agreementType: 'HOLIDAY_SUBSTITUTION', title: '합의', repType: 'MAJORITY_REP', repEmpId: 1, repUnionName: null, signedDate: '2099-01-01', validFrom: '2099-01-01', validUntil: null, scopeType: 'ALL', scopeSiteCode: null, targetDesc: '전체 근로자', documentRef: 'DOC', note: null });
     const original = (await api.year(2099)).find((r) => r.kind === 'PUBLIC')!;
     await expect(api.substitute({ originalHolidayId: original.holidayId, substituteDate: '2099-03-02', agreementId: a.agreementId, note: null }))
       .rejects.toThrow('근로일로만');
     await expect(api.substitute({ originalHolidayId: original.holidayId, substituteDate: '2099-03-05', agreementId: null, note: null }))
       .rejects.toThrow('서면합의');
+  });
+
+  it('다른 합의 유형과 사업장 한정 합의는 휴일 대체 선택 목록에서 제외한다', async () => {
+    const api = createMockHolidayApi(() => TODAY);
+    const common = { title: '회사 전체 휴일 대체', repType: 'MAJORITY_UNION' as const, repUnionName: '가상 노동조합',
+      repEmpId: null, signedDate: '2099-01-01', validFrom: '2099-01-01', validUntil: '2099-12-31',
+      scopeType: 'ALL' as const, scopeSiteCode: null, targetDesc: '전체 근로자', documentRef: 'DOC', note: null };
+    await api.createAgreement({ ...common, agreementType: 'HOLIDAY_SUBSTITUTION' });
+    await api.createAgreement({ ...common, agreementType: 'SELECTIVE', title: '선택적 합의' });
+    await api.createAgreement({ ...common, agreementType: 'HOLIDAY_SUBSTITUTION', scopeType: 'SITE', scopeSiteCode: 'S01', title: '사업장 합의' });
+    await mount(api);
+    await act(async () => { buttonByText(host, '휴일 대체').click(); });
+    const select = byLabel<HTMLSelectElement>(host, '서면합의');
+    expect(select.textContent).toContain('회사 전체 휴일 대체');
+    expect(select.textContent).toContain('2099-01-01~2099-12-31');
+    expect(select.textContent).not.toContain('선택적 합의');
+    expect(select.textContent).not.toContain('사업장 합의');
   });
 
   it('회사휴일을 추가하고 앞으로 올 날만 지울 수 있다', async () => {
