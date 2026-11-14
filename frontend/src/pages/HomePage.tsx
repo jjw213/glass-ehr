@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { LuUsers, LuBriefcase, LuPlane, LuFileCheck, LuArrowUpRight, LuDownload, LuMegaphone, LuPin } from 'react-icons/lu';
 import type { IconType } from 'react-icons';
 import { Card, CardHead, PageHead, Segmented, Sparkline, Badge, Avatar, vars, cx, ymd } from '../components/ui';
+import { PunchWidget } from '../components/PunchWidget';
 import { useData, useStore } from '../state/store';
 import type { TrendPoint } from '../api';
 
@@ -75,6 +76,11 @@ export function HomePage() {
             </div>
           </Card>
         ))}
+      </div>
+
+      {/* 출퇴근 위젯(#28): 내 오늘 출근 시각·근무 경과 시간, 출근·퇴근 버튼 */}
+      <div className="grid grid--home">
+        <PunchWidget i={5} />
       </div>
 
       <div className="grid grid--home">

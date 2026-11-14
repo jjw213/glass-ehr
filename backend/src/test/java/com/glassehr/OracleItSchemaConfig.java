@@ -103,6 +103,12 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V017__holiday_calendar.sql"))
                     .execute(dataSource);
         }
+        Integer punch = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'ATTENDANCE_PUNCH'", Integer.class);
+        if (punch == null || punch == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V019__attendance_punch.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

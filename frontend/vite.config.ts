@@ -21,6 +21,8 @@ export default defineConfig({
       // 휴일 달력·서면합의(#26)도 Spring.
       '/api/attendance/holidays': 'http://localhost:8080',
       '/api/attendance/agreements': 'http://localhost:8080',
+      // 출퇴근 원시 기록(#28)도 Spring. 대시보드 출퇴근 위젯이 쓴다.
+      '/api/attendance/punches': 'http://localhost:8080',
       '/api':'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/

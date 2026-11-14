@@ -107,3 +107,20 @@
 - 기본 허용 반경 값과 사업장 하나에 기준점을 여러 개 둘지
 - 동의서 문안
 - 모바일 앱(네이티브) 지원 여부 — 현재 초안은 웹·모바일 브라우저만
+
+## 8. 1차 구현 (#28)
+- 마이그레이션 `V019__attendance_punch.sql`: `attendance_punch`(emp_id, punch_type, punched_at, work_date, client_time, punch_check, source, created_by, created_at).
+  §2 초안의 위치 칼럼(`site_id`, `geo_status`, `distance_m`, `accuracy_m`)과 `attendance_punch_location`·`work_site_geofence`·`location_consent`는
+  §7 미결 사항(위치정보법 적용, 보관 기간, 동의서 문안 등)이 정해진 뒤 위치 확인 이슈에서 새 마이그레이션으로 추가한다. 지금은 좌표를 받지 않는다.
+- 추가만: 수정·삭제 API가 없고, 저장소는 `save`·조회만 여는 `Repository`, 엔티티는 setter 없이 모든 칼럼 `updatable = false`. 정정은 별도 이슈.
+- 서버 시각: `punched_at`·`work_date`는 서버 시각(Asia/Seoul, `TIMESTAMP(6)` 지역 시각). 단말 시각은 `client_time`에 참고로만 저장.
+  DB CHECK `work_date = TRUNC(punched_at)` — 야간 근무 귀속일 처리 이슈에서 이 제약과 함께 바꾼다.
+- 처리 규칙(막지 않고 저장, `punch_check`로 관리자 확인 대상 표시):
+  - 중복 출근: 같은 근무일에 출근 기록이 있는데 다시 출근 → `DUPLICATE_IN`. 출근 시각은 첫 출근.
+  - 출근 없는 퇴근: 같은 근무일에 출근 기록이 없는데 퇴근 → `OUT_WITHOUT_IN`.
+  - 퇴근을 여러 번 누르는 것은 정상이고 마지막 퇴근이 퇴근 시각. 같은 사원의 기록은 사원 행 잠금으로 줄 세운다.
+  - 입사일 전, 퇴직일 다음 날부터는 409로 거부. 사원과 연결되지 않은 계정은 403.
+- API: `POST /api/attendance/punches` `{type, clientTime?}`(본인만, 사원은 서버가 확인한 로그인 사용자), `GET /api/attendance/punches/today`.
+- 대시보드 위젯 `PunchWidget`: 오늘 출근 시각, 근무 경과 시간(첫 출근부터, 휴게 미공제 — 근로시간 산정값 아님), 출근·퇴근 버튼.
+  경과 시간은 응답의 `serverNow`로 단말 시계 차이를 보정해 센다.
+- 알려진 한계: 자정을 넘긴 퇴근은 다음 날의 `OUT_WITHOUT_IN`이 된다(귀속일 규칙은 근무일정·집계 이슈). 기존 근태 화면의 Node `/api/attendance/toggle`은 그대로 두었다.
