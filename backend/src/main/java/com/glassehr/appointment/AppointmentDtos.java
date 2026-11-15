@@ -34,15 +34,53 @@ public final class AppointmentDtos {
             LocalDate leaveEndDate) {
     }
 
+    /**
+     * 발령 응답. {@code cancelOfApptId}: 이 발령이 취소 발령이면 원 발령 ID.
+     * {@code cancelledByApptId}: 이 발령을 되돌리는 취소 발령 ID(미확정 포함). 둘 다 없으면 null.
+     */
     public record AppointmentView(long apptId, String apptNo, String apptTypeCode, long empId,
             LocalDate effectiveDate, Snapshot before, Snapshot after, String reason, LocalDate leaveStartDate,
             LocalDate leaveEndDate, boolean confirmed, LocalDateTime confirmedAt, LocalDateTime createdAt,
-            LocalDateTime updatedAt) {
+            LocalDateTime updatedAt, Long cancelOfApptId, Long cancelledByApptId) {
 
-        static AppointmentView of(HrAppointment a) {
+        public AppointmentView(long apptId, String apptNo, String apptTypeCode, long empId,
+                LocalDate effectiveDate, Snapshot before, Snapshot after, String reason, LocalDate leaveStartDate,
+                LocalDate leaveEndDate, boolean confirmed, LocalDateTime confirmedAt, LocalDateTime createdAt,
+                LocalDateTime updatedAt) {
+            this(apptId, apptNo, apptTypeCode, empId, effectiveDate, before, after, reason, leaveStartDate,
+                    leaveEndDate, confirmed, confirmedAt, createdAt, updatedAt, null, null);
+        }
+
+        static AppointmentView of(HrAppointment a, Long cancelOfApptId, Long cancelledByApptId) {
             return new AppointmentView(a.getApptId(), a.getApptNo(), a.getApptTypeCode(), a.getEmpId(),
                     a.getEffectiveDate(), a.before(), a.after(), a.getReason(), a.getLeaveStartDate(),
-                    a.getLeaveEndDate(), a.isConfirmed(), a.getConfirmedAt(), a.getCreatedAt(), a.getUpdatedAt());
+                    a.getLeaveEndDate(), a.isConfirmed(), a.getConfirmedAt(), a.getCreatedAt(), a.getUpdatedAt(),
+                    cancelOfApptId, cancelledByApptId);
+        }
+    }
+
+    /** 취소 발령 등록 요청. 취소에도 사유를 반드시 적는다(근로기준법 제23조 제1항). */
+    public record CancelRequest(
+            @NotBlank(message = "발령 사유를 입력해 주세요(근로기준법 제23조)")
+            @Size(max = 1000, message = "발령 사유는 1000자 이내로 써 주세요")
+            String reason) {
+    }
+
+    /** 기준일의 사원 소속·직급·직책·재직상태(확정 발령 이력 기준). */
+    public record AssignmentView(long empId, LocalDate date, Long deptId, String jobGradeCode, String jobTitleCode,
+            EmpStatus empStatus) {
+    }
+
+    /**
+     * 휴직 기간(양끝 포함). {@code endDate}는 복직·퇴직 발령으로 앞당겨졌으면 그 발령일 전날, 아니면 종료 예정일.
+     * 근태(연차·육아휴직)가 쓴다.
+     */
+    public record LeavePeriodView(long empId, long leaveApptId, LocalDate startDate, LocalDate plannedEndDate,
+            LocalDate endDate, Long endedByApptId, String reason) {
+
+        static LeavePeriodView of(AppointmentHistory.LeavePeriod p) {
+            return new LeavePeriodView(p.empId(), p.leaveApptId(), p.startDate(), p.plannedEndDate(), p.endDate(),
+                    p.endedByApptId(), p.reason());
         }
     }
 }

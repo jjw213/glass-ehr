@@ -2,6 +2,9 @@ package com.glassehr.appointment;
 
 import com.glassehr.appointment.AppointmentDtos.AppointmentRequest;
 import com.glassehr.appointment.AppointmentDtos.AppointmentView;
+import com.glassehr.appointment.AppointmentDtos.AssignmentView;
+import com.glassehr.appointment.AppointmentDtos.CancelRequest;
+import com.glassehr.appointment.AppointmentDtos.LeavePeriodView;
 import com.glassehr.auth.Permission;
 import com.glassehr.auth.RequiresPermission;
 import jakarta.validation.Valid;
@@ -29,6 +32,10 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>PUT    /api/appointments/{apptId} — 발령 수정(미확정만)</li>
  *   <li>POST   /api/appointments/{apptId}/confirm — 발령 확정</li>
  *   <li>DELETE /api/appointments/{apptId} — 발령 삭제(미확정만)</li>
+ *   <li>POST   /api/appointments/{apptId}/cancel — 확정 발령을 되돌리는 취소 발령 등록(미확정, 확정은 confirm)</li>
+ *   <li>GET    /api/employees/{empId}/assignment?date= — 기준일 소속·직급·직책·재직상태</li>
+ *   <li>GET    /api/employees/{empId}/leave-periods?from=&amp;to= — 사원 휴직 기간</li>
+ *   <li>GET    /api/leave-periods?from=&amp;to= — 전체 사원 휴직 기간(근태 집계용)</li>
  * </ul>
  */
 @RestController
@@ -78,6 +85,33 @@ public class AppointmentController {
     @PostMapping("/api/appointments/{apptId}/confirm")
     public AppointmentView confirm(@PathVariable long apptId) {
         return service.confirm(apptId);
+    }
+
+    @RequiresPermission(Permission.EMP_WRITE)
+    @PostMapping("/api/appointments/{apptId}/cancel")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AppointmentView cancel(@PathVariable long apptId, @Valid @RequestBody CancelRequest req) {
+        return service.cancel(apptId, req);
+    }
+
+    @RequiresPermission(Permission.EMP_READ_ALL)
+    @GetMapping("/api/employees/{empId}/assignment")
+    public AssignmentView assignment(@PathVariable long empId, @RequestParam(name = "date") LocalDate date) {
+        return service.assignmentOn(empId, date);
+    }
+
+    @RequiresPermission(Permission.EMP_READ_ALL)
+    @GetMapping("/api/employees/{empId}/leave-periods")
+    public List<LeavePeriodView> leavePeriods(@PathVariable long empId, @RequestParam(name = "from") LocalDate from,
+            @RequestParam(name = "to") LocalDate to) {
+        return service.leavePeriods(empId, from, to);
+    }
+
+    @RequiresPermission(Permission.EMP_READ_ALL)
+    @GetMapping("/api/leave-periods")
+    public List<LeavePeriodView> allLeavePeriods(@RequestParam(name = "from") LocalDate from,
+            @RequestParam(name = "to") LocalDate to) {
+        return service.leavePeriods(from, to);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)

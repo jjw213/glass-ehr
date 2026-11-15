@@ -18,8 +18,9 @@ import java.time.LocalDateTime;
  * <p>규칙
  * <ul>
  *   <li>{@code empId}는 불변 내부 키, 사번({@code empNo})도 등록 후 바꾸지 않는다(#9).</li>
- *   <li>현재 소속·직급·직책은 인사발령 결과로만 바뀐다. 이 엔티티에는 그 값을 바꾸는 메서드가 없고
- *       (입사 등록 때 첫 값만 받음), 컬럼도 {@code updatable = false}다. 인사발령 이슈에서 발령 반영 메서드를 추가한다.</li>
+ *   <li>현재 소속·직급·직책·재직상태는 확정된 인사발령 결과로만 바뀐다(#59). 입사 등록 때 첫 값을 받고, 그 뒤에는
+ *       {@link EmployeeRepository#applyAppointment}(AppointmentService 의 발령 반영)만 바꾼다. 이 엔티티에는 바꾸는
+ *       메서드가 없고 컬럼도 {@code updatable = false}다. 사원 등록·수정 API에는 이 값이 없다.</li>
  *   <li>주민등록번호는 이 테이블에 없다. {@link EmpRrn}에 암호문으로만 있다(개인정보 보호법 제24조의2·제29조).</li>
  * </ul>
  */
@@ -87,7 +88,8 @@ public class Employee {
     @Column(name = "employment_note")
     private String employmentNote;
 
-    // 현재 소속·직급·직책: 인사발령 결과로만 바뀐다(수정 API 없음)
+    // 현재 소속·직급·직책·재직상태: 확정된 인사발령 결과로만 바뀐다(수정 API 없음).
+    // 엔티티로는 바꿀 수 없고(updatable = false), EmployeeRepository.applyAppointment 만 바꾼다(#59)
     @Column(name = "current_dept_id", updatable = false)
     private Long currentDeptId;
 
@@ -96,6 +98,10 @@ public class Employee {
 
     @Column(name = "job_title_code", updatable = false)
     private String jobTitleCode;
+
+    // V019. 값은 com.glassehr.appointment.EmpStatus(ACTIVE·ON_LEAVE·RETIRED). 입사 등록 때는 재직
+    @Column(name = "emp_status", nullable = false, updatable = false)
+    private String empStatus = "ACTIVE";
 
     // 시행령 제20조: 해고·퇴직·사망 연월일과 사유
     @Column(name = "retire_date")
@@ -188,6 +194,10 @@ public class Employee {
         this.retireReasonDetail = reasonDetail;
         this.recordRetentionUntil = retentionUntil;
         this.updatedAt = now;
+    }
+
+    public String getEmpStatus() {
+        return empStatus;
     }
 
     public boolean isRetired() {

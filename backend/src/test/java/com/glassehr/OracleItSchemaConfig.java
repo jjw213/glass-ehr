@@ -79,6 +79,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V014__hr_appointment.sql"))
                     .execute(dataSource);
         }
+        Integer apptCancel = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'HR_APPOINTMENT_CANCEL'", Integer.class);
+        if (apptCancel == null || apptCancel == 0) {
+            // #59: employee.emp_status 추가와 취소 발령 연결 테이블
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V019__hr_appointment_apply_cancel.sql"))
+                    .execute(dataSource);
+        }
         Integer workItems = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM legal_rate_item WHERE item_code = 'DAILY_STANDARD_WORK_HOURS'", Integer.class);
         if (workItems == null || workItems == 0) {

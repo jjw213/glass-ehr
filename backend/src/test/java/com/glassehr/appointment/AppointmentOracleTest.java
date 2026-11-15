@@ -38,6 +38,9 @@ class AppointmentOracleTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private com.glassehr.org.OrgDeptService orgs;
+
     private long employee() {
         return employees.create(new EmployeeCreateRequest("S01", "예시사원IT", "F", LocalDate.of(1880, 1, 1),
                 "가상시 예시구 샘플로 0", null, "시험", null, D0, null, null, null, "REGULAR", 2400, null, null, null,
@@ -57,6 +60,24 @@ class AppointmentOracleTest {
             assertThat(a.after().status()).isEqualTo(EmpStatus.ON_LEAVE);
             assertThat(a.leaveEndDate()).isEqualTo(D0.plusMonths(6));
         });
+    }
+
+    @Test
+    void 미래_전입이_확정된_빈_부서는_폐지할_수_없다() {
+        long emp = employee();
+        long dept = orgs.create(new com.glassehr.org.OrgDtos.DeptCreateRequest(
+                "IT_FUTURE_APPT", "예시 미래 전입 부서", null, null, 0, D0, "IT 가상 부서")).deptId();
+        LocalDate future = LocalDate.of(2199, 1, 1);
+        long appt = service.create(emp, new AppointmentRequest("TRANSFER", future, dept, null, null,
+                "IT 미래 전입", null, null)).apptId();
+        service.confirm(appt);
+        assertThat(service.countDeptMembersOnOrAfter(dept, future.minusDays(1))).isEqualTo(1);
+        assertThatThrownBy(() -> orgs.close(dept, new com.glassehr.org.OrgDtos.DeptCloseRequest(
+                future.minusDays(1), "IT 폐지 시도")))
+                .isInstanceOfSatisfying(com.glassehr.org.OrgException.class, e -> {
+                    assertThat(e.status()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
+                    assertThat(e.getMessage()).contains("소속 재직자가 1명");
+                });
     }
 
     @Test
