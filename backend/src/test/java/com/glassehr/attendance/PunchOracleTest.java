@@ -6,10 +6,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.glassehr.attendance.PunchDtos.PunchRequest;
 import com.glassehr.attendance.PunchDtos.PunchView;
 import com.glassehr.attendance.PunchDtos.TodayView;
+import com.glassehr.appointment.AppointmentService;
 import com.glassehr.employee.EmployeeDtos.EmployeeCreateRequest;
+import com.glassehr.employee.EmployeeRepository;
 import com.glassehr.employee.EmployeeService;
 import com.glassehr.employee.RequestActor;
+import jakarta.persistence.EntityManager;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Map;
+import java.util.TimeZone;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +47,18 @@ class PunchOracleTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private AttendancePunchRepository punches;
+
+    @Autowired
+    private EmployeeRepository employeeRepository;
+
+    @Autowired
+    private AppointmentService assignments;
+
+    @Autowired
+    private EntityManager em;
+
     private long employee() {
         return employees.create(new EmployeeCreateRequest("S01", "예시사원IT", "F", LocalDate.of(1880, 1, 1),
                 "가상시 예시구 샘플로 0", null, "시험", null, LocalDate.of(1903, 1, 1), null, null, null, "REGULAR", 2400,
@@ -55,6 +76,37 @@ class PunchOracleTest {
         assertThat(t.punches()).hasSize(2);
         assertThat(t.firstInAt()).isEqualTo(in.punchedAt());
         assertThat(t.working()).isTrue();
+    }
+
+    /**
+     * CI #97(PR #83) 회귀: JVM 기본 시간대가 UTC인데 서울 15시 이후에 기록하면, hibernate.jdbc.time_zone 설정 때문에
+     * punched_at이 9시간 밀려 다음 날이 되어 ck_punch_work_date_same을 위반했다.
+     * 테스트 JVM은 pom의 -Duser.timezone=Asia/Seoul로 돌기 때문에 여기서 기본 시간대를 UTC로 바꿔 그 조건을 만든다.
+     */
+    @Test
+    void JVM_시간대가_UTC여도_서울_밤_기록은_서울_날짜와_시각_그대로_저장된다() {
+        long emp = employee();
+        TimeZone original = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone(ZoneOffset.UTC));
+            // 2026-11-16 23:30 서울 = 14:30Z
+            Clock clock = Clock.fixed(Instant.parse("2026-11-16T14:30:00Z"), PunchDtos.SEOUL);
+            PunchService atNight = new PunchService(punches, employeeRepository, assignments, clock);
+            PunchView in = atNight.punch(emp, "it-emp", new PunchRequest(AttendancePunch.Type.IN, null));
+            em.flush();
+
+            Map<String, Object> row = jdbc.queryForMap("SELECT TO_CHAR(punched_at, 'YYYY-MM-DD HH24:MI') AS at,"
+                    + " TO_CHAR(work_date, 'YYYY-MM-DD') AS wd FROM attendance_punch WHERE punch_id = ?", in.punchId());
+            assertThat(row.get("AT")).isEqualTo("2026-11-16 23:30");
+            assertThat(row.get("WD")).isEqualTo("2026-11-16");
+
+            em.clear();
+            assertThat(punches.findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(emp, LocalDate.of(2026, 11, 16)))
+                    .singleElement()
+                    .satisfies(p -> assertThat(p.getPunchedAt()).isEqualTo(LocalDateTime.of(2026, 11, 16, 23, 30)));
+        } finally {
+            TimeZone.setDefault(original);
+        }
     }
 
     @Test
