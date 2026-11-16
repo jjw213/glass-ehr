@@ -75,4 +75,6 @@
 
 - 2026-11-15: #28 Codex 재개 — 원격 `agent/issue-28`의 기존 구현(1f2d91a)을 최신 main 기준 `codex/issue-28`로 복구했다. 기존 기록의 V019는 현재 V021로 옮기고 합의서·발령 스키마 초기화를 보존했다. 위젯의 자정·다른 탭 기록 갱신과 중복 요청 보호, #59 오늘 기준 퇴직 발령 검사를 추가했다. 백엔드 578건 실패 0건(Oracle 42건 로컬 생략), 프론트 156건·lint 오류 0건·build 통과. 제48조·시행령 제27조 원문 확인(2026-11-15), GPS·위치 동의는 승인된 분할 결정에 따라 #73에서 추적한다. PR·CI 결과는 해당 이슈와 PR 댓글에 추가 기록한다.
 
+- 2026-11-16: 시간대 수정 — `hibernate.jdbc.time_zone` 설정 때문에 JVM 기본 시간대가 UTC인 CI에서 JPA가 `LocalDateTime`을 9시간 밀어 저장해, 서울 15시 이후 실행 시 `PunchOracleTest`가 `ck_punch_work_date_same` 위반으로 실패했다(PR #83 CI #97). 설정을 지우고 surefire를 `-Duser.timezone=Asia/Seoul`로 실행하게 했다. 회귀 테스트: JVM을 UTC로 바꾼 상태에서 서울 23:30 고정 시계로 출근 기록 후 DB 값이 그대로인지 확인.
+
 - 2026-11-16: #18 퇴직 처리 — V022(`retirement_case`·`retirement_checklist_item`·`employment_certificate`, legal_rate 항목 `DISMISSAL_NOTICE_DAYS`·`DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS` 코드만)와 퇴직 유형별 체크리스트, 해고 시 예고일·서면통지일 필수·예고 미달 경고(기준값 없으면 UNKNOWN), 요구 항목만 적는 사용증명서 발급·인쇄 화면, 보존기한 경과 퇴직자 목록을 추가했다. 백엔드 620건 실패 0건(Oracle 44건 로컬 건너뜀)·프론트 164건·lint 오류 0건 통과. 해고 예고 기준값과 정답 fixture는 법령 데이터 요청 대상, 조문 원문 미확인(`docs/retirement-design.md` 7장).

@@ -18,10 +18,9 @@ spring:
     hibernate:
       # 스키마는 마이그레이션 스크립트로 관리한다. JPA가 테이블을 만들거나 바꾸지 않는다.
       ddl-auto: validate
-    properties:
-      hibernate:
-        jdbc:
-          time_zone: Asia/Seoul
+    # hibernate.jdbc.time_zone은 두지 않는다. 시각 컬럼은 시간대 없는 TIMESTAMP이고 앱이 서울 기준 LocalDateTime을
+    # 만들기 때문에 변환 없이 그대로 저장해야 한다. 이 값을 두면 JVM 기본 시간대가 서울이 아닐 때(@SpringBootTest는
+    # GlassEhrApplication.main()의 TimeZone.setDefault를 거치지 않음) JPA 저장 값만 시차만큼 밀리고 MyBatis와 어긋난다.
   servlet:
     multipart:
       # 서면합의서 첨부(#27, 앱 한도 glassehr.agreement.max-file-bytes = 10MB)보다 조금 크게 둔다.
