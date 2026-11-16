@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.glassehr.attendance.DailyWorkSummaryMapper">
+
+  <!-- 순서는 DailyWorkSummaryRow 레코드 구성요소 순서와 같다 -->
+  <resultMap id="row" type="com.glassehr.attendance.DailyWorkSummaryRow">
+    <constructor>
+      <arg column="emp_id" javaType="java.lang.Long"/>
+      <arg column="work_date" javaType="java.time.LocalDate"/>
+      <arg column="day_kind" javaType="java.lang.String"/>
+      <arg column="pattern_id" javaType="java.lang.Long"/>
+      <arg column="contract_minutes" javaType="java.lang.Integer"/>
+      <arg column="leave_kind" javaType="java.lang.String"/>
+      <arg column="leave_minutes" javaType="java.lang.Integer"/>
+      <arg column="work_start" javaType="java.time.LocalDateTime"/>
+      <arg column="work_end" javaType="java.time.LocalDateTime"/>
+      <arg column="break_minutes" javaType="java.lang.Integer"/>
+      <arg column="worked_minutes" javaType="java.lang.Integer"/>
+      <arg column="regular_minutes" javaType="java.lang.Integer"/>
+      <arg column="overtime_minutes" javaType="java.lang.Integer"/>
+      <arg column="night_minutes" javaType="java.lang.Integer"/>
+      <arg column="holiday_minutes" javaType="java.lang.Integer"/>
+      <arg column="holiday_excess_minutes" javaType="java.lang.Integer"/>
+      <arg column="overtime_rate" javaType="java.math.BigDecimal"/>
+      <arg column="night_rate" javaType="java.math.BigDecimal"/>
+      <arg column="holiday_rate" javaType="java.math.BigDecimal"/>
+      <arg column="holiday_excess_rate" javaType="java.math.BigDecimal"/>
+      <arg column="issues" javaType="java.lang.String"/>
+      <arg column="calculated_by" javaType="java.lang.String"/>
+      <arg column="calculated_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+
+  <delete id="deleteRange">
+    DELETE FROM attendance_daily_summary
+     WHERE emp_id = #{empId}
+       AND work_date &gt;= #{from, jdbcType=DATE}
+       AND work_date &lt;= #{to, jdbcType=DATE}
+  </delete>
+
+  <insert id="insert">
+    INSERT INTO attendance_daily_summary (
+        emp_id, work_date, day_kind, pattern_id, contract_minutes, leave_kind, leave_minutes,
+        work_start, work_end, break_minutes, worked_minutes, regular_minutes, overtime_minutes,
+        night_minutes, holiday_minutes, holiday_excess_minutes,
+        overtime_rate, night_rate, holiday_rate, holiday_excess_rate,
+        issues, calculated_by, calculated_at)
+    VALUES (
+        #{row.empId}, #{row.workDate, jdbcType=DATE}, #{row.dayKind}, #{row.patternId, jdbcType=NUMERIC},
+        #{row.contractMinutes}, #{row.leaveKind, jdbcType=VARCHAR}, #{row.leaveMinutes},
+        #{row.workStart, jdbcType=TIMESTAMP}, #{row.workEnd, jdbcType=TIMESTAMP},
+        #{row.breakMinutes}, #{row.workedMinutes}, #{row.regularMinutes}, #{row.overtimeMinutes},
+        #{row.nightMinutes}, #{row.holidayMinutes}, #{row.holidayExcessMinutes},
+        #{row.overtimeRate}, #{row.nightRate}, #{row.holidayRate}, #{row.holidayExcessRate},
+        #{row.issues, jdbcType=VARCHAR}, #{row.calculatedBy}, #{row.calculatedAt, jdbcType=TIMESTAMP})
+  </insert>
+
+  <select id="findRange" resultMap="row">
+    SELECT emp_id, work_date, day_kind, pattern_id, contract_minutes, leave_kind, leave_minutes,
+           work_start, work_end, break_minutes, worked_minutes, regular_minutes, overtime_minutes,
+           night_minutes, holiday_minutes, holiday_excess_minutes,
+           overtime_rate, night_rate, holiday_rate, holiday_excess_rate,
+           issues, calculated_by, calculated_at
+      FROM attendance_daily_summary
+     WHERE emp_id = #{empId}
+       AND work_date &gt;= #{from, jdbcType=DATE}
+       AND work_date &lt;= #{to, jdbcType=DATE}
+     ORDER BY work_date
+  </select>
+
+  <resultMap id="punch" type="com.glassehr.attendance.DailyWorkSummaryMapper$PunchRecord">
+    <constructor>
+      <arg column="punch_type" javaType="java.lang.String"/>
+      <arg column="punched_at" javaType="java.time.LocalDateTime"/>
+      <arg column="work_date" javaType="java.time.LocalDate"/>
+    </constructor>
+  </resultMap>
+
+  <select id="findPunches" resultMap="punch">
+    SELECT punch_type, punched_at, work_date
+      FROM attendance_punch
+     WHERE emp_id = #{empId}
+       AND work_date &gt;= #{from, jdbcType=DATE}
+       AND work_date &lt;= #{to, jdbcType=DATE}
+     ORDER BY punched_at, punch_id
+  </select>
+</mapper>

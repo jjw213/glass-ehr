@@ -122,6 +122,12 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V021__attendance_punch.sql"))
                     .execute(dataSource);
         }
+        Integer dailySummary = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'ATTENDANCE_DAILY_SUMMARY'", Integer.class);
+        if (dailySummary == null || dailySummary == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V022__attendance_daily_summary.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
