@@ -116,6 +116,12 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V020__worker_rep_agreement_ext.sql"))
                     .execute(dataSource);
         }
+        Integer punch = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'ATTENDANCE_PUNCH'", Integer.class);
+        if (punch == null || punch == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V021__attendance_punch.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

@@ -107,3 +107,28 @@
 - 기본 허용 반경 값과 사업장 하나에 기준점을 여러 개 둘지
 - 동의서 문안
 - 모바일 앱(네이티브) 지원 여부 — 현재 초안은 웹·모바일 브라우저만
+
+## 8. 1차 구현 (#28)
+- 마이그레이션 `V021__attendance_punch.sql`: `attendance_punch`(emp_id, punch_type, punched_at, work_date, client_time, punch_check, source, created_by, created_at).
+  §2 초안의 위치 칼럼(`site_id`, `geo_status`, `distance_m`, `accuracy_m`)과 `attendance_punch_location`·`work_site_geofence`·`location_consent`는
+  §7 미결 사항(위치정보법 적용, 보관 기간, 동의서 문안 등)이 정해진 뒤 위치 확인 이슈에서 새 마이그레이션으로 추가한다. 지금은 좌표를 받지 않는다.
+- 추가만: 수정·삭제 API가 없고, 저장소는 `save`·조회만 여는 `Repository`, 엔티티는 setter 없이 모든 칼럼 `updatable = false`. 정정은 별도 이슈.
+- 서버 시각: `punched_at`·`work_date`는 서버 시각(Asia/Seoul, `TIMESTAMP(6)` 지역 시각). 단말 시각은 `client_time`에 참고로만 저장.
+  DB CHECK `work_date = TRUNC(punched_at)` — 야간 근무 귀속일 처리 이슈에서 이 제약과 함께 바꾼다.
+- 처리 규칙(막지 않고 저장, `punch_check`로 관리자 확인 대상 표시):
+  - 중복 출근: 같은 근무일에 출근 기록이 있는데 다시 출근 → `DUPLICATE_IN`. 출근 시각은 첫 출근.
+  - 출근 없는 퇴근: 같은 근무일에 출근 기록이 없는데 퇴근 → `OUT_WITHOUT_IN`.
+  - 퇴근을 여러 번 누르는 것은 정상이고 마지막 퇴근이 퇴근 시각. 같은 사원의 기록은 사원 행 잠금으로 줄 세운다.
+  - 입사일 전, 퇴직일 다음 날부터는 409로 거부. 사원과 연결되지 않은 계정은 403.
+- API: `POST /api/attendance/punches` `{type, clientTime?}`(본인만, 사원은 서버가 확인한 로그인 사용자), `GET /api/attendance/punches/today`.
+- 대시보드 위젯 `PunchWidget`: 오늘 출근 시각, 근무 경과 시간(첫 출근부터, 휴게 미공제 — 근로시간 산정값 아님), 출근·퇴근 버튼.
+  경과 시간은 응답의 `serverNow`로 단말 시계 차이를 보정해 센다.
+- 알려진 한계: 자정을 넘긴 퇴근은 다음 날의 `OUT_WITHOUT_IN`이 된다(귀속일 규칙은 근무일정·집계 이슈). 기존 근태 화면의 Node `/api/attendance/toggle`은 그대로 두었다.
+
+## 9. #28 원문 확인 및 재개 기록 (2026-11-15)
+
+- [근로기준법 제48조 제1항](https://www.law.go.kr/lsLinkCommonInfo.do?chrClsCd=010202&lsJoLnkSeq=1029728419): 임금대장 작성·기재 근거(2026-10-08 시행본). 확인일 2026-11-15.
+- [근로기준법 시행령 제27조 제1항 제6호~제8호](https://www.law.go.kr/lsLinkCommonInfo.do?chrClsCd=010202&lspttninfSeq=171511): 근로일수·근로시간수·연장/야간/휴일 시간수 기재 근거(2025-10-23 시행본). 확인일 2026-11-15.
+- 위 조문은 근로시간 기재의 근거이며 첫 출근·마지막 퇴근 처리나 원본 추가 전용 구조를 직접 규정한다고 해석하지 않는다. 해당 처리는 #22·#28의 기록 정책이다. 법령 요율·근로시간 계산은 추가하지 않았다.
+- #28 사람 답변에 따라 GPS·위치 동의는 후속 이슈에서 정책을 확정한다. 테이블 추가는 승인된 범위이며 이미 사용된 V019·V020을 피해 V021을 쓴다.
+- 위젯은 30초마다 서버의 오늘 기록을 재조회해 날짜 변경·다른 탭의 기록을 반영한다. 표시용 경과 시간은 휴게시간을 공제하지 않으며 급여 계산에 사용하지 않는다.

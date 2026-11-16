@@ -15,7 +15,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 /** 근태 API 오류를 {"error": "...", "violations": [...]} 형식으로 돌려준다. */
 @RestControllerAdvice(assignableTypes = {WorkPatternController.class, HolidayController.class,
-        LaborAgreementController.class})
+        LaborAgreementController.class, PunchController.class})
 public class AttendanceErrorHandler {
 
     @ExceptionHandler(AttendanceException.class)
