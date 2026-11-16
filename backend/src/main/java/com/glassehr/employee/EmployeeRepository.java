@@ -33,6 +33,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     List<Employee> findByRetireDateIsNullOrderByEmpNoAsc();
 
+    /** 보존기한(근로기준법 제42조)이 {@code date}보다 앞선 퇴직자. 보존기한 당일까지는 보존 대상이다(#18). */
+    List<Employee> findByRecordRetentionUntilBeforeOrderByRecordRetentionUntilAscEmpNoAsc(LocalDate date);
+
     /**
      * 사원 행 잠금(SELECT ... FOR UPDATE). 수정·퇴직 처리는 이것으로 읽어 같은 사원의 쓰기를 직렬화한다.
      * 잠그지 않으면 퇴직 처리 전에 읽은 수정 요청이 나중에 전체 행을 덮어써 퇴직일·사유·보존기한을 지울 수 있다.

@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature } from 'react-icons/lu';
+import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen } from 'react-icons/lu';
 import type { Role } from './api/types';
 import type { PageId } from './state/store';
 
@@ -29,6 +29,7 @@ export const NAV: NavItem[] = [
   { id: 'codes', label: '공통코드 관리', short: '코드', icon: LuListTree, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'workPatterns', label: '근무유형 관리', short: '근무유형', icon: LuCalendarClock, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'agreements', label: '서면합의서 관리', short: '합의서', icon: LuSignature, section: 'system', roles: ['HR', 'ADMIN'] },
+  { id: 'retirements', label: '퇴직 처리', short: '퇴직', icon: LuDoorOpen, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'privacyLogs', label: '개인정보 조회 로그', short: '로그', icon: LuShieldCheck, section: 'system', roles: ['ADMIN'] },
 ];
 
@@ -49,6 +50,9 @@ export const canManageAgreements = (role: Role) => navFor(role).some((n) => n.id
  * 화면 표시용이며 실제 차단은 서버 EMP_WRITE 권한 검사가 한다. 근무유형 관리와 같은 역할(인사담당자·관리자).
  */
 export const canManageHolidays = (role: Role) => canManageWorkPatterns(role);
+
+/** 퇴직 처리·사용증명서·보존기한 목록을 다루는 역할(인사담당자·관리자, #18). 메뉴 표시용이며 실제 차단은 서버 EMP_WRITE·EMP_READ_ALL 검사가 한다. */
+export const canManageRetirements = (role: Role) => navFor(role).some((n) => n.id === 'retirements');
 
 /** 개인정보 조회 로그를 보는 역할(관리자, #19). 메뉴 표시용이며 실제 차단은 서버 PRIVACY_LOG_READ 권한 검사가 한다. */
 export const canReadPrivacyLogs = (role: Role) => navFor(role).some((n) => n.id === 'privacyLogs');
