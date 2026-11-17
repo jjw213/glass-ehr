@@ -359,6 +359,17 @@ class RetirementServiceTest {
     }
 
     @Test
+    void 퇴직_예정자는_청구일_기준_계약의_임금을_쓴다() {
+        LocalDate futureRetire = LocalDate.of(2026, 12, 31);
+        emp(1, futureRetire, "VOLUNTARY", futureRetire.plusYears(3));
+        contract(1, HIRE, 2_800_000L);
+        contract(1, LocalDate.of(2026, 12, 1), 3_300_000L); // 청구일 뒤·퇴직일 전에 시작하는 계약은 아직 쓰지 않음
+        CertificateView v = service.issueCertificate(1, new CertificateRequest(LocalDate.of(2026, 11, 17),
+                EnumSet.of(CertificateItem.WAGE), null), "hr1");
+        assertThat(v.wageAmount()).isEqualTo(2_800_000L);
+    }
+
+    @Test
     void 재직자는_사용기간_끝이_비고_퇴직사유를_요구하면_400() {
         emp(1, null, null, null);
         CertificateView v = service.issueCertificate(1, new CertificateRequest(LocalDate.of(2026, 11, 16),

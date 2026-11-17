@@ -269,9 +269,13 @@ public class RetirementService {
         return String.join(" / ", parts);
     }
 
-    /** 임금: 퇴직자는 퇴직일, 재직자는 청구일에 시작한 계약 중 가장 늦은 것의 임금. 없으면 409. */
+    /**
+     * 임금: 청구일까지 이미 퇴직했으면 퇴직일, 재직 중이거나 퇴직 예정이면 청구일 기준으로 시작한 계약 중 가장 늦은 것의 임금.
+     * 없으면 409.
+     */
     private EmploymentContract.Terms latestWageTerms(Employee e, LocalDate requestedOn) {
-        LocalDate asOf = e.getRetireDate() != null ? e.getRetireDate() : requestedOn;
+        LocalDate retire = e.getRetireDate();
+        LocalDate asOf = retire != null && !retire.isAfter(requestedOn) ? retire : requestedOn;
         return contracts.findByEmpIdOrderByStartDateAsc(e.getEmpId()).stream()
                 .map(EmploymentContract::terms)
                 .filter(t -> t.wageAmount() != null && !t.startDate().isAfter(asOf))

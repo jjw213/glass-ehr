@@ -31,7 +31,8 @@
 - 기준값은 legal_rate `DISMISSAL_NOTICE_DAYS`(DAYS), `DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS`(MONTHS)를 **해고일 기준**으로 조회. 값이 없으면 기본값을 쓰지 않고 `UNKNOWN`.
 - 날짜 셈(정답 fixture 확인 전 가정):
   - 예고 일수 = `DAYS.between(예고일, 해고일)`(예고일 다음 날부터 해고일까지). 예고 일수 ≥ 기준 일수면 충족.
-  - 단서 제1호(계속 근로 M개월 미만) = 해고일이 `입사일.plusMonths(M) - 1일`보다 앞. 월말 입사(예: 1월 31일)는 `plusMonths`의 말일 보정을 따른다.
+  - 단서 제1호(계속 근로 M개월 미만) = 해고일이 M개월 기간의 만료일보다 앞. 만료일은 민법 제157조 단서(초일 산입)·제160조 제2항(해당일 전일)·제3항(해당일이 없으면 그 월 말일)로 정한다. 예: 1월 1일 입사 3개월 → 3월 31일, 1월 31일 입사 3개월 → 4월 30일, 2024-02-29 입사 3개월 → 5월 28일. 정답은 `tests/legal-fixtures/dismissal-notice.csv`(`DismissalNoticeFixtureTest`).
+  - 법률 제16270호 부칙 제2조: 개정 단서 제1호는 시행(2019-01-15, legal_rate `DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS` 적용 시작일) 후 근로계약 체결자부터 적용한다. 입사일을 계약 체결일로 보고, 입사일에 그 기준값이 없으면 제1호 적용 제외를 인정하지 않고 예고 기간으로 다시 확인하며 구법 사유는 따로 확인하라고 경고한다.
 - 단서 제2호(부득이한 사유)·제3호(근로자 귀책)는 사람이 선택한 기록으로만 남기고 증빙 보관 경고를 띄운다.
 
 ## 4. 사용증명서 (`issueCertificate`)

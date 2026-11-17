@@ -23,10 +23,16 @@ import org.springframework.stereotype.Component;
  * {@link LegalRateItem#DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS}에서 <b>해고일(퇴직일) 기준 적용값</b>으로 읽는다.
  * 값이 없으면 조용히 기본값을 쓰지 않고 {@link NoticeCheck#UNKNOWN}을 돌려준다.
  *
- * <p>날짜 셈(정답 fixture 확인 전 가정, docs/retirement-design.md 3장):
+ * <p>날짜 셈(tests/legal-fixtures/dismissal-notice.csv 로 검증):
  * <ul>
- *   <li>예고 일수 = 예고일 다음 날부터 해고일까지의 일수({@code DAYS.between(예고일, 해고일)}). 예고 일수 ≥ 기준 일수면 충족.</li>
- *   <li>계속 근로 기간이 M개월 미만 = 해고일이 입사일부터 M개월이 되는 날의 전날({@code 입사일.plusMonths(M) - 1일})보다 앞.</li>
+ *   <li>예고 일수 = 예고일 다음 날부터 해고일까지의 일수({@code DAYS.between(예고일, 해고일)}). 예고 일수 ≥ 기준 일수면 충족.
+ *       민법 제157조 본문(초일 불산입).</li>
+ *   <li>계속 근로 기간이 M개월 미만 = 해고일이 M개월 기간의 마지막 날({@link #lastDayOfMonths})보다 앞.
+ *       민법 제157조 단서(입사일 오전 0시 시작이라 초일 산입)·제160조 제2항(최후 월의 해당일 전일 만료)·
+ *       제160조 제3항(해당일이 없으면 그 월의 말일 만료).</li>
+ *   <li>법률 제16270호 부칙 제2조: 개정 제26조 단서 제1호는 시행 후 근로계약을 체결한 근로자부터 적용한다.
+ *       시행일은 코드에 쓰지 않고 legal_rate 적용 개월 수 행이 <b>입사일</b>(근로계약 체결일 대용)에도 적용되는지로 본다.
+ *       적용되지 않으면 제1호 적용 제외로 보지 않고 예고 기간으로 다시 확인한다.</li>
  * </ul>
  */
 @Component
@@ -82,13 +88,18 @@ public class DismissalNoticeChecker {
                         "근속 기간 적용 제외(제26조 단서 제1호)"));
                 return new Result(NoticeCheck.UNKNOWN, required.orElse(null), noticeDays, null, warnings);
             }
-            // 근로기준법 제26조 단서 제1호: 계속 근로한 기간이 M개월 미만인 경우
-            LocalDate fullMonthsDay = hireDate.plusMonths(months.get()).minusDays(1);
-            if (dismissalDate.isBefore(fullMonthsDay)) {
+            // 법률 제16270호 부칙 제2조: 개정 제26조 단서 제1호는 시행 후 근로계약 체결자부터 적용.
+            if (legalRates.findEffective(LegalRateItem.DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS.code(), hireDate)
+                    .isEmpty()) {
+                warnings.add("입사일 " + hireDate + "이 근로기준법 제26조 단서 제1호(개정) 시행 전이라 법률 제16270호 부칙 제2조에 따라"
+                        + " 근속 기간 적용 제외를 쓸 수 없어요. 예고 기간으로 다시 확인했어요(구법상 적용 제외 사유는 따로 확인해 주세요)");
+            } else if (dismissalDate.isBefore(lastDayOfMonths(hireDate, months.get()))) {
+                // 근로기준법 제26조 단서 제1호: 계속 근로한 기간이 M개월 미만인 경우
                 return new Result(NoticeCheck.EXEMPT, required.orElse(null), noticeDays, null, warnings);
+            } else {
+                warnings.add("계속 근로 기간이 " + months.get() + "개월 이상이라 근로기준법 제26조 단서 제1호 적용 제외가 아니에요."
+                        + " 예고 기간으로 다시 확인했어요");
             }
-            warnings.add("계속 근로 기간이 " + months.get() + "개월 이상이라 근로기준법 제26조 단서 제1호 적용 제외가 아니에요."
-                    + " 예고 기간으로 다시 확인했어요");
         }
 
         if (required.isEmpty()) {
@@ -104,6 +115,21 @@ public class DismissalNoticeChecker {
         warnings.add("해고 예고 기간이 " + shortfall + "일 모자라요(예고 " + noticeDays + "일, 기준 " + need
                 + "일). 근로기준법 제26조에 따른 해고예고수당 지급 대상인지 급여 담당과 확인해 주세요");
         return new Result(NoticeCheck.SHORT, need, noticeDays, shortfall, warnings);
+    }
+
+    /**
+     * 입사일부터 M개월 기간의 마지막 날(만료일).
+     * 민법 제157조 단서: 입사일은 오전 0시부터 시작하므로 초일 산입.
+     * 민법 제160조 제2항: 월로 정한 기간은 최후의 월에서 기산일에 해당한 날의 전일로 만료.
+     * 민법 제160조 제3항: 최종의 월에 해당일이 없으면 그 월의 말일로 만료(예: 1월 31일 입사 3개월 → 4월 30일).
+     */
+    static LocalDate lastDayOfMonths(LocalDate start, int months) {
+        LocalDate shifted = start.plusMonths(months);
+        if (shifted.getDayOfMonth() != start.getDayOfMonth()) {
+            // 해당일이 없어 plusMonths 가 그 달 말일로 맞춘 경우 — 그 말일이 만료일이다(제160조 제3항).
+            return shifted;
+        }
+        return shifted.minusDays(1);
     }
 
     private Optional<Integer> whole(LegalRateItem item, LocalDate asOf) {
