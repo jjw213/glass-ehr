@@ -23,6 +23,9 @@ export default defineConfig({
       '/api/attendance/agreements': 'http://localhost:8080',
       // 출퇴근 원시 기록(#28)도 Spring. 대시보드 출퇴근 위젯이 쓴다.
       '/api/attendance/punches': 'http://localhost:8080',
+      // 퇴직 처리·사용증명서(#18)도 Spring. /api/employees/{id}/employment-certificates 는 위 /api/employees 규칙을 탄다.
+      '/api/retirements': 'http://localhost:8080',
+      '/api/employment-certificates': 'http://localhost:8080',
       '/api': 'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/

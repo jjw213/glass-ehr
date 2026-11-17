@@ -122,6 +122,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V021__attendance_punch.sql"))
                     .execute(dataSource);
         }
+        Integer retirement = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'RETIREMENT_CASE'", Integer.class);
+        if (retirement == null || retirement == 0) {
+            // #18: 해고 예고 legal_rate 항목 2개 + 퇴직 처리·체크리스트·사용증명서 테이블
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V022__retirement_process.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
