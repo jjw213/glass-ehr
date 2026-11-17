@@ -237,3 +237,44 @@ Maven·실제 Oracle 시드 실행 결과는 PR 및 #18 댓글에 커밋·실행
 기존 `DismissalNoticeChecker`에 Oracle의 실제 시드 값을 조회해 CSV를 대입한 독립 검증은 15건 일치·1건 불일치였다. `1월31일입사_4월29일`은 EXEMPT가 정답이나 기존 구현은 SHORT를 반환한다. 기존 코드가 `hireDate.plusMonths(3).minusDays(1)`로 말일을 4월29일로 앞당기기 때문이다. 데이터에 구현을 맞추기 위한 정답 변경은 하지 않았다. #18의 작성자가 구현과 소비 테스트를 수정해야 하며, 데이터 작업 범위에서는 구현·테스트 코드를 변경하지 않는다.
 
 시드 입력 후 동일 #18 구현 브랜치의 `ORACLE_IT=true` Maven 전체 테스트를 다시 실행했고 620건 통과, 실패·오류·건너뜀 0건이었다. 이는 기존 테스트의 통과 결과이며 위 독립 CSV 1건 불일치가 해결됐다는 뜻은 아니다.
+
+## #37 가족휴가 잔여기간 기준값과 정답 데이터 (2026-11-17)
+
+이 절은 V023이 등록하는 8개 항목의 값과 `family-leave-balance.csv` 정답의 독립 근거다. 종료일은 배타적이다. `PARENTAL_LEAVE_CHILD_MAX_AGE`와 `CHILDCARE_REDUCED_CHILD_MAX_AGE`는 **만 나이 이하** 상한이며 학년 요건은 별도 조건이다. 2008년의 “만 3세 미만”은 `이하` 상한 정수와 의미가 달라 억지로 2 YEARS로 바꾸지 않았고, 두 연령 코드의 지원은 2010-02-04부터다.
+
+| 코드 | 시작일 | 종료일(제외) | 값 | 단위 | 근거 |
+|---|---|---|---:|---|---|
+| PARENTAL_LEAVE_CHILD_MAX_AGE | 2010-02-04 | 2014-01-14 | 6 | YEARS | 남녀고용평등법 제19조제1항, 법률 제9932호 부칙 제1조ㆍ제3조 |
+| PARENTAL_LEAVE_CHILD_MAX_AGE | 2014-01-14 | 없음 | 8 | YEARS | 제19조제1항, 법률 제12244호 부칙 제1조ㆍ제3조 |
+| PARENTAL_LEAVE_MIN_SERVICE_MONTHS | 2008-06-22 | 2018-05-29 | 12 | MONTHS | 제19조제1항 단서, 구 시행령 제10조제1호 |
+| PARENTAL_LEAVE_MIN_SERVICE_MONTHS | 2018-05-29 | 없음 | 6 | MONTHS | 제19조제1항 단서, 시행령 제10조, 대통령령 제28910호 |
+| CHILDCARE_REDUCED_CHILD_MAX_AGE | 2010-02-04 | 2014-01-14 | 6 | YEARS | 제19조의2제1항(당시 제19조 대상 준용), 법률 제9932호 |
+| CHILDCARE_REDUCED_CHILD_MAX_AGE | 2014-01-14 | 2025-02-23 | 8 | YEARS | 제19조의2제1항, 법률 제12244호ㆍ제16558호 |
+| CHILDCARE_REDUCED_CHILD_MAX_AGE | 2025-02-23 | 없음 | 12 | YEARS | 제19조의2제1항, 법률 제20521호 부칙 제1조ㆍ제3조 |
+| CHILDCARE_REDUCED_MIN_SERVICE_MONTHS | 2008-06-22 | 2018-05-29 | 12 | MONTHS | 제19조의2제1항 단서, 구 시행령 제15조의2 |
+| CHILDCARE_REDUCED_MIN_SERVICE_MONTHS | 2018-05-29 | 없음 | 6 | MONTHS | 제19조의2제1항 단서, 시행령 제15조의2제1호, 대통령령 제28910호 |
+| CHILDCARE_REDUCED_UNUSED_LEAVE_MULTIPLIER | 2019-10-01 | 2025-02-23 | 1 | COUNT | 제19조의2제4항 단서, 법률 제16558호 부칙 제1조ㆍ제3조 |
+| CHILDCARE_REDUCED_UNUSED_LEAVE_MULTIPLIER | 2025-02-23 | 없음 | 2 | COUNT | 제19조의2제4항 단서, 법률 제20521호 부칙 제1조ㆍ제3조 |
+| CHILDCARE_REDUCED_MIN_UNIT_MONTHS | 2019-10-01 | 2025-02-23 | 3 | MONTHS | 제19조의4제2항, 법률 제16558호 |
+| CHILDCARE_REDUCED_MIN_UNIT_MONTHS | 2025-02-23 | 없음 | 1 | MONTHS | 제19조의4제2항, 법률 제20521호 부칙 제1조ㆍ제4조 |
+| FAMILY_CARE_LEAVE_MIN_SERVICE_MONTHS | 2013-02-02 | 2018-05-29 | 12 | MONTHS | 제22조의2제1항 단서, 구 시행령 제16조의3제1호 |
+| FAMILY_CARE_LEAVE_MIN_SERVICE_MONTHS | 2018-05-29 | 없음 | 6 | MONTHS | 제22조의2제1항 단서, 시행령 제16조의3제1항제1호, 대통령령 제28910호 |
+| FAMILY_CARE_LEAVE_MIN_UNIT_DAYS | 2013-02-02 | 없음 | 30 | DAYS | 제22조의2제4항제1호(종전 제2항), 법률 제11274호의 300인 미만 시행일 |
+
+원문 확인 링크:
+
+- [남녀고용평등법 제정ㆍ개정문과 부칙](https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130): 법률 제9932호, 제11274호, 제12244호, 제16558호, 제17602호, 제20521호의 조문ㆍ시행일ㆍ적용례.
+- [법률 제20521호 시행 직전 본문ㆍ개정문](https://law.go.kr/LSW/lsInfoP.do?lsiSeq=265999&viewCls=lsRvsDocInfoR): 단축 대상 12세, 미사용 기간 2배, 최소 1개월과 2025-02-23 시행.
+- [시행령 제정ㆍ개정문](https://law.go.kr/LSW/lsRvsDocListP.do?lsId=003933) 및 [2018-05-29 본문](https://www.law.go.kr/LSW/lsInfoP.do?lsiSeq=203581): 육아휴직ㆍ단축ㆍ가족돌봄휴직의 계속근로 기준을 1년에서 6개월로 완화한 대통령령 제28910호.
+- [현행 시행령 제15조의2](https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=02&joNo=0015&lsiSeq=288719&urlMode=lsScJoRltInfoR), [제16조의3](https://law.go.kr/lsLinkCommonInfo.do?chrClsCd=010202&lspttninfSeq=153389), [법 제22조의2제4항제1호](https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1022178635).
+- [민법 제157조ㆍ제160조](https://law.go.kr/LSW/lsLawLinkInfo.do?chrClsCd=010202&lsJoLnkSeq=1016143251): 일ㆍ주ㆍ월ㆍ년 기간의 기산과 역에 따른 기간 계산. CSV의 월말ㆍ윤년 경계에 함께 적용했다.
+
+### fixture 해석과 범위
+
+`family-leave-balance.csv`는 날짜 범위를 양 끝을 포함하는 사용기간으로 기록한다. `기대남은기간`과 `기대남은분할횟수`는 신청을 승인한 뒤의 값이며, 반려 시에는 신청 전 값을 유지한다. 분할횟수는 구간 수가 아니라 법 제19조의4제1항의 **분할 행위 횟수**이므로 최대 3회이면 최대 4개 구간이다. 법률 제17602호는 2020-12-08부터 1회에서 2회로, 제20521호는 2025-02-23부터 3회로 바꾸고 기사용자에게도 적용한다.
+
+단축 기간은 기본 1년에 육아휴직 1년 중 미사용분을 가산한다. 2019-10-01부터 2025-02-22까지는 미사용분과 같은 기간(1배), 2025-02-23부터는 2배다. 제19조제2항 단서의 추가 육아휴직 6개월은 가산 대상이 아니라는 [법제처 25-0147 해석](https://www.law.go.kr/expcInfoP.do?expcSeq=341439)도 적용했다. 가족돌봄휴직 90일 한도는 달력연도별이고, 1회는 30일 이상이다.
+
+요청된 CSV 열에는 단축 후 주당 근로시간을 담는 별도 입력 열이 없다. 따라서 주 15ㆍ35시간 경계 행의 시간은 `사례` 이름이 입력 조건을 명시하며, 날짜 열은 기간 조건을 함께 검증한다. 소비 테스트가 시간 값을 구조적으로 읽어야 한다면 작성자가 구현 테스트의 입력과 이 행 이름을 대응해야 하며, 법령 데이터 PR에서 합의된 CSV 열을 임의로 늘리지 않았다. 자녀 학년, 입양 여부, 계속근로기간, 다른 가족의 돌봄 가능성, 사업 운영 지장, 기간제근로자 최소 단축기간 예외는 이 fixture의 잔여기간 숫자만으로 판정하지 않는다.
+
+시드는 V023과 `legal_rate_api`가 적용된 Oracle 소유자 세션에서 별도 실행한다. 8개 코드 중 기존 데이터가 하나라도 있으면 전체를 중단하고 자동 덮어쓰지 않는다. 이번 작업에서는 Oracle에 실행하지 않았다.
