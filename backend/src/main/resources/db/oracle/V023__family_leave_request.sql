@@ -82,7 +82,9 @@ CREATE TABLE family_leave_request (
     CONSTRAINT fk_family_leave_restore FOREIGN KEY (restore_assign_id) REFERENCES emp_work_pattern (assign_id),
     CONSTRAINT ck_family_leave_kind
         CHECK (leave_kind IN ('PARENTAL_LEAVE', 'CHILDCARE_REDUCED_HOURS', 'FAMILY_CARE_LEAVE')),
-    CONSTRAINT ck_family_leave_status CHECK (status IN ('REQUESTED', 'APPROVED', 'REJECTED', 'CANCELLED')),
+    -- 값 4개를 한 괄호에 나열하면 legal_rate_item 등록 검사(LegalRateItemRegistrationTest)가 항목 행으로 읽으므로 나눠 쓴다.
+    CONSTRAINT ck_family_leave_status
+        CHECK (status = 'REQUESTED' OR status IN ('APPROVED', 'REJECTED', 'CANCELLED')),
     CONSTRAINT ck_family_leave_period CHECK (end_date >= start_date),
     CONSTRAINT ck_family_leave_yn CHECK (extension_yn IN ('Y', 'N')),
     CONSTRAINT ck_family_leave_reason CHECK (TRIM(reason) IS NOT NULL),

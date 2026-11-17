@@ -80,3 +80,5 @@
 - 2026-11-16: #18 퇴직 처리 — V022(`retirement_case`·`retirement_checklist_item`·`employment_certificate`, legal_rate 항목 `DISMISSAL_NOTICE_DAYS`·`DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS` 코드만)와 퇴직 유형별 체크리스트, 해고 시 예고일·서면통지일 필수·예고 미달 경고(기준값 없으면 UNKNOWN), 요구 항목만 적는 사용증명서 발급·인쇄 화면, 보존기한 경과 퇴직자 목록을 추가했다. 백엔드 620건 실패 0건(Oracle 44건 로컬 건너뜀)·프론트 164건·lint 오류 0건 통과. 해고 예고 기준값과 정답 fixture는 법령 데이터 요청 대상, 조문 원문 미확인(`docs/retirement-design.md` 7장).
 
 - 2026-11-17: #18 PR #87 리뷰 반영 — 단서 제1호 만료일을 민법 제160조 제3항대로 고쳤다(1월 31일 입사 3개월 → 4월 30일). 법률 제16270호 부칙 제2조(시행 후 계약 체결자만 적용)를 반영하고 `dismissal-notice.csv` 16건 fixture 회귀 테스트를 추가했다. 사용증명서 임금은 퇴직 예정자면 청구일 기준 계약을 쓴다. 백엔드 641건 실패 0건(Oracle 45건 로컬 건너뜀).
+
+- 2026-11-18: #37 육아휴직·육아기 근로시간 단축·가족돌봄휴직 — V023(`family_leave_request`, legal_rate 항목 8개 코드만)과 신청·승인·반려·취소 API, 승인 시 휴직·복직 예정 발령 또는 단축/원래 근무유형 배정 자동 생성, 남은 기간 화면을 추가했다. 백엔드 673건 실패 0건(Oracle 45건 로컬 건너뜀)·프론트 172건·lint 오류 0건·build 통과. 신규 항목 값과 정답 fixture는 법령 데이터 요청 대상, 조문 원문 미확인(`docs/family-leave-design.md`).
