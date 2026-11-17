@@ -129,6 +129,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V022__retirement_process.sql"))
                     .execute(dataSource);
         }
+        Integer familyLeave = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'FAMILY_LEAVE_REQUEST'", Integer.class);
+        if (familyLeave == null || familyLeave == 0) {
+            // #37: 육아휴직·단축·가족돌봄 legal_rate 항목 8개 + 신청 테이블
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V023__family_leave_request.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
