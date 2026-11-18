@@ -8,6 +8,7 @@ import {
 import { codeApi, CODE_GROUP, type CodeApi } from '../api/codes';
 import { employeeApi, flattenDepts, seoulToday, type EmployeeApi, type EmployeeSummary, type FlatDept } from '../api/employees';
 import { useCodes } from '../hooks/useCodes';
+import { isEmployedOn } from '../lib/orgTree';
 import { canManageAppointments } from '../nav';
 import { useData } from '../state/store';
 
@@ -48,7 +49,7 @@ export function AppointmentWorkspace({ api, employees, codes, today }: { api: Ap
 
   useEffect(() => {
     let alive = true;
-    Promise.all([employees.list(false), employees.orgTree(today)]).then(([l, t]) => {
+    Promise.all([employees.list(true), employees.orgTree(today)]).then(([l, t]) => {
       if (!alive) return;
       setEmps(l);
       setDepts(flattenDepts(t.roots));
@@ -69,7 +70,7 @@ export function AppointmentWorkspace({ api, employees, codes, today }: { api: Ap
     <>
       <PageHead title="인사발령" sub="발령을 등록하고 확정해야 사원 정보에 반영돼요. 확정된 발령은 취소 발령으로 되돌려요" />
       {baseError && <p className="badge badge--red" role="alert">{baseError}</p>}
-      <RegisterCard api={api} emps={emps} depts={depts} grades={grade.codes} titles={title.codes} today={today} empName={empName} onDone={() => setReload((n) => n + 1)} />
+      <RegisterCard api={api} employees={employees} emps={emps} grades={grade.codes} titles={title.codes} today={today} empName={empName} onDone={() => setReload((n) => n + 1)} />
       <ListCard api={api} depts={depts} empName={empName} describe={describe} reload={reload} onChanged={() => setReload((n) => n + 1)} />
     </>
   );
@@ -213,14 +214,16 @@ function CancelForm({ appt, empName, onSubmit, onCancel }: { appt: AppointmentVi
 
 interface CodeOption { code: string; name: string }
 
-function RegisterCard({ api, emps, depts, grades, titles, today, empName, onDone }: {
-  api: AppointmentApi; emps: EmployeeSummary[]; depts: FlatDept[]; grades: CodeOption[]; titles: CodeOption[]; today: string;
+function RegisterCard({ api, employees, emps, grades, titles, today, empName, onDone }: {
+  api: AppointmentApi; employees: EmployeeApi; emps: EmployeeSummary[]; grades: CodeOption[]; titles: CodeOption[]; today: string;
   empName: (id: number) => string; onDone: () => void;
 }) {
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState<number[]>([]);
   const [type, setType] = useState<ApptType | ''>('');
   const [date, setDate] = useState(today);
+  const [depts, setDepts] = useState<FlatDept[]>([]);
+  const [deptError, setDeptError] = useState<string | null>(null);
   const [dept, setDept] = useState('');
   const [gradeCode, setGradeCode] = useState('');
   const [titleCode, setTitleCode] = useState('');
@@ -234,10 +237,26 @@ function RegisterCard({ api, emps, depts, grades, titles, today, empName, onDone
   const [result, setResult] = useState<{ r: BulkResult; confirmed: boolean } | null>(null);
   const f = typeFields(type);
 
+  useEffect(() => {
+    let alive = true;
+    employees.orgTree(date).then((tree) => {
+      if (!alive) return;
+      setDepts(flattenDepts(tree.roots));
+      setDeptError(null);
+    }, (e: unknown) => {
+      if (!alive) return;
+      setDepts([]);
+      setDeptError(errorOf(e, '발령일 기준 조직을 불러오지 못했어요'));
+    });
+    return () => { alive = false; };
+  }, [date, employees]);
+
+  const eligible = useMemo(() => emps.filter((e) => isEmployedOn(e, date)), [date, emps]);
+
   const shown = useMemo(() => {
     const s = q.trim();
-    return s ? emps.filter((e) => e.name.includes(s) || e.empNo.includes(s)) : emps;
-  }, [emps, q]);
+    return s ? eligible.filter((e) => e.name.includes(s) || e.empNo.includes(s)) : eligible;
+  }, [eligible, q]);
   const toggle = (id: number) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const allShown = shown.length > 0 && shown.every((e) => picked.includes(e.empId));
   const toggleAll = () => setPicked((p) => (allShown ? p.filter((id) => !shown.some((e) => e.empId === id)) : [...new Set([...p, ...shown.map((e) => e.empId)])]));
@@ -296,8 +315,17 @@ function RegisterCard({ api, emps, depts, grades, titles, today, empName, onDone
         </label>
         <label className="field">
           <span className="field__label">발령일</span>
-          <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <input className="input" type="date" value={date} onChange={(e) => {
+            const next = e.target.value;
+            setDate(next);
+            setPicked((ids) => ids.filter((id) => {
+              const employee = emps.find((item) => item.empId === id);
+              return employee !== undefined && isEmployedOn(employee, next);
+            }));
+            setDept('');
+          }} />
         </label>
+        {deptError && <p className="badge badge--red" role="alert">{deptError}</p>}
         {f.dept && (
           <label className="field">
             <span className="field__label">발령 부서</span>

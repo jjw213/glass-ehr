@@ -7,7 +7,7 @@ import {
   type AppointmentApi, type AppointmentInput,
 } from '../api/appointments';
 import { createMockCodeApi } from '../api/codes';
-import { createMockEmployeeApi } from '../api/employees';
+import { createMockEmployeeApi, type DeptNode, type EmployeeApi } from '../api/employees';
 import { EMP_SEED } from '../data/employees';
 import { canManageAppointments, navFor } from '../nav';
 import { AppointmentWorkspace } from './AppointmentsPage';
@@ -84,9 +84,9 @@ describe('AppointmentWorkspace (발령 목록·등록·확정·취소·일괄 �
   beforeEach(() => { host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); });
   afterEach(() => { act(() => root.unmount()); host.remove(); });
 
-  async function mount(api: AppointmentApi) {
+  async function mount(api: AppointmentApi, employees: EmployeeApi = createMockEmployeeApi({ employees: EMP_SEED })) {
     await act(async () => {
-      root.render(<AppointmentWorkspace api={api} employees={createMockEmployeeApi({ employees: EMP_SEED })} codes={createMockCodeApi()} today={TODAY} />);
+      root.render(<AppointmentWorkspace api={api} employees={employees} codes={createMockCodeApi()} today={TODAY} />);
     });
     await flush();
   }
@@ -94,6 +94,49 @@ describe('AppointmentWorkspace (발령 목록·등록·확정·취소·일괄 �
   const pick = async (name: string) => { await act(async () => { host.querySelector<HTMLInputElement>(`input[aria-label="${name} 선택"]`)!.click(); }); };
   const submit = async () => { await act(async () => { form().requestSubmit(); }); await flush(); };
   const rowsText = () => [...host.querySelectorAll('.appt-table tbody tr')].map((r) => r.textContent ?? '');
+
+  it('전체 사원으로 이름을 표시하고 발령일에 재직 중인 사원만 대상으로 보여 준다', async () => {
+    const retired = EMP_SEED.find((e) => e.retireDate === '2025-06-30')!;
+    const retiring = EMP_SEED.find((e) => e.retireDate === '2099-12-31')!;
+    const api = createMockAppointmentApi();
+    await api.bulk([retired.empId], { ...base, apptTypeCode: 'RETURN', effectiveDate: '2025-01-01', reason: '과거 복직' }, false);
+    const employees = createMockEmployeeApi({ employees: EMP_SEED });
+    const list = vi.spyOn(employees, 'list');
+
+    await mount(api, employees);
+
+    expect(list).toHaveBeenCalledWith(true);
+    expect(host.querySelector(`input[aria-label="${retiring.name} 선택"]`)).toBeTruthy();
+    expect(host.querySelector(`input[aria-label="${retired.name} 선택"]`)).toBeNull();
+    expect(rowsText()[0]).toContain(`${retired.name}(${retired.empNo})`);
+
+    await act(async () => { type(fieldOf(form(), '발령일'), '2025-06-30'); });
+    await flush();
+    expect(host.querySelector(`input[aria-label="${retired.name} 선택"]`)).toBeTruthy();
+  });
+
+  it('발령일이 바뀌면 그 날짜의 조직을 조회해 발령 부서 선택지를 갱신한다', async () => {
+    const futureDept: DeptNode = {
+      deptId: 99, deptCode: 'FUTURE', name: '미래신설팀(예시)', parentDeptId: null, headEmpId: null,
+      sortOrder: 99, validFrom: '2027-01-01', validTo: null, children: [],
+    };
+    const employees = createMockEmployeeApi({ employees: EMP_SEED });
+    const originalOrgTree = employees.orgTree.bind(employees);
+    const orgTree = vi.spyOn(employees, 'orgTree').mockImplementation(async (date) => {
+      const tree = await originalOrgTree(date);
+      return date >= '2027-01-01' ? { ...tree, roots: [...tree.roots, futureDept] } : tree;
+    });
+
+    await mount(createMockAppointmentApi(), employees);
+    await act(async () => { choose(fieldOf(form(), '발령 유형'), 'TRANSFER'); });
+    expect([...fieldOf(form(), '발령 부서').querySelectorAll('option')].some((o) => o.textContent?.includes(futureDept.name))).toBe(false);
+
+    await act(async () => { type(fieldOf(form(), '발령일'), '2027-01-01'); });
+    await flush();
+
+    expect(orgTree).toHaveBeenCalledWith('2027-01-01');
+    expect([...fieldOf(form(), '발령 부서').querySelectorAll('option')].some((o) => o.textContent?.includes(futureDept.name))).toBe(true);
+  });
 
   it('여러 사원을 골라 한 번에 등록·확정하고, 일부 실패하면 사원별 결과와 실패 사원 선택을 남긴다', async () => {
     const [a, b] = active;
