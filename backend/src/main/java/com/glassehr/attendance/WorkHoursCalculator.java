@@ -20,15 +20,19 @@ import java.util.Objects;
  * <ol>
  *   <li>실근로 = 근로 구간의 합집합 − 휴게 구간의 합집합. 휴게가 겹치거나 근로 밖에 있어도 한 번만, 근로와 겹친 만큼만 뺀다
  *       (근로기준법 제54조 제1항: 휴게시간은 근로시간 도중에 주며 근로시간에 들어가지 않는다 — 제50조의 근로시간은 휴게 제외).</li>
- *   <li>휴일근로: 실근로 중 휴일인 역일(0시~24시)에 속한 분. 기준시간까지는 '휴일 기준시간 이내', 넘는 분은 '휴일 기준시간 초과'
- *       (근로기준법 제56조 제2항 제1호·제2호).</li>
- *   <li>1일 연장: 휴일이 아닌 역일의 실근로가 1일 기준시간을 넘는 분(근로기준법 제50조 제2항, 제53조 제1항, 제56조 제1항).
- *       자정을 넘는 근무는 시작한 날(근무일)의 하루 근로로 본다.</li>
+ *   <li>휴일근로: 근무일(근로를 시작한 날)이 휴일이면 그 근무의 실근로 전부. 기준시간까지는 '휴일 기준시간 이내', 넘는 분은
+ *       '휴일 기준시간 초과'(근로기준법 제56조 제2항 제1호·제2호). 자정을 넘는 계속근로는 근로개시일의 근로로 본다
+ *       (고용노동부 행정해석 근기 68207-402, 2003.3.31 — tests/legal-fixtures/work-hours-cases.csv 정답).
+ *       그래서 평일 근무가 휴일 0시를 넘어도 휴일근로가 아니고, 휴일 근무가 평일로 이어져도 전부 휴일근로다.</li>
+ *   <li>1일 연장: 휴일이 아닌 근무일의 실근로가 (1일 기준시간 − 그날 휴가분)을 넘는 분(근로기준법 제50조 제2항, 제53조 제1항,
+ *       제56조 제1항). 반차일은 휴가분을 1일 기준시간에서 뺀다(fixture morning_half_leave 정답).
+ *       자정을 넘는 근무는 시작한 날(근무일)의 하루 근로로 본다. 연장이 아닌 분 중 (소정근로시간 − 휴가분) 안은 소정,
+ *       나머지는 법내 초과({@code extraMinutes})다(fixture off_day_not_holiday: 휴무일 근로는 소정 0·연장 0).</li>
  *   <li>1주 연장: 한 주(월~일) 동안 연장이 아닌 평일 실근로를 차례로 더해 1주 기준시간을 넘는 분을 연장으로 옮긴다
  *       (근로기준법 제50조 제1항, 제56조 제1항). 휴일근로는 이 합계에 넣지 않는다(제56조 제2항에서 따로 가산).</li>
  *   <li>야간: 실근로 중 야간 시각 구간(시작 시각~다음 날 종료 시각)에 든 분. 연장·휴일과 겹쳐서 따로 센다(근로기준법 제56조 제3항).</li>
  * </ol>
- * 휴가(연차·반차)는 실근로가 아니므로 연장 판단에 넣지 않고 {@code leaveMinutes}로만 남긴다. 반차일은 실제로 일한 구간만 센다.
+ * 휴가(연차·반차)는 실근로가 아니므로 실근로·1주 누계에 넣지 않고 {@code leaveMinutes}로 남긴다. 반차일은 실제로 일한 구간만 센다.
  */
 public final class WorkHoursCalculator {
 
@@ -99,20 +103,18 @@ public final class WorkHoursCalculator {
      * 하루 입력.
      *
      * @param workDate        근무일(자정을 넘는 근무도 시작한 날)
-     * @param dayKind         근무일의 성격
-     * @param nextDayKind     다음 날의 성격(자정 넘어 일한 분의 휴일 여부 판단용)
+     * @param dayKind         근무일의 성격(자정을 넘은 분도 이 성격을 따른다)
      * @param contractMinutes 그날 소정근로시간(분). 소정근로일이 아니면 0
      * @param work            근로 구간(출근~퇴근). 근무일 0시부터 다음 날 24시 안이어야 한다
      * @param breaks          휴게 구간(근무유형 휴게 등). 겹쳐도 된다
      * @param leave           승인된 휴가(없으면 null)
      * @param rules           근무일 기준 법정 기준값
      */
-    public record DayInput(LocalDate workDate, DayKind dayKind, DayKind nextDayKind, int contractMinutes,
+    public record DayInput(LocalDate workDate, DayKind dayKind, int contractMinutes,
             List<Interval> work, List<Interval> breaks, Leave leave, Rules rules) {
         public DayInput {
             Objects.requireNonNull(workDate, "workDate");
             Objects.requireNonNull(dayKind, "dayKind");
-            Objects.requireNonNull(nextDayKind, "nextDayKind");
             Objects.requireNonNull(rules, "rules");
             if (contractMinutes < 0) {
                 throw new IllegalArgumentException("소정근로시간은 0 이상이어야 해요");
@@ -129,14 +131,25 @@ public final class WorkHoursCalculator {
         }
     }
 
-    /** 하루 결과(분). worked = regular + overtime + holiday + holidayExcess. night 는 겹쳐서 따로 센다. */
+    /**
+     * 하루 결과(분). worked = regular + extra + overtime + holiday + holidayExcess. night 는 겹쳐서 따로 센다.
+     * regular 는 (소정근로시간 − 휴가분) 안의 근로, extra 는 소정근로시간을 넘었지만 1일·1주 기준시간 안인 근로
+     * (법내 초과 — 제53조 연장이 아니므로 제56조 제1항 가산 대상 아님. 휴무일의 1주 기준 이내 근로도 여기).
+     */
     public record DayResult(LocalDate workDate, DayKind dayKind, int contractMinutes, LeaveKind leaveKind,
-            int leaveMinutes, int breakMinutes, int workedMinutes, int regularMinutes, int overtimeMinutes,
-            int nightMinutes, int holidayMinutes, int holidayExcessMinutes) {
+            int leaveMinutes, int breakMinutes, int workedMinutes, int regularMinutes, int extraMinutes,
+            int overtimeMinutes, int nightMinutes, int holidayMinutes, int holidayExcessMinutes) {
 
-        DayResult withWeeklyOvertime(int moved) {
+        /** 연장이 아닌 평일 근로(1주 누계 대상). */
+        int withinStandardMinutes() {
+            return regularMinutes + extraMinutes;
+        }
+
+        /** 기준시간 안의 평일 근로 within 을 소정(휴가분 제외)과 법내 초과로 나눠 다시 만든다. */
+        DayResult withWithin(int within, int overtime) {
+            int regular = Math.min(within, Math.max(0, contractMinutes - leaveMinutes));
             return new DayResult(workDate, dayKind, contractMinutes, leaveKind, leaveMinutes, breakMinutes,
-                    workedMinutes, regularMinutes - moved, overtimeMinutes + moved, nightMinutes, holidayMinutes,
+                    workedMinutes, regular, within - regular, overtime, nightMinutes, holidayMinutes,
                     holidayExcessMinutes);
         }
     }
@@ -152,23 +165,20 @@ public final class WorkHoursCalculator {
         int workedMinutes = total(worked);
         int breakMinutes = total(work) - workedMinutes;
 
-        // 근로기준법 제56조 제2항: 휴일인 역일(근무일 [0,1440), 다음 날 [1440,2880))에 속한 실근로
-        int holidayTotal = 0;
-        if (in.dayKind() == DayKind.HOLIDAY) {
-            holidayTotal += overlap(worked, 0, MINUTES_PER_DAY);
-        }
-        if (in.nextDayKind() == DayKind.HOLIDAY) {
-            holidayTotal += overlap(worked, MINUTES_PER_DAY, 2L * MINUTES_PER_DAY);
-        }
+        // 근로기준법 제56조 제2항: 근로개시일이 휴일이면 계속근로 전부가 휴일근로(근기 68207-402)
+        int holidayTotal = in.dayKind() == DayKind.HOLIDAY ? workedMinutes : 0;
         Rules r = in.rules();
         // 제56조 제2항 제1호(기준시간 이내)·제2호(기준시간 초과)
         int holidayWithin = Math.min(holidayTotal, r.holidayThresholdMinutes());
         int holidayExcess = holidayTotal - holidayWithin;
 
-        // 근로기준법 제50조 제2항·제56조 제1항: 휴일 아닌 실근로 중 1일 기준시간 초과분이 연장
+        // 근로기준법 제50조 제2항·제56조 제1항: 휴일 아닌 실근로 중 (1일 기준시간 − 휴가분) 초과분이 연장
+        Leave leave = in.leave();
+        int leaveMinutes = leave == null ? 0 : leave.minutes();
+        int dailyThreshold = Math.max(0, r.dailyStandardMinutes() - leaveMinutes);
         int weekday = workedMinutes - holidayTotal;
-        int overtime = Math.max(0, weekday - r.dailyStandardMinutes());
-        int regular = weekday - overtime;
+        int overtime = Math.max(0, weekday - dailyThreshold);
+        int within = weekday - overtime;
 
         // 근로기준법 제56조 제3항: 야간 시각 구간과 겹친 실근로(전날 밤 ~ 다음 날 밤 창을 모두 본다)
         int night = 0;
@@ -180,10 +190,9 @@ public final class WorkHoursCalculator {
             night += overlap(worked, start, end);
         }
 
-        Leave leave = in.leave();
         return new DayResult(in.workDate(), in.dayKind(), in.contractMinutes(),
-                leave == null ? null : leave.kind(), leave == null ? 0 : leave.minutes(), breakMinutes,
-                workedMinutes, regular, overtime, night, holidayWithin, holidayExcess);
+                leave == null ? null : leave.kind(), leaveMinutes, breakMinutes,
+                workedMinutes, 0, 0, 0, night, holidayWithin, holidayExcess).withWithin(within, overtime);
     }
 
     /**
@@ -212,12 +221,25 @@ public final class WorkHoursCalculator {
         int cumulative = 0;
         for (DayInput in : sorted) {
             DayResult r = calculateDay(in);
-            int before = cumulative;
-            cumulative += r.regularMinutes();
-            int moved = Math.min(r.regularMinutes(), Math.max(0, cumulative - Math.max(before, weeklyStandard)));
-            out.add(moved > 0 ? r.withWeeklyOvertime(moved) : r);
+            out.add(applyWeekly(r, cumulative, weeklyStandard));
+            cumulative += r.withinStandardMinutes();
         }
         return out;
+    }
+
+    /**
+     * 그 주에서 이 날 전까지의 연장 아닌 평일 실근로 누계({@code priorWeekdayMinutes})를 보고, 1주 기준시간
+     * (근로기준법 제50조 제1항)을 넘는 이 날의 분을 연장으로 옮긴다(제56조 제1항). 남은 분은 다시 소정·법내 초과로 나눈다.
+     */
+    public static DayResult applyWeekly(DayResult day, int priorWeekdayMinutes, int weeklyStandardMinutes) {
+        Objects.requireNonNull(day, "day");
+        if (priorWeekdayMinutes < 0) {
+            throw new IllegalArgumentException("주 누계는 0 이상이어야 해요");
+        }
+        int within = day.withinStandardMinutes();
+        int moved = Math.min(within,
+                Math.max(0, priorWeekdayMinutes + within - Math.max(priorWeekdayMinutes, weeklyStandardMinutes)));
+        return moved > 0 ? day.withWithin(within - moved, day.overtimeMinutes() + moved) : day;
     }
 
     private static boolean inDay(int m) {

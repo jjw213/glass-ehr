@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 일별 근로시간 집계 저장·재계산(#29). 원자료(출퇴근 기록·근무유형 배정·휴일 달력·승인된 휴가)를 모아
- * {@link WorkHoursCalculator}로 계산하고 attendance_daily_summary(V022)에 다시 쓴다. 설계: docs/work-hours-design.md
+ * {@link WorkHoursCalculator}로 계산하고 attendance_daily_summary(V023)에 다시 쓴다. 설계: docs/work-hours-design.md
  *
  * <p>1주 연장(근로기준법 제50조 제1항)이 주 전체에 걸리므로, 요청 기간을 월요일~일요일로 넓혀 계산·저장한다.
  */
@@ -113,8 +113,6 @@ public class WorkHoursService {
                     issues.add(ISSUE_NO_WORK_PATTERN);
                 }
                 DayKind kind = dayKind(pattern, holidayDates, d);
-                DayKind nextKind = dayKind(patternOn(assignList, patternById, d.plusDays(1)), holidayDates,
-                        d.plusDays(1));
                 int contract = kind == DayKind.WORKDAY && pattern.isPresent()
                         ? pattern.get().getDailyContractMinutes() : 0;
                 Shift shift = pairShift(punchList, d);
@@ -124,7 +122,7 @@ public class WorkHoursService {
                 List<Interval> work = shift.end() == null ? List.of() : List.of(new Interval(shift.start(), shift.end()));
                 List<Interval> breaks = pattern.map(p -> scheduledBreaks(p.spec(), d)).orElse(List.of());
                 WorkHoursLegalRules.Applied applied = appliedByDate.computeIfAbsent(d, legalRules::asOf);
-                inputs.add(new DayInput(d, kind, nextKind, contract, work, breaks, leaveByDate.get(d),
+                inputs.add(new DayInput(d, kind, contract, work, breaks, leaveByDate.get(d),
                         applied.rules()));
                 metas.add(new Meta(pattern.map(WorkPattern::getPatternId).orElse(null), shift, issues, applied));
             }
@@ -221,7 +219,7 @@ public class WorkHoursService {
         return new DailyWorkSummaryRow(empId, r.workDate(), r.dayKind().name(), m.patternId(), r.contractMinutes(),
                 r.leaveKind() == null ? null : r.leaveKind().name(), r.leaveMinutes(),
                 m.shift().start(), m.shift().end(), r.breakMinutes(), r.workedMinutes(), r.regularMinutes(),
-                r.overtimeMinutes(), r.nightMinutes(), r.holidayMinutes(), r.holidayExcessMinutes(),
+                r.extraMinutes(), r.overtimeMinutes(), r.nightMinutes(), r.holidayMinutes(), r.holidayExcessMinutes(),
                 rates.overtime(), rates.night(), rates.holiday(), rates.holidayExcess(),
                 m.issues().isEmpty() ? null : String.join(",", m.issues()), actor, now);
     }

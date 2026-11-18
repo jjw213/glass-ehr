@@ -77,3 +77,9 @@
 
 - 2026-11-16: 시간대 수정 — `hibernate.jdbc.time_zone` 설정 때문에 JVM 기본 시간대가 UTC인 CI에서 JPA가 `LocalDateTime`을 9시간 밀어 저장해, 서울 15시 이후 실행 시 `PunchOracleTest`가 `ck_punch_work_date_same` 위반으로 실패했다(PR #83 CI #97). 설정을 지우고 surefire를 `-Duser.timezone=Asia/Seoul`로 실행하게 했다. 회귀 테스트: JVM을 UTC로 바꾼 상태에서 서울 23:30 고정 시계로 출근 기록 후 DB 값이 그대로인지 확인.
 - 2026-11-17: #29 근로시간 집계 엔진 — 순수 함수 `WorkHoursCalculator`(실근로=근로−휴게 합집합, 휴일 이내/초과, 1일·1주 연장, 야간, 자정 넘김·휴게 중복·반차)와 legal_rate 기준값·가산율 조회 `WorkHoursLegalRules`를 추가했다. V022 `attendance_daily_summary`(MyBatis, 주 단위로 지우고 다시 넣는 재계산)와 조회·재계산 API도 넣었다. 휴가는 `ApprovedLeaveProvider`로 받는다(휴가 모듈 전까지는 없음). 근로시간 사례 정답 fixture가 없어 Codex에 법령 데이터를 요청했다. law.go.kr 조문 본문은 자동 조회가 되지 않아 아직 확인하지 못했다(시행 2026-10-08 법률 제21533호 판의 머리말만 확인). 상세 `docs/work-hours-design.md`.
+
+- 2026-11-16: #18 퇴직 처리 — V022(`retirement_case`·`retirement_checklist_item`·`employment_certificate`, legal_rate 항목 `DISMISSAL_NOTICE_DAYS`·`DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS` 코드만)와 퇴직 유형별 체크리스트, 해고 시 예고일·서면통지일 필수·예고 미달 경고(기준값 없으면 UNKNOWN), 요구 항목만 적는 사용증명서 발급·인쇄 화면, 보존기한 경과 퇴직자 목록을 추가했다. 백엔드 620건 실패 0건(Oracle 44건 로컬 건너뜀)·프론트 164건·lint 오류 0건 통과. 해고 예고 기준값과 정답 fixture는 법령 데이터 요청 대상, 조문 원문 미확인(`docs/retirement-design.md` 7장).
+
+- 2026-11-17: #18 PR #87 리뷰 반영 — 단서 제1호 만료일을 민법 제160조 제3항대로 고쳤다(1월 31일 입사 3개월 → 4월 30일). 법률 제16270호 부칙 제2조(시행 후 계약 체결자만 적용)를 반영하고 `dismissal-notice.csv` 16건 fixture 회귀 테스트를 추가했다. 사용증명서 임금은 퇴직 예정자면 청구일 기준 계약을 쓴다. 백엔드 641건 실패 0건(Oracle 45건 로컬 건너뜀).
+
+- 2026-11-18: #29 이어서 — 최신 main(#87·#88) 병합, 마이그레이션 V023으로 이동. fixture `work-hours-cases.csv`(#88) 대조 `WorkHoursFixtureTest` 추가, 정답에 맞춰 휴일 판단을 근로개시일 기준으로, 반차일 1일 기준 차감, 법내 초과 `extra_minutes` 열 추가. 24건 중 `holiday_cross_midnight_to_workday` 1건은 fixture 야간분(420)이 휴게 차감 규칙과 맞지 않아(계산 360) 실패로 남기고 정정 요청.

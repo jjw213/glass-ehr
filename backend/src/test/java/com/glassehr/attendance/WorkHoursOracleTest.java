@@ -17,7 +17,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Oracle 실DB에서 V022·MyBatis 매퍼(DailyWorkSummaryMapper)·DB 제약을 검증한다. 실행 조건: {@code ORACLE_IT=true}.
+ * Oracle 실DB에서 V023·MyBatis 매퍼(DailyWorkSummaryMapper)·DB 제약을 검증한다. 실행 조건: {@code ORACLE_IT=true}.
  * 사원·날짜는 가짜 값이며 각 테스트는 롤백한다. 값은 저장 경로 확인용 입력(법령 정답 아님).
  */
 @SpringBootTest
@@ -42,7 +42,7 @@ class WorkHoursOracleTest {
 
     private static DailyWorkSummaryRow row(long emp, LocalDate d, int worked, int regular, int overtime) {
         return new DailyWorkSummaryRow(emp, d, "WORKDAY", null, 480, "HALF_DAY_AM", 240,
-                d.atTime(22, 0), d.plusDays(1).atTime(7, 0), 60, worked, regular, overtime, 420, 0, 0,
+                d.atTime(22, 0), d.plusDays(1).atTime(7, 0), 60, worked, regular, 0, overtime, 420, 0, 0,
                 new BigDecimal("11"), new BigDecimal("22.5"), new BigDecimal("33"), new BigDecimal("44"),
                 "MISSING_OUT", "it-hr", LocalDateTime.of(2099, 3, 10, 10, 0, 0, 123_456_000));
     }

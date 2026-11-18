@@ -2,7 +2,8 @@
 --
 -- 규칙
 --   - 한 사원·한 근무일에 한 행. 근무일은 출근한 날(자정을 넘는 근무도 시작한 날)이다.
---   - 시간은 모두 분 단위 정수. worked = regular + overtime + holiday + holiday_excess (CHECK). night 는 겹쳐서 따로 센다.
+--   - 시간은 모두 분 단위 정수. worked = regular + extra + overtime + holiday + holiday_excess (CHECK). night 는 겹쳐서 따로 센다.
+--   - regular: 소정근로시간(휴가분 제외) 안의 근로. extra: 소정을 넘었지만 1일·1주 기준시간 안의 근로(법내 초과, 가산 없음).
 --   - 재계산은 기간(주 단위로 넓힌 월~일)의 행을 지우고 다시 넣는다(WorkHoursService). 원자료(출퇴근 기록·근무유형·휴일 달력)는 바꾸지 않는다.
 --   - 가산율(*_rate)은 근무일 기준 legal_rate 적용값(퍼센트 숫자)을 그대로 남긴다. 금액은 급여 모듈이 계산한다.
 --   - day_kind: WORKDAY 소정근로일, OFFDAY 휴무일, HOLIDAY 휴일 (WorkHoursCalculator.DayKind 와 같아야 한다)
@@ -24,6 +25,7 @@ CREATE TABLE attendance_daily_summary (
     break_minutes          NUMBER(5)         NOT NULL,
     worked_minutes         NUMBER(5)         NOT NULL,
     regular_minutes        NUMBER(5)         NOT NULL,
+    extra_minutes          NUMBER(5)         NOT NULL,
     overtime_minutes       NUMBER(5)         NOT NULL,
     night_minutes          NUMBER(5)         NOT NULL,
     holiday_minutes        NUMBER(5)         NOT NULL,
@@ -47,10 +49,11 @@ CREATE TABLE attendance_daily_summary (
         CHECK ((leave_kind IS NULL AND leave_minutes = 0) OR (leave_kind IS NOT NULL AND leave_minutes >= 0)),
     CONSTRAINT ck_daily_summary_nonneg
         CHECK (contract_minutes >= 0 AND break_minutes >= 0 AND worked_minutes >= 0 AND regular_minutes >= 0
-            AND overtime_minutes >= 0 AND night_minutes >= 0 AND holiday_minutes >= 0
+            AND extra_minutes >= 0 AND overtime_minutes >= 0 AND night_minutes >= 0 AND holiday_minutes >= 0
             AND holiday_excess_minutes >= 0),
     CONSTRAINT ck_daily_summary_sum
-        CHECK (worked_minutes = regular_minutes + overtime_minutes + holiday_minutes + holiday_excess_minutes),
+        CHECK (worked_minutes = regular_minutes + extra_minutes + overtime_minutes + holiday_minutes
+            + holiday_excess_minutes),
     CONSTRAINT ck_daily_summary_night CHECK (night_minutes <= worked_minutes),
     CONSTRAINT ck_daily_summary_span
         CHECK ((work_start IS NULL AND work_end IS NULL) OR (work_start IS NOT NULL AND work_end IS NULL)

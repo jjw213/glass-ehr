@@ -5,7 +5,7 @@ import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-/** 일별 근로시간 집계(V022). SQL: resources/mapper/attendance/DailyWorkSummaryMapper.xml */
+/** 일별 근로시간 집계(V023). SQL: resources/mapper/attendance/DailyWorkSummaryMapper.xml */
 @Mapper
 public interface DailyWorkSummaryMapper {
 

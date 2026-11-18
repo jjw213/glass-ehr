@@ -923,3 +923,14 @@ select.input option { color: #1a1a1a; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* 퇴직 처리(#18): 체크리스트와 사용증명서 인쇄 화면. 인쇄할 때는 증명서만 보인다. */
+.checklist { list-style: none; padding: 0; display: grid; gap: 8px; }
+.certificate { margin-top: 16px; padding: 20px; border-radius: 16px; background: rgba(255, 255, 255, 0.06); }
+.certificate h2 { text-align: center; letter-spacing: 0.2em; margin: 0 0 16px; }
+@media print {
+  body * { visibility: hidden; }
+  .certificate, .certificate * { visibility: visible; color: #000; }
+  .certificate { position: absolute; inset: 0; background: #fff; }
+  .no-print { display: none; }
+}

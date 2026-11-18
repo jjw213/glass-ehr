@@ -41,7 +41,8 @@ class LegalRateItemRegistrationTest {
             "db/oracle/V010__legal_rate_item_record_retention.sql",
             "db/oracle/V011__legal_rate_item_fixed_term_limit.sql",
             "db/oracle/V015__legal_rate_items_work_pattern.sql",
-            "db/oracle/V018__legal_rate_item_public_holiday_paid.sql");
+            "db/oracle/V018__legal_rate_item_public_holiday_paid.sql",
+            "db/oracle/V022__retirement_process.sql");
 
     /** #7 에서 등록한 인사·근태 항목 마이그레이션(V003·V005). */
     private static final List<String> HR_ATTENDANCE_ITEM_MIGRATIONS = ITEM_MIGRATIONS.subList(0, 2);
@@ -161,6 +162,17 @@ class LegalRateItemRegistrationTest {
         assertThat(items).containsOnlyKeys("PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT");
         assertThat(items.get("PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT")[1]).isEqualTo(LegalRateUnit.COUNT);
         assertThat(items.get("PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT")[2]).contains("제55조 제2항");
+    }
+
+    @Test
+    void 해고_예고_항목이_조문과_함께_등록돼_있다() throws IOException {
+        // #18: 근로기준법 제26조. 값은 사람이 입력한다(V022 에는 값 행 없음).
+        Map<String, String[]> items = registeredItems(List.of("db/oracle/V022__retirement_process.sql"));
+        assertThat(items).containsOnlyKeys("DISMISSAL_NOTICE_DAYS", "DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS");
+        assertThat(items.get("DISMISSAL_NOTICE_DAYS")[1]).isEqualTo(LegalRateUnit.DAYS);
+        assertThat(items.get("DISMISSAL_NOTICE_DAYS")[2]).contains("근로기준법 제26조");
+        assertThat(items.get("DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS")[1]).isEqualTo(LegalRateUnit.MONTHS);
+        assertThat(items.get("DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS")[2]).contains("제26조 단서 제1호");
     }
 
     @Test

@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * 집계 엔진의 동작(구간 계산·분류 순서) 테스트. 기준값은 이 테스트가 넣는 입력이며 법령 정답이 아니다.
- * 법령 정답 대조는 tests/legal-fixtures/ 의 근로시간 사례로 따로 한다(정답 파일 준비 후 WorkHoursFixtureTest).
+ * 법령 정답 대조는 tests/legal-fixtures/work-hours-cases.csv 로 WorkHoursFixtureTest 가 한다.
  * 날짜는 가짜 값(2099년). 2099-03-02 는 월요일.
  */
 class WorkHoursCalculatorTest {
@@ -39,18 +39,17 @@ class WorkHoursCalculatorTest {
         return iv(d, 12, 0, 0, 13, 0);
     }
 
-    private static DayInput day(LocalDate d, DayKind kind, DayKind next, List<Interval> work, List<Interval> breaks,
-            Leave leave) {
-        return new DayInput(d, kind, next, kind == DayKind.WORKDAY ? 480 : 0, work, breaks, leave, RULES);
+    private static DayInput day(LocalDate d, DayKind kind, List<Interval> work, List<Interval> breaks, Leave leave) {
+        return new DayInput(d, kind, kind == DayKind.WORKDAY ? 480 : 0, work, breaks, leave, RULES);
     }
 
-    private static DayResult calc(DayKind kind, DayKind next, List<Interval> work, List<Interval> breaks) {
-        return WorkHoursCalculator.calculateDay(day(MON, kind, next, work, breaks, null));
+    private static DayResult calc(DayKind kind, List<Interval> work, List<Interval> breaks) {
+        return WorkHoursCalculator.calculateDay(day(MON, kind, work, breaks, null));
     }
 
     @Test
     void 평일_9시_18시_점심_1시간은_소정_8시간() {
-        DayResult r = calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 18, 0)), List.of(lunch(MON)));
+        DayResult r = calc(DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 18, 0)), List.of(lunch(MON)));
         assertThat(r.workedMinutes()).isEqualTo(480);
         assertThat(r.breakMinutes()).isEqualTo(60);
         assertThat(r.regularMinutes()).isEqualTo(480);
@@ -61,7 +60,7 @@ class WorkHoursCalculatorTest {
 
     @Test
     void 하루_기준시간을_넘은_분은_연장() {
-        DayResult r = calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 21, 0)), List.of(lunch(MON)));
+        DayResult r = calc(DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 21, 0)), List.of(lunch(MON)));
         assertThat(r.workedMinutes()).isEqualTo(660);
         assertThat(r.regularMinutes()).isEqualTo(480);
         assertThat(r.overtimeMinutes()).isEqualTo(180);
@@ -69,33 +68,29 @@ class WorkHoursCalculatorTest {
 
     @Test
     void 야간은_연장과_겹쳐서_따로_센다() {
-        DayResult r = calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 23, 30)), List.of(lunch(MON)));
+        DayResult r = calc(DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 23, 30)), List.of(lunch(MON)));
         assertThat(r.overtimeMinutes()).isEqualTo(330);
         assertThat(r.nightMinutes()).isEqualTo(90);
     }
 
     @Test
     void 기준시간_정각에_끝나면_연장_0분_1분_넘으면_1분() {
-        assertThat(calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 17, 0)), List.of())
-                .overtimeMinutes()).isZero();
-        assertThat(calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 17, 1)), List.of())
-                .overtimeMinutes()).isEqualTo(1);
+        assertThat(calc(DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 17, 0)), List.of()).overtimeMinutes()).isZero();
+        assertThat(calc(DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 17, 1)), List.of()).overtimeMinutes())
+                .isEqualTo(1);
     }
 
     @Test
     void 야간_경계_22시_정각과_6시_정각() {
-        assertThat(calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 14, 0, 0, 22, 0)), List.of())
-                .nightMinutes()).isZero();
-        assertThat(calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 6, 0, 0, 14, 0)), List.of())
-                .nightMinutes()).isZero();
-        assertThat(calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 5, 59, 0, 14, 0)), List.of())
-                .nightMinutes()).isEqualTo(1);
+        assertThat(calc(DayKind.WORKDAY, List.of(iv(MON, 14, 0, 0, 22, 0)), List.of()).nightMinutes()).isZero();
+        assertThat(calc(DayKind.WORKDAY, List.of(iv(MON, 6, 0, 0, 14, 0)), List.of()).nightMinutes()).isZero();
+        assertThat(calc(DayKind.WORKDAY, List.of(iv(MON, 5, 59, 0, 14, 0)), List.of()).nightMinutes()).isEqualTo(1);
     }
 
     @Test
     void 자정을_넘는_근무는_시작한_날의_하루로_본다() {
         // 22:00 ~ 다음 날 07:00, 휴게 02:00~03:00
-        DayResult r = calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 22, 0, 1, 7, 0)),
+        DayResult r = calc(DayKind.WORKDAY, List.of(iv(MON, 22, 0, 1, 7, 0)),
                 List.of(new Interval(at(MON.plusDays(1), 2, 0), at(MON.plusDays(1), 3, 0))));
         assertThat(r.workDate()).isEqualTo(MON);
         assertThat(r.workedMinutes()).isEqualTo(480);
@@ -106,13 +101,13 @@ class WorkHoursCalculatorTest {
 
     @Test
     void 이른_새벽_출근은_전날_밤부터_이어진_야간_창으로_센다() {
-        DayResult r = calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 4, 0, 0, 12, 0)), List.of());
+        DayResult r = calc(DayKind.WORKDAY, List.of(iv(MON, 4, 0, 0, 12, 0)), List.of());
         assertThat(r.nightMinutes()).isEqualTo(120);
     }
 
     @Test
     void 휴게가_겹치면_한_번만_빼고_근로_밖_휴게는_빼지_않는다() {
-        DayResult r = calc(DayKind.WORKDAY, DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 18, 0)),
+        DayResult r = calc(DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 18, 0)),
                 List.of(lunch(MON), iv(MON, 12, 30, 0, 13, 30), iv(MON, 19, 0, 0, 20, 0)));
         assertThat(r.breakMinutes()).isEqualTo(90);
         assertThat(r.workedMinutes()).isEqualTo(450);
@@ -120,14 +115,13 @@ class WorkHoursCalculatorTest {
 
     @Test
     void 근로_구간이_겹치면_합친다() {
-        DayResult r = calc(DayKind.WORKDAY, DayKind.WORKDAY,
-                List.of(iv(MON, 9, 0, 0, 12, 0), iv(MON, 11, 0, 0, 14, 0)), List.of());
+        DayResult r = calc(DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 12, 0), iv(MON, 11, 0, 0, 14, 0)), List.of());
         assertThat(r.workedMinutes()).isEqualTo(300);
     }
 
     @Test
     void 휴일근로는_기준시간_이내와_초과로_나누고_연장에_넣지_않는다() {
-        DayResult r = calc(DayKind.HOLIDAY, DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 20, 0)), List.of(lunch(MON)));
+        DayResult r = calc(DayKind.HOLIDAY, List.of(iv(MON, 9, 0, 0, 20, 0)), List.of(lunch(MON)));
         assertThat(r.workedMinutes()).isEqualTo(600);
         assertThat(r.holidayMinutes()).isEqualTo(480);
         assertThat(r.holidayExcessMinutes()).isEqualTo(120);
@@ -136,54 +130,59 @@ class WorkHoursCalculatorTest {
     }
 
     @Test
-    void 평일_근무가_자정을_넘어_휴일로_이어지면_0시_이후는_휴일근로() {
-        DayResult r = calc(DayKind.WORKDAY, DayKind.HOLIDAY, List.of(iv(MON, 20, 0, 1, 2, 0)), List.of());
-        assertThat(r.regularMinutes()).isEqualTo(240);
-        assertThat(r.holidayMinutes()).isEqualTo(120);
+    void 평일_근무가_자정을_넘어_휴일로_이어져도_근로개시일_기준으로_평일근로() {
+        DayResult r = calc(DayKind.WORKDAY, List.of(iv(MON, 20, 0, 1, 2, 0)), List.of());
+        assertThat(r.regularMinutes()).isEqualTo(360);
+        assertThat(r.holidayMinutes()).isZero();
         assertThat(r.nightMinutes()).isEqualTo(240);
     }
 
     @Test
-    void 휴일_근무가_자정을_넘어_평일로_이어지면_0시_이후는_평일근로() {
-        DayResult r = calc(DayKind.HOLIDAY, DayKind.WORKDAY, List.of(iv(MON, 18, 0, 1, 3, 0)), List.of());
-        assertThat(r.holidayMinutes()).isEqualTo(360);
-        assertThat(r.regularMinutes()).isEqualTo(180);
+    void 휴일_근무가_자정을_넘어_평일로_이어져도_근로개시일_기준으로_휴일근로() {
+        DayResult r = calc(DayKind.HOLIDAY, List.of(iv(MON, 18, 0, 1, 3, 0)), List.of());
+        assertThat(r.holidayMinutes()).isEqualTo(480);
+        assertThat(r.holidayExcessMinutes()).isEqualTo(60);
+        assertThat(r.regularMinutes()).isZero();
         assertThat(r.overtimeMinutes()).isZero();
     }
 
     @Test
-    void 휴무일_근로는_휴일근로가_아니다() {
-        DayResult r = calc(DayKind.OFFDAY, DayKind.HOLIDAY, List.of(iv(MON, 9, 0, 0, 13, 0)), List.of());
-        assertThat(r.regularMinutes()).isEqualTo(240);
+    void 휴무일_근로는_휴일근로가_아니고_소정도_아닌_법내_초과() {
+        DayResult r = calc(DayKind.OFFDAY, List.of(iv(MON, 9, 0, 0, 13, 0)), List.of());
+        assertThat(r.regularMinutes()).isZero();
+        assertThat(r.extraMinutes()).isEqualTo(240);
+        assertThat(r.overtimeMinutes()).isZero();
         assertThat(r.holidayMinutes()).isZero();
         assertThat(r.contractMinutes()).isZero();
     }
 
     @Test
-    void 오전_반차일은_실제로_일한_구간만_세고_휴가는_연장_판단에_넣지_않는다() {
-        // 오전 반차(240분) 후 14:00~23:00 근무, 점심 휴게는 근로 밖
-        DayResult r = WorkHoursCalculator.calculateDay(day(MON, DayKind.WORKDAY, DayKind.WORKDAY,
+    void 오전_반차일은_실제로_일한_구간만_세고_휴가분을_1일_기준시간에서_뺀다() {
+        // 오전 반차(240분) 후 14:00~23:00 근무, 점심 휴게는 근로 밖 → 1일 기준 480−240=240분 초과분이 연장
+        DayResult r = WorkHoursCalculator.calculateDay(day(MON, DayKind.WORKDAY,
                 List.of(iv(MON, 14, 0, 0, 23, 0)), List.of(lunch(MON)), new Leave(LeaveKind.HALF_DAY_AM, 240)));
         assertThat(r.leaveKind()).isEqualTo(LeaveKind.HALF_DAY_AM);
         assertThat(r.leaveMinutes()).isEqualTo(240);
         assertThat(r.breakMinutes()).isZero();
         assertThat(r.workedMinutes()).isEqualTo(540);
-        assertThat(r.overtimeMinutes()).isEqualTo(60);
+        assertThat(r.regularMinutes()).isEqualTo(240);
+        assertThat(r.overtimeMinutes()).isEqualTo(300);
         assertThat(r.nightMinutes()).isEqualTo(60);
     }
 
     @Test
     void 오후_반차일은_오전_근로만_센다() {
-        DayResult r = WorkHoursCalculator.calculateDay(day(MON, DayKind.WORKDAY, DayKind.WORKDAY,
+        DayResult r = WorkHoursCalculator.calculateDay(day(MON, DayKind.WORKDAY,
                 List.of(iv(MON, 9, 0, 0, 13, 0)), List.of(lunch(MON)), new Leave(LeaveKind.HALF_DAY_PM, 240)));
         assertThat(r.workedMinutes()).isEqualTo(180);
         assertThat(r.breakMinutes()).isEqualTo(60);
         assertThat(r.leaveMinutes()).isEqualTo(240);
+        assertThat(r.overtimeMinutes()).isZero();
     }
 
     @Test
     void 기록이_없는_날은_모두_0분() {
-        DayResult r = WorkHoursCalculator.calculateDay(day(MON, DayKind.WORKDAY, DayKind.WORKDAY, List.of(),
+        DayResult r = WorkHoursCalculator.calculateDay(day(MON, DayKind.WORKDAY, List.of(),
                 List.of(lunch(MON)), new Leave(LeaveKind.FULL_DAY, 480)));
         assertThat(r.workedMinutes()).isZero();
         assertThat(r.breakMinutes()).isZero();
@@ -196,8 +195,7 @@ class WorkHoursCalculatorTest {
             LocalDate d = MON.plusDays(i);
             List<Interval> work = workMinutesFrom9[i] == 0 ? List.of()
                     : List.of(new Interval(at(d, 9, 0), at(d, 9, 0).plusMinutes(workMinutesFrom9[i])));
-            DayKind next = i < 6 ? kinds[i + 1] : DayKind.WORKDAY;
-            out.add(day(d, kinds[i], next, work, List.of(), leaves[i]));
+            out.add(day(d, kinds[i], work, List.of(), leaves[i]));
         }
         return out;
     }
@@ -220,7 +218,8 @@ class WorkHoursCalculatorTest {
         List<DayResult> r = WorkHoursCalculator.calculateWeek(
                 week(new int[] {600, 480, 480, 480, 360, 120, 0}, FIVE_DAY, new Leave[7]));
         assertThat(r.get(0).overtimeMinutes()).isEqualTo(120);
-        assertThat(r.get(5).regularMinutes()).isEqualTo(120);
+        assertThat(r.get(4).regularMinutes()).isEqualTo(360);
+        assertThat(r.get(5).extraMinutes()).isEqualTo(120);
         assertThat(r.get(5).overtimeMinutes()).isZero();
     }
 
@@ -230,7 +229,7 @@ class WorkHoursCalculatorTest {
         leaves[0] = new Leave(LeaveKind.FULL_DAY, 480);
         List<DayResult> r = WorkHoursCalculator.calculateWeek(
                 week(new int[] {0, 480, 480, 480, 480, 480, 0}, FIVE_DAY, leaves));
-        assertThat(r.get(5).regularMinutes()).isEqualTo(480);
+        assertThat(r.get(5).extraMinutes()).isEqualTo(480);
         assertThat(r.get(5).overtimeMinutes()).isZero();
     }
 
@@ -246,22 +245,32 @@ class WorkHoursCalculatorTest {
     void 주_기준시간을_걸치는_날은_넘는_분만_옮긴다() {
         List<DayResult> r = WorkHoursCalculator.calculateWeek(
                 week(new int[] {480, 480, 480, 480, 420, 120, 0}, FIVE_DAY, new Leave[7]));
-        assertThat(r.get(5).regularMinutes()).isEqualTo(60);
+        assertThat(r.get(5).extraMinutes()).isEqualTo(60);
         assertThat(r.get(5).overtimeMinutes()).isEqualTo(60);
+    }
+
+    @Test
+    void 주_누계를_직접_넣어도_같은_규칙으로_옮긴다() {
+        DayResult d = calc(DayKind.WORKDAY, List.of(iv(MON, 9, 0, 0, 17, 0)), List.of());
+        assertThat(WorkHoursCalculator.applyWeekly(d, 1920, 2400).overtimeMinutes()).isZero();
+        assertThat(WorkHoursCalculator.applyWeekly(d, 2000, 2400).overtimeMinutes()).isEqualTo(80);
+        assertThat(WorkHoursCalculator.applyWeekly(d, 2500, 2400).overtimeMinutes()).isEqualTo(480);
+        assertThatThrownBy(() -> WorkHoursCalculator.applyWeekly(d, -1, 2400))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void 결과는_항상_실근로_합이_맞다() {
         List<DayResult> r = WorkHoursCalculator.calculateWeek(
                 week(new int[] {700, 600, 480, 480, 480, 300, 600}, FIVE_DAY, new Leave[7]));
-        assertThat(r).allMatch(d -> d.workedMinutes()
-                == d.regularMinutes() + d.overtimeMinutes() + d.holidayMinutes() + d.holidayExcessMinutes());
+        assertThat(r).allMatch(d -> d.workedMinutes() == d.regularMinutes() + d.extraMinutes()
+                + d.overtimeMinutes() + d.holidayMinutes() + d.holidayExcessMinutes());
     }
 
     @Test
     void 한_주가_아닌_날이나_같은_날이_두_번이면_거부() {
-        DayInput mon = day(MON, DayKind.WORKDAY, DayKind.WORKDAY, List.of(), List.of(), null);
-        DayInput nextMon = day(MON.plusDays(7), DayKind.WORKDAY, DayKind.WORKDAY, List.of(), List.of(), null);
+        DayInput mon = day(MON, DayKind.WORKDAY, List.of(), List.of(), null);
+        DayInput nextMon = day(MON.plusDays(7), DayKind.WORKDAY, List.of(), List.of(), null);
         assertThatThrownBy(() -> WorkHoursCalculator.calculateWeek(List.of(mon, nextMon)))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> WorkHoursCalculator.calculateWeek(List.of(mon, mon)))
@@ -270,8 +279,8 @@ class WorkHoursCalculatorTest {
 
     @Test
     void 근무일_다음_날_24시를_넘는_구간은_거부() {
-        assertThatThrownBy(() -> day(MON, DayKind.WORKDAY, DayKind.WORKDAY,
-                List.of(iv(MON, 9, 0, 2, 0, 1)), List.of(), null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> day(MON, DayKind.WORKDAY, List.of(iv(MON, 9, 0, 2, 0, 1)), List.of(), null))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new Interval(at(MON, 9, 0), at(MON, 9, 0)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
