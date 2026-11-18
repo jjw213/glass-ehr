@@ -21,6 +21,8 @@
     <java.version>21</java.version>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- 테스트 JVM 기본 시간대(아래 surefire argLine). -->
+    <test.timezone>Asia/Seoul</test.timezone>
     <mybatis-spring-boot.version>3.0.5</mybatis-spring-boot.version>
   </properties>
 
@@ -65,11 +67,12 @@
       </plugin>
       <plugin>
         <!-- 테스트 JVM도 운영(GlassEhrApplication.main의 TimeZone.setDefault)과 같은 Asia/Seoul로 돌린다.
-             CI 러너의 기본 시간대(UTC)에 따라 결과가 달라지지 않게 한다. -->
+             CI 러너의 기본 시간대(UTC)에 따라 결과가 달라지지 않게 한다.
+             저장 값은 JVM 시간대와 무관해야 하므로(#84) `mvn test -Dtest.timezone=UTC` 로 UTC JVM에서도 확인할 수 있다. -->
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <argLine>-Duser.timezone=Asia/Seoul</argLine>
+          <argLine>-Duser.timezone=${test.timezone}</argLine>
         </configuration>
       </plugin>
     </plugins>
