@@ -230,7 +230,8 @@ function RegisterCard({ api, emps, depts, grades, titles, today, empName, onDone
   const [confirmNow, setConfirmNow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<BulkResult | null>(null);
+  // 결과 표시는 제출할 때의 '바로 확정' 값으로 한다(제출 뒤 체크를 바꿔도 결과 문구가 바뀌지 않게)
+  const [result, setResult] = useState<{ r: BulkResult; confirmed: boolean } | null>(null);
   const f = typeFields(type);
 
   const shown = useMemo(() => {
@@ -256,7 +257,7 @@ function RegisterCard({ api, emps, depts, grades, titles, today, empName, onDone
     setError(null);
     try {
       const r = await api.bulk(picked, input, confirmNow);
-      setResult(r);
+      setResult({ r, confirmed: confirmNow });
       // 성공한 사원은 선택을 풀고, 실패한 사원만 남겨 바로 다시 시도할 수 있게 한다
       setPicked(r.items.filter((i) => !i.ok).map((i) => i.empId));
       if (r.succeeded > 0) onDone();
@@ -346,7 +347,7 @@ function RegisterCard({ api, emps, depts, grades, titles, today, empName, onDone
           <button type="submit" className="btn btn--primary" disabled={busy}>{picked.length > 1 ? `${picked.length}명 일괄 발령` : '발령 등록'}</button>
         </div>
       </form>
-      {result && <BulkResultView result={result} empName={empName} confirmed={confirmNow} />}
+      {result && <BulkResultView result={result.r} empName={empName} confirmed={result.confirmed} />}
     </Card>
   );
 }
