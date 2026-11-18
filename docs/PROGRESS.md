@@ -80,3 +80,5 @@
 - 2026-11-16: #18 퇴직 처리 — V022(`retirement_case`·`retirement_checklist_item`·`employment_certificate`, legal_rate 항목 `DISMISSAL_NOTICE_DAYS`·`DISMISSAL_NOTICE_EXEMPT_SERVICE_MONTHS` 코드만)와 퇴직 유형별 체크리스트, 해고 시 예고일·서면통지일 필수·예고 미달 경고(기준값 없으면 UNKNOWN), 요구 항목만 적는 사용증명서 발급·인쇄 화면, 보존기한 경과 퇴직자 목록을 추가했다. 백엔드 620건 실패 0건(Oracle 44건 로컬 건너뜀)·프론트 164건·lint 오류 0건 통과. 해고 예고 기준값과 정답 fixture는 법령 데이터 요청 대상, 조문 원문 미확인(`docs/retirement-design.md` 7장).
 
 - 2026-11-17: #18 PR #87 리뷰 반영 — 단서 제1호 만료일을 민법 제160조 제3항대로 고쳤다(1월 31일 입사 3개월 → 4월 30일). 법률 제16270호 부칙 제2조(시행 후 계약 체결자만 적용)를 반영하고 `dismissal-notice.csv` 16건 fixture 회귀 테스트를 추가했다. 사용증명서 임금은 퇴직 예정자면 청구일 기준 계약을 쓴다. 백엔드 641건 실패 0건(Oracle 45건 로컬 건너뜀).
+
+- 2026-11-18: #75 Spring 로그인 방식 결정 — 저장소 주인 답변(세션 쿠키: HttpOnly 쿠키 + Spring Session JDBC로 Oracle 저장)을 `docs/DECISIONS.md`와 `docs/auth-design.md` 7장에 기록했다. 문서만 변경, 코드·마이그레이션 없음. 실제 로그인 구현(세션 테이블·비밀번호 해시·CSRF·`X-Actor-Id` 제거)은 후속 이슈.
