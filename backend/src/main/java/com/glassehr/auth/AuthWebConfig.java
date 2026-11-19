@@ -19,7 +19,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class AuthWebConfig implements WebMvcConfigurer {
 
-    /** 이 프로필에서만 X-Actor-Id 헤더 식별을 받는다(#76). 테스트는 src/test/resources/application.properties 가 켠다. */
+    /** 이 프로필에서만 X-Actor-Id 헤더 식별을 받는다(#76). 테스트는 pom.xml surefire 설정(spring.profiles.active=test)이 켠다. */
     static final String ACTOR_HEADER_PROFILE = "test";
 
     private static final Logger LOG = LoggerFactory.getLogger(AuthWebConfig.class);

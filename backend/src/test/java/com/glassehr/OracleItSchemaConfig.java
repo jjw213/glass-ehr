@@ -135,6 +135,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V023__attendance_daily_summary.sql"))
                     .execute(dataSource);
         }
+        Integer loginLog = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'LOGIN_ACCESS_LOG'", Integer.class);
+        if (loginLog == null || loginLog == 0) {
+            // #76: app_user 비밀번호·잠금 열, 로그인 접속기록, Spring Session 테이블
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V026__app_user_login_session.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
