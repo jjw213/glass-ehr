@@ -13,6 +13,11 @@ public interface ApprovalCompletionHandler {
     /** 화면 표시 이름. */
     String label();
 
+    /** 결재자가 검토할 원본 신청 내용. 원본이 없으면 {@code null}. */
+    default Object requestDetail(long requestRef) {
+        return null;
+    }
+
     /** 마지막 단계까지 승인됐다. */
     void onApproved(long requestRef);
 

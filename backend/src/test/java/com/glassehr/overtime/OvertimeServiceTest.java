@@ -134,19 +134,39 @@ class OvertimeServiceTest {
     @Test
     void 결재_결과를_신청_상태에_반영하고_승인_전에_한도를_검사한다() {
         OvertimeLimitChecker limits = mock(OvertimeLimitChecker.class);
-        OvertimeApprovalHandler handler = new OvertimeApprovalHandler(requests, limits, CLOCK);
+        OvertimeApprovalHandler handler = new OvertimeApprovalHandler(requests, employees, limits, CLOCK);
         OvertimeRequest r = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, EVENING, EVENING.plusHours(1), 0,
                 "사유", EVENING.minusDays(1));
         when(requests.findForUpdate(11L)).thenReturn(Optional.of(r));
+        when(employees.findForUpdate(EMP)).thenReturn(Optional.of(mock(com.glassehr.employee.Employee.class)));
 
         doThrow(new ApprovalException(HttpStatus.UNPROCESSABLE_ENTITY, "한도")).when(limits).check(r);
         assertThatThrownBy(() -> handler.onApproved(11L)).isInstanceOf(ApprovalException.class);
         assertThat(r.getStatus()).isEqualTo(OvertimeRequest.Status.IN_PROGRESS);
+        verify(employees).findForUpdate(EMP);
+        verify(limits).check(r);
 
         handler.onRejected(11L);
         assertThat(r.getStatus()).isEqualTo(OvertimeRequest.Status.REJECTED);
         assertThat(r.getDecidedAt()).isEqualTo(LocalDateTime.of(2099, 3, 10, 10, 0));
         assertThatThrownBy(() -> handler.onWithdrawn(11L)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 결재_상세에_원본_신청_내용을_제공한다() {
+        OvertimeApprovalHandler handler = new OvertimeApprovalHandler(requests, employees,
+                mock(OvertimeLimitChecker.class), CLOCK);
+        OvertimeRequest r = new OvertimeRequest(EMP, OvertimeRequest.Kind.HOLIDAY, EVENING,
+                EVENING.plusHours(3), 30, "긴급 점검", EVENING.minusDays(1));
+        org.springframework.test.util.ReflectionTestUtils.setField(r, "requestId", 12L);
+        when(requests.findById(12L)).thenReturn(Optional.of(r));
+
+        var detail = handler.requestDetail(12L);
+
+        assertThat(detail.workKind()).isEqualTo(OvertimeRequest.Kind.HOLIDAY);
+        assertThat(detail.plannedMinutes()).isEqualTo(150);
+        assertThat(detail.breakMinutes()).isEqualTo(30);
+        assertThat(detail.reason()).isEqualTo("긴급 점검");
     }
 
     @Test

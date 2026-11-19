@@ -1,6 +1,8 @@
 package com.glassehr.overtime;
 
 import com.glassehr.approval.ApprovalCompletionHandler;
+import com.glassehr.employee.EmployeeRepository;
+import com.glassehr.overtime.OvertimeDtos.RequestView;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -17,16 +19,20 @@ public class OvertimeApprovalHandler implements ApprovalCompletionHandler {
     public static final String REQUEST_TYPE = "OVERTIME";
 
     private final OvertimeRequestRepository requests;
+    private final EmployeeRepository employees;
     private final OvertimeLimitChecker limits;
     private final Clock clock;
 
     @Autowired
-    public OvertimeApprovalHandler(OvertimeRequestRepository requests, OvertimeLimitChecker limits) {
-        this(requests, limits, Clock.system(ZoneId.of("Asia/Seoul")));
+    public OvertimeApprovalHandler(OvertimeRequestRepository requests, EmployeeRepository employees,
+            OvertimeLimitChecker limits) {
+        this(requests, employees, limits, Clock.system(ZoneId.of("Asia/Seoul")));
     }
 
-    OvertimeApprovalHandler(OvertimeRequestRepository requests, OvertimeLimitChecker limits, Clock clock) {
+    OvertimeApprovalHandler(OvertimeRequestRepository requests, EmployeeRepository employees,
+            OvertimeLimitChecker limits, Clock clock) {
         this.requests = requests;
+        this.employees = employees;
         this.limits = limits;
         this.clock = clock;
     }
@@ -42,8 +48,18 @@ public class OvertimeApprovalHandler implements ApprovalCompletionHandler {
     }
 
     @Override
+    public RequestView requestDetail(long requestRef) {
+        OvertimeRequest r = requests.findById(requestRef)
+                .orElseThrow(() -> new IllegalStateException("연장·휴일근로 신청이 없어요: " + requestRef));
+        return view(r);
+    }
+
+    @Override
     public void onApproved(long requestRef) {
         OvertimeRequest r = lock(requestRef);
+        // 같은 사원의 최종 승인들을 공통 사원 행 잠금으로 직렬화한 뒤 승인 합계를 조회한다.
+        employees.findForUpdate(r.getEmpId())
+                .orElseThrow(() -> new IllegalStateException("사원이 없어요: " + r.getEmpId()));
         limits.check(r);
         r.decide(OvertimeRequest.Status.APPROVED, LocalDateTime.now(clock));
     }
@@ -61,5 +77,11 @@ public class OvertimeApprovalHandler implements ApprovalCompletionHandler {
     private OvertimeRequest lock(long id) {
         return requests.findForUpdate(id)
                 .orElseThrow(() -> new IllegalStateException("연장·휴일근로 신청이 없어요: " + id));
+    }
+
+    private static RequestView view(OvertimeRequest r) {
+        return new RequestView(r.getRequestId(), r.getEmpId(), r.getWorkKind(), r.getWorkDate(), r.getStartAt(),
+                r.getEndAt(), r.getBreakMinutes(), r.getPlannedMinutes(), r.getReason(), r.getStatus(),
+                r.getRequestedAt(), r.getDecidedAt(), null);
     }
 }

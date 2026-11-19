@@ -85,6 +85,7 @@ export interface LogView {
 
 export interface DocDetail {
   summary: DocSummary;
+  requestDetail: OvertimeRequestView | null;
   steps: StepView[];
   history: LogView[];
   canAct: boolean;
@@ -205,6 +206,7 @@ export function createMockApis(me: PersonView = { empId: 1, name: '데모 사원
           title: `${WORK_KIND_LABEL[r.workKind]} ${r.workDate} ${hm(r.plannedMinutes)}`, requester: me, status: 'IN_PROGRESS',
           currentStepNo: 1, stepCount: 1, submittedAt: at, completedAt: null,
         },
+        requestDetail: structuredClone(r),
         steps: [{ stepNo: 1, approverKind: 'DEPT_HEAD', approverRef: null, status: 'WAITING', approvers: [me], actedBy: null, actedAt: null, comment: null }],
         history: [{ actionId: seq++, stepNo: null, action: 'SUBMIT', actor: me, actedAt: at, comment: null }],
         canAct: true, canWithdraw: true,

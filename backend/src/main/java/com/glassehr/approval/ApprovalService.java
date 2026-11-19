@@ -271,7 +271,9 @@ public class ApprovalService {
         boolean canWithdraw = me != null && d.getStatus() == ApprovalDoc.Status.IN_PROGRESS
                 && d.getRequesterEmpId().equals(me)
                 && d.getSteps().stream().noneMatch(s -> s.getStepStatus() == ApprovalDocStep.Status.APPROVED);
-        return new DocDetail(summary(d, names), steps, logViews, canAct, canWithdraw);
+        ApprovalCompletionHandler h = handlers.get(d.getRequestType());
+        Object requestDetail = h == null ? null : h.requestDetail(d.getRequestRef());
+        return new DocDetail(summary(d, names), requestDetail, steps, logViews, canAct, canWithdraw);
     }
 
     private Map<Long, String> names(Collection<Long> ids) {

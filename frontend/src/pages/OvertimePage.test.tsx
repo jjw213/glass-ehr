@@ -123,6 +123,9 @@ describe('신청 화면과 결재함', () => {
   it('결재할 문서를 열어 승인하면 단계와 이력이 바뀌고 신청이 승인된다', async () => {
     const apis = await inboxWithOneDoc();
     expect(modal().textContent).toContain('1단계');
+    expect(modal().textContent).toContain('신청 내용');
+    expect(modal().textContent).toContain('마감');
+    expect(modal().textContent).toContain('휴게 시간');
     await act(async () => { byText(modal(), 'button', '승인').click(); });
     await flush();
     expect(modal().textContent).toContain('승인');

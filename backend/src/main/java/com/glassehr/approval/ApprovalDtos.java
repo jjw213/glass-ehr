@@ -62,7 +62,7 @@ public final class ApprovalDtos {
     }
 
     /** 상세. 내가 지금 처리·회수할 수 있는지도 알려 준다. */
-    public record DocDetail(DocSummary summary, List<StepView> steps, List<LogView> history, boolean canAct,
-            boolean canWithdraw) {
+    public record DocDetail(DocSummary summary, Object requestDetail, List<StepView> steps, List<LogView> history,
+            boolean canAct, boolean canWithdraw) {
     }
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { LuRefreshCw } from 'react-icons/lu';
 import { Badge, Card, CardHead, Modal, PageHead, Segmented } from '../components/ui';
 import {
-  ACTION_LABEL, approvalApi, BOX_LABEL, shortDateTime, STATUS_LABEL, STATUS_TONE, STEP_LABEL,
+  ACTION_LABEL, approvalApi, BOX_LABEL, hm, shortDateTime, STATUS_LABEL, STATUS_TONE, STEP_LABEL, WORK_KIND_LABEL,
   type ApprovalApi, type Box, type DocDetail, type DocSummary,
 } from '../api/overtime';
 
@@ -106,6 +106,17 @@ function DocModal({ api, approvalId, onClose, onChanged }: { api: ApprovalApi; a
         <div className="approval-doc">
           <p className="muted">{doc.summary.requestTypeLabel} · {doc.summary.requester.name} · 상신 {shortDateTime(doc.summary.submittedAt)}{' '}
             <Badge tone={STATUS_TONE[doc.summary.status]}>{STATUS_LABEL[doc.summary.status]}</Badge></p>
+          {doc.requestDetail && (
+            <section aria-label="신청 내용">
+              <h4>신청 내용</h4>
+              <dl>
+                <dt>근로 구분</dt><dd>{WORK_KIND_LABEL[doc.requestDetail.workKind]}</dd>
+                <dt>예정 시간</dt><dd>{shortDateTime(doc.requestDetail.startAt)}–{shortDateTime(doc.requestDetail.endAt)} ({hm(doc.requestDetail.plannedMinutes)})</dd>
+                <dt>휴게 시간</dt><dd>{hm(doc.requestDetail.breakMinutes)}</dd>
+                <dt>신청 사유</dt><dd>{doc.requestDetail.reason}</dd>
+              </dl>
+            </section>
+          )}
           <h4>결재선</h4>
           <ol className="approval-steps">
             {doc.steps.map((s) => (
