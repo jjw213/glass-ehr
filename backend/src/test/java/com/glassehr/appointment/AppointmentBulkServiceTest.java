@@ -16,6 +16,7 @@ import com.glassehr.appointment.AppointmentDtos.BulkAppointmentRequest;
 import com.glassehr.appointment.AppointmentDtos.BulkAppointmentResult;
 import com.glassehr.appointment.AppointmentDtos.BulkItemResult;
 import com.glassehr.appointment.HrAppointment.Snapshot;
+import com.glassehr.org.OrgWriteLock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,6 +35,7 @@ class AppointmentBulkServiceTest {
 
     private AppointmentService service;
     private PlatformTransactionManager tm;
+    private OrgWriteLock orgLock;
     private AppointmentBulkService bulk;
 
     private static AppointmentView view(long apptId, long empId, boolean confirmed) {
@@ -46,9 +48,10 @@ class AppointmentBulkServiceTest {
     @BeforeEach
     void setUp() {
         service = mock(AppointmentService.class);
+        orgLock = mock(OrgWriteLock.class);
         tm = mock(PlatformTransactionManager.class);
         when(tm.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
-        bulk = new AppointmentBulkService(service, tm);
+        bulk = new AppointmentBulkService(service, orgLock, tm);
     }
 
     @Test
@@ -74,6 +77,9 @@ class AppointmentBulkServiceTest {
                 d -> d.getPropagationBehavior() == TransactionDefinition.PROPAGATION_REQUIRES_NEW));
         verify(tm, times(2)).commit(any());
         verify(tm, times(1)).rollback(any());
+        org.mockito.InOrder lockOrder = org.mockito.Mockito.inOrder(orgLock, service);
+        lockOrder.verify(orgLock).acquire();
+        lockOrder.verify(service).create(1L, REQ);
     }
 
     @Test
@@ -87,6 +93,7 @@ class AppointmentBulkServiceTest {
         assertThat(r.items()).allMatch(i -> i.ok() && !i.appointment().confirmed());
         verify(service, times(1)).create(5L, REQ);
         verify(service, never()).confirm(anyLong());
+        verify(orgLock, never()).acquire();
     }
 
     @Test

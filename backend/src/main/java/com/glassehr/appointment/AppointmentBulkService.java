@@ -4,6 +4,7 @@ import com.glassehr.appointment.AppointmentDtos.AppointmentView;
 import com.glassehr.appointment.AppointmentDtos.BulkAppointmentRequest;
 import com.glassehr.appointment.AppointmentDtos.BulkAppointmentResult;
 import com.glassehr.appointment.AppointmentDtos.BulkItemResult;
+import com.glassehr.org.OrgWriteLock;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -26,10 +27,13 @@ public class AppointmentBulkService {
     private static final Logger log = LoggerFactory.getLogger(AppointmentBulkService.class);
 
     private final AppointmentService service;
+    private final OrgWriteLock orgLock;
     private final TransactionTemplate tx;
 
-    public AppointmentBulkService(AppointmentService service, PlatformTransactionManager txManager) {
+    public AppointmentBulkService(AppointmentService service, OrgWriteLock orgLock,
+            PlatformTransactionManager txManager) {
         this.service = service;
+        this.orgLock = orgLock;
         this.tx = new TransactionTemplate(txManager);
         this.tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -43,6 +47,10 @@ public class AppointmentBulkService {
             }
             try {
                 AppointmentView v = tx.execute(status -> {
+                    // 바로 확정할 때는 단건 확정과 같은 순서(조직 → 사원)로 잠가 교착을 피한다.
+                    if (req.confirm()) {
+                        orgLock.acquire();
+                    }
                     AppointmentView created = service.create(empId, req.appointment());
                     return req.confirm() ? service.confirm(created.apptId()) : created;
                 });
