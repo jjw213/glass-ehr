@@ -84,3 +84,4 @@
 
 - 2026-11-18: #29 이어서 — 최신 main(#87·#88) 병합, 마이그레이션 V023으로 이동. fixture `work-hours-cases.csv`(#88) 대조 `WorkHoursFixtureTest` 추가, 정답에 맞춰 휴일 판단을 근로개시일 기준으로, 반차일 1일 기준 차감, 법내 초과 `extra_minutes` 열 추가. 24건 중 `holiday_cross_midnight_to_workday` 1건은 fixture 야간분(420)이 휴게 차감 규칙과 맞지 않아(계산 360) 실패로 남기고 정정 요청.
 - 2026-11-18: #75 Spring 로그인 방식 결정 — 저장소 주인 답변(세션 쿠키: HttpOnly 쿠키 + Spring Session JDBC로 Oracle 저장)을 `docs/DECISIONS.md`와 `docs/auth-design.md` 7장에 기록했다. 문서만 변경, 코드·마이그레이션 없음. 실제 로그인 구현(세션 테이블·비밀번호 해시·CSRF·`X-Actor-Id` 제거)은 후속 이슈.
+- 2026-11-19: #29 이어서 — 최신 main(#89~#94) 병합(DECISIONS 충돌은 양쪽 행 유지). fixture 정정(#91, 야간 360) 반영으로 `WorkHoursFixtureTest` 전 사례 통과. 백엔드 716건 실패 0건(Oracle 47건 로컬 건너뜀, CI에서 확인 필요).

@@ -51,13 +51,13 @@
 
 ## 5. 법령 정답 대조
 
-`tests/legal-fixtures/work-hours-cases.csv`(PR #88, 사람 승인)를 `WorkHoursFixtureTest`가 시드 기준값으로 대조한다.
+`tests/legal-fixtures/work-hours-cases.csv`(PR #88·#91, 사람 승인)를 `WorkHoursFixtureTest`가 시드 기준값으로 대조한다.
 정답으로 확정된 해석: 근로개시일 기준 휴일 판단, 반차일 1일 기준 차감, 휴무일 근로는 휴일근로 아님(1주 기준 초과 시 연장),
-주휴일·공휴일·무급 회사휴일 근로는 휴일근로, 1주 누계에서 휴가·휴일근로 제외.
+주휴일·공휴일·무급 회사휴일 근로는 휴일근로, 1주 누계에서 휴가·휴일근로 제외, 야간근로에서 휴게시간 제외
+(#91에서 `holiday_cross_midnight_to_workday` 야간분을 360으로 정정).
 단시간근로자의 소정근로시간 초과분(기간제법 제6조)은 이 이슈 범위 밖.
 
 ## 6. 남은 일
 
-- fixture `holiday_cross_midnight_to_workday`의 기대 야간분 420은 같은 파일의 다른 사례(휴게를 야간에서 뺌)와 맞지 않는다(20:00~05:00, 휴게 00:00~01:00 → 야간 360). 법령 데이터 정정 요청 중.
 - 휴가 신청·결재 모듈이 `ApprovedLeaveProvider`를 구현.
 - 출퇴근 정정, 연장근로 사전 승인 반영, 제53조 한도 경고, 탄력·선택적 근로시간제는 별도 이슈.
