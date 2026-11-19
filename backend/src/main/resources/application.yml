@@ -61,3 +61,7 @@ glassehr:
   agreement:
     expiry-alert-days: ${AGREEMENT_EXPIRY_ALERT_DAYS:30}
     max-file-bytes: ${AGREEMENT_MAX_FILE_BYTES:10485760}
+  # 주 52시간 모니터링(#31) 경고 기준: 주간 한도(legal_rate 제50조 제1항 + 제53조 제1항)까지 남은 분이 이 값 이하이면
+  # 본인·부서장 화면에 '한도 근접'으로 강조한다. 법정 수치가 아니라 회사 운영 설정이다(기본 240분 = 4시간).
+  attendance:
+    weekly-hours-warn-remain-minutes: ${WEEKLY_HOURS_WARN_REMAIN_MINUTES:240}
