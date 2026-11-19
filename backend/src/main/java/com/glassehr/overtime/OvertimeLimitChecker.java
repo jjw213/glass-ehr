@@ -13,18 +13,25 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 /**
- * 승인 시점 1주 연장근로 한도 검사(#30).
- * <p>근로기준법 제53조 제1항: 당사자 합의 시 1주 12시간을 한도로 제50조의 근로시간을 연장할 수 있다.
- * 한도는 legal_rate {@code WEEKLY_OVERTIME_LIMIT_HOURS}(근무일 기준 적용값)에서 읽는다. 값이 없으면 승인하지 않는다(409).
- * <p>1주는 근로기준법 제2조 제1항 제7호(휴일을 포함한 7일)에 따라 집계 엔진(#29)과 같은 월~일로 본다.
- * 합계 = 날마다 max(실적 연장분, 이미 승인된 연장 신청 + 이번 신청의 예정분)의 주 합.
- * 실적은 attendance_daily_summary.overtime_minutes(1일·1주 기준 초과, 휴일근로 제외)를 쓴다.
- * 휴일근로(HOLIDAY 신청·holiday_minutes)를 한도 합계에 넣을지는 법령 정답 fixture로 확정하기 전까지 넣지 않는다
- * (docs/overtime-request-design.md §4 미확정).
+ * 승인 시점 1주 연장근로 한도 검사(#30). 정답: tests/legal-fixtures/weekly-overtime-limit.csv(PR #97, 사람 승인).
+ * <ul>
+ *   <li>근로기준법 제53조 제1항: 당사자 합의 시 1주 12시간을 한도로 연장. 한도는 legal_rate
+ *       {@code WEEKLY_OVERTIME_LIMIT_HOURS}(근로일 기준 적용값).</li>
+ *   <li>근로기준법 제2조 제1항 제7호: 1주는 휴일을 포함한 7일. 집계 엔진(#29)과 같은 월~일.</li>
+ *   <li>한도 판정용 연장근로 = 1주 실근로시간 중 제50조 제1항의 1주 기준(legal_rate
+ *       {@code WEEKLY_STANDARD_WORK_HOURS})을 넘은 시간. 휴일근로도 소정근로일과 구분 없이 포함한다
+ *       (대법원 2020도15393을 반영한 고용노동부 2024-01-22 변경 행정해석). 1일 8시간 초과분만으로는 늘지 않는다.</li>
+ *   <li>1주 실근로 = 날마다 (실적이 있으면 실적 실근로분, 없으면 승인된 신청 예정분) 합 + 이번 신청 예정분.
+ *       같은 날 실적이 승인 예정분을 대체해 두 번 세지 않는다.</li>
+ *   <li>근로일이 {@code WEEKLY_OVERTIME_LIMIT_HOURS}의 첫 적용시작일보다 앞서면(30~49명 사업장은
+ *       법률 제15513호 부칙 제1조 제2항 제3호에 따라 2021-07-01 전) 이 한도를 적용하지 않는다.
+ *       그 뒤인데 기준값이 없으면 승인하지 않는다(409).</li>
+ * </ul>
  */
 @Component
 public class OvertimeLimitChecker {
@@ -42,62 +49,87 @@ public class OvertimeLimitChecker {
         this.requests = requests;
     }
 
-    /** 검사 결과(분). */
-    public record Result(LocalDate weekStart, int limitMinutes, int totalMinutes) {
+    /**
+     * 검사 결과(분). {@code limitMinutes}가 null이면 근로일에 한도가 아직 시행되지 않아 적용하지 않은 것이다.
+     * {@code overtimeMinutes}는 1주 실근로 합계에서 1주 기준근로시간을 뺀 값(최솟값 0).
+     */
+    public record Result(LocalDate weekStart, Integer limitMinutes, int weeklyWorkedMinutes, int overtimeMinutes) {
         public boolean exceeded() {
-            return totalMinutes > limitMinutes;
+            return limitMinutes != null && overtimeMinutes > limitMinutes;
         }
     }
 
     /** 승인 직전에 부른다. 한도를 넘으면 422, 기준값이 없으면 409를 던져 승인 트랜잭션을 되돌린다. */
     public Result check(OvertimeRequest target) {
-        if (target.getWorkKind() != OvertimeRequest.Kind.OVERTIME) {
-            // 휴일근로의 한도 합산 여부는 fixture 확정 전(설계 §4). 한도 검사 없이 승인한다.
-            return null;
-        }
-        LocalDate monday = target.getWorkDate().with(DayOfWeek.MONDAY);
+        LocalDate workDate = target.getWorkDate();
+        LocalDate monday = workDate.with(DayOfWeek.MONDAY);
         LocalDate sunday = monday.plusDays(6);
-        int limit = limitMinutes(target.getWorkDate());
+        Integer limit = limitMinutes(workDate);
+        int standard = hoursAsMinutes(LegalRateItem.WEEKLY_STANDARD_WORK_HOURS, workDate);
+
         Map<LocalDate, Integer> actual = new HashMap<>();
         for (DailyWorkSummaryRow r : summaries.findRange(target.getEmpId(), monday, sunday)) {
-            actual.merge(r.workDate(), r.overtimeMinutes() == null ? 0 : r.overtimeMinutes(), Integer::sum);
+            if (r.workedMinutes() != null && r.workedMinutes() > 0) {
+                actual.merge(r.workDate(), r.workedMinutes(), Integer::sum);
+            }
         }
         Map<LocalDate, Integer> planned = new HashMap<>();
         List<OvertimeRequest> approved = requests.findByEmpIdAndWorkDateBetweenAndStatusIn(target.getEmpId(),
                 monday, sunday, List.of(OvertimeRequest.Status.APPROVED));
         for (OvertimeRequest r : approved) {
-            if (r.getWorkKind() == OvertimeRequest.Kind.OVERTIME && !r.getRequestId().equals(target.getRequestId())) {
+            if (!r.getRequestId().equals(target.getRequestId())) {
                 planned.merge(r.getWorkDate(), r.getPlannedMinutes(), Integer::sum);
             }
         }
-        planned.merge(target.getWorkDate(), target.getPlannedMinutes(), Integer::sum);
-        Result result = new Result(monday, limit, weekTotal(monday, actual, planned));
+        int worked = weekWorked(monday, actual, planned) + target.getPlannedMinutes();
+        Result result = new Result(monday, limit, worked, Math.max(0, worked - standard));
         if (result.exceeded()) {
             throw new ApprovalException(HttpStatus.UNPROCESSABLE_ENTITY, "승인하면 " + monday + " 주의 연장근로가 "
-                    + hm(result.totalMinutes()) + "로 1주 한도 " + hm(limit)
-                    + "를 넘어요(근로기준법 제53조 제1항). 신청을 반려하거나 시간을 줄여 다시 신청해 주세요");
+                    + hm(result.overtimeMinutes()) + "로 1주 한도 " + hm(limit)
+                    + "를 넘어요(근로기준법 제53조 제1항, 휴일근로 포함). 신청을 반려하거나 시간을 줄여 다시 신청해 주세요");
         }
         return result;
     }
 
-    /** 날마다 실적과 예정 중 큰 값을 더한다(같은 근로를 두 번 세지 않음). */
-    static int weekTotal(LocalDate monday, Map<LocalDate, Integer> actual, Map<LocalDate, Integer> planned) {
+    /** 날마다 실적이 있으면 실적, 없으면 승인 예정분을 더한다(같은 근로를 두 번 세지 않음). 주 밖의 날은 무시. */
+    static int weekWorked(LocalDate monday, Map<LocalDate, Integer> actual, Map<LocalDate, Integer> planned) {
         int total = 0;
         for (int i = 0; i < 7; i++) {
             LocalDate d = monday.plusDays(i);
-            total += Math.max(actual.getOrDefault(d, 0), planned.getOrDefault(d, 0));
+            Integer a = actual.get(d);
+            total += a != null ? a : planned.getOrDefault(d, 0);
         }
         return total;
     }
 
-    private int limitMinutes(LocalDate date) {
-        LegalRateRow row;
+    /** 한도(분). 첫 적용시작일 전이면 null(미시행), 그 뒤 누락이면 409. */
+    private Integer limitMinutes(LocalDate date) {
+        String code = LegalRateItem.WEEKLY_OVERTIME_LIMIT_HOURS.code();
         try {
-            row = legalRates.getEffective(LegalRateItem.WEEKLY_OVERTIME_LIMIT_HOURS, date);
+            return toMinutes(legalRates.getEffective(LegalRateItem.WEEKLY_OVERTIME_LIMIT_HOURS, date));
         } catch (LegalRateException e) {
-            throw new ApprovalException(HttpStatus.CONFLICT, "1주 연장근로 한도 기준값(WEEKLY_OVERTIME_LIMIT_HOURS, "
-                    + date + " 기준)을 찾을 수 없어 승인할 수 없어요. 관리자에게 법령 기준값 등록을 요청해 주세요");
+            Optional<LocalDate> first = legalRates.firstEffectiveFrom(code);
+            if (first.isPresent() && date.isBefore(first.get())) {
+                return null;
+            }
+            throw missing(code, date);
         }
+    }
+
+    private int hoursAsMinutes(LegalRateItem item, LocalDate date) {
+        try {
+            return toMinutes(legalRates.getEffective(item, date));
+        } catch (LegalRateException e) {
+            throw missing(item.code(), date);
+        }
+    }
+
+    private static ApprovalException missing(String code, LocalDate date) {
+        return new ApprovalException(HttpStatus.CONFLICT, "1주 연장근로 한도 검사에 필요한 기준값(" + code + ", "
+                + date + " 기준)을 찾을 수 없어 승인할 수 없어요. 관리자에게 법령 기준값 등록을 요청해 주세요");
+    }
+
+    private static int toMinutes(LegalRateRow row) {
         try {
             int n = row.rateValue().multiply(MINUTES_PER_HOUR).intValueExact();
             if (n <= 0) {
@@ -105,7 +137,8 @@ public class OvertimeLimitChecker {
             }
             return n;
         } catch (ArithmeticException e) {
-            throw new IllegalStateException("1주 연장근로 한도를 분 정수로 바꿀 수 없어요: " + row.effectiveFrom());
+            throw new IllegalStateException("기준값을 분 정수로 바꿀 수 없어요: " + row.itemCode() + " "
+                    + row.effectiveFrom());
         }
     }
 

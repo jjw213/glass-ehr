@@ -18,6 +18,8 @@ import { HolidaysPage } from '../../pages/HolidaysPage';
 import { AgreementsPage } from '../../pages/AgreementsPage';
 import { RetirementsPage } from '../../pages/RetirementsPage';
 import { AppointmentsPage } from '../../pages/AppointmentsPage';
+import { OvertimePage } from '../../pages/OvertimePage';
+import { ApprovalInboxPage } from '../../pages/ApprovalInboxPage';
 import { useEffect, useState, type JSX } from 'react';
 
 const PAGES: Record<PageId, () => JSX.Element> = {
@@ -36,6 +38,8 @@ const PAGES: Record<PageId, () => JSX.Element> = {
   retirements: RetirementsPage,
   appointments: AppointmentsPage,
   privacyLogs: PrivacyLogsPage,
+  overtime: OvertimePage,
+  approvalInbox: ApprovalInboxPage,
 };
 
 /** Desktop: top pill bar + floating dock (video 2). Mobile: glass sidebar (video 3). */
