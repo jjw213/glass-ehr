@@ -46,6 +46,16 @@
       <artifactId>mybatis-spring-boot-starter</artifactId>
       <version>${mybatis-spring-boot.version}</version>
     </dependency>
+    <!-- 로그인 세션(#75 결정: HttpOnly 쿠키 + Spring Session JDBC로 Oracle 저장, docs/auth-design.md 7장) -->
+    <dependency>
+      <groupId>org.springframework.session</groupId>
+      <artifactId>spring-session-jdbc</artifactId>
+    </dependency>
+    <!-- 비밀번호 해시(BCrypt)만 쓴다. Spring Security 필터 체인은 넣지 않는다(권한 검사는 AuthInterceptor). -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-crypto</artifactId>
+    </dependency>
     <dependency>
       <groupId>com.oracle.database.jdbc</groupId>
       <artifactId>ojdbc11</artifactId>
@@ -73,6 +83,10 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <argLine>-Duser.timezone=${test.timezone}</argLine>
+          <!-- 테스트는 모두 test 프로필로 돈다. X-Actor-Id 헤더 식별은 test 프로필에서만 받는다(#76, docs/auth-design.md 7장). -->
+          <systemPropertyVariables>
+            <spring.profiles.active>test</spring.profiles.active>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
     </plugins>
