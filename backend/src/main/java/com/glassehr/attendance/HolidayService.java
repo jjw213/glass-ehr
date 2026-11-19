@@ -93,6 +93,15 @@ public class HolidayService {
         return rows.stream().anyMatch(h -> !replaced.contains(h.getHolidayId()));
     }
 
+    /** [from, to) 기간에서 {@link #isHoliday(LocalDate)}가 참인 날짜들. 근로시간 집계(#29)가 쓴다. */
+    @Transactional(readOnly = true)
+    public Set<LocalDate> holidayDates(LocalDate from, LocalDate to) {
+        List<Holiday> rows = holidays.findInRange(from, to);
+        Set<Long> replaced = replacedIds(rows);
+        return rows.stream().filter(h -> !replaced.contains(h.getHolidayId()))
+                .map(Holiday::getHolidayDate).collect(Collectors.toSet());
+    }
+
     private Set<Long> replacedIds(List<Holiday> rows) {
         List<Long> ids = rows.stream().filter(h -> h.getKind().isStatutory()).map(Holiday::getHolidayId).toList();
         if (ids.isEmpty()) {

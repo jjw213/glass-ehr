@@ -12,5 +12,4 @@ public interface AttendancePunchRepository extends Repository<AttendancePunch, L
 
     AttendancePunch save(AttendancePunch punch);
 
-    List<AttendancePunch> findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(Long empId, LocalDate workDate);
-}
+    List<AttendancePunch> findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(Long empId, LocalDate workDate);}
