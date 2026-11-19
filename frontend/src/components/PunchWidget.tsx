@@ -8,7 +8,7 @@ import { elapsedMinutes, formatElapsed, punchApi as defaultApi, seoulTime, type 
  * 기록 시각은 서버 시각이다. 경과 시간은 조회 때 받은 serverNow 로 단말 시계 차이를 보정해 센다.
  * 중복 출근·출근 없는 퇴근도 서버가 저장하고 안내 문구(checkMessage)를 돌려주므로 그대로 보여 준다.
  */
-export function PunchWidget({ api = defaultApi, now = Date.now, i = 0 }: { api?: PunchApi; now?: () => number; i?: number }) {
+export function PunchWidget({ api = defaultApi, now = Date.now, i = 0, onPunched }: { api?: PunchApi; now?: () => number; i?: number; onPunched?: () => void }) {
   const [today, setToday] = useState<PunchToday | null>(null);
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +53,7 @@ export function PunchWidget({ api = defaultApi, now = Date.now, i = 0 }: { api?:
       if (!alive.current) return;
       setNotice(p.checkMessage ?? `${type === 'IN' ? '출근' : '퇴근'} ${seoulTime(p.punchedAt)} 기록했어요`);
       await load();
+      if (alive.current) onPunched?.();
     } catch (e) {
       if (alive.current) setError(e instanceof Error ? e.message : '기록하지 못했어요');
     } finally {
