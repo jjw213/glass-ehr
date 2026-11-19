@@ -191,6 +191,10 @@ class FamilyLeaveBalanceFixtureTest {
             AssignRequest a = i.getArgument(1);
             return assignment(a.patternId(), a.validFrom());
         });
+        when(workPatterns.replaceLatest(eq(1L), anyLong(), any())).thenAnswer(i -> {
+            AssignRequest a = i.getArgument(2);
+            return assignment(a.patternId(), a.validFrom());
+        });
 
         AppointmentService appointments = mock(AppointmentService.class);
         when(appointments.create(eq(1L), any())).thenAnswer(i -> appt(refIds.getAndIncrement(), i.getArgument(1)));

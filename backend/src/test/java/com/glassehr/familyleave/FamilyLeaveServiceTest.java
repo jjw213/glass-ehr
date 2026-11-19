@@ -264,6 +264,19 @@ class FamilyLeaveServiceTest {
         assertStatus(t, HttpStatus.CONFLICT);
     }
 
+    @Test
+    void 이미_가산_기간을_단축에_쓴_뒤에는_그_기간을_육아휴직으로_다시_쓸_수_없다() {
+        patternsForReduced(20);
+        LocalDate reducedEnd = START.plusMonths(12).minusDays(1);
+        service.approve(service.create(1L, reduced(START, reducedEnd, 10L), "hr1").reqId(), "hr1");
+
+        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+                parental("첫째", null, reducedEnd.plusDays(1), reducedEnd.plusMonths(10)), "hr1"));
+
+        assertStatus(t, HttpStatus.CONFLICT);
+        assertThat(t).hasMessageContaining("이미 쓴 단축 기간");
+    }
+
     // ---------------------------------------------------------------- 승인 → 발령
 
     @Test
@@ -338,6 +351,10 @@ class FamilyLeaveServiceTest {
             return new AssignmentView(assignIds.getAndIncrement(), 1, r.patternId(), "P", "P", r.validFrom(), null,
                     r.reason());
         });
+        when(workPatterns.replaceLatest(eq(1L), anyLong(), any())).thenAnswer(i -> {
+            AssignRequest r = i.getArgument(2);
+            return new AssignmentView(51, 1, r.patternId(), "P", "P", r.validFrom(), null, r.reason());
+        });
     }
 
     @Test
@@ -356,6 +373,19 @@ class FamilyLeaveServiceTest {
         assertThat(v.reducedAssignId()).isEqualTo(50L);
         assertThat(v.restoreAssignId()).isEqualTo(51L);
         verify(appointments, never()).create(anyLong(), any());
+    }
+
+    @Test
+    void 직전_단축의_복원일에_이어지는_단축은_복원_배정을_바꾼다() {
+        patternsForReduced(20);
+        LocalDate firstEnd = START.plusMonths(2).minusDays(1);
+        service.approve(service.create(1L, reduced(START, firstEnd, 10L), "hr1").reqId(), "hr1");
+        LocalDate secondEnd = firstEnd.plusMonths(2);
+
+        service.approve(service.create(1L, reduced(firstEnd.plusDays(1), secondEnd, 10L), "hr1").reqId(), "hr1");
+
+        verify(workPatterns).replaceLatest(eq(1L), eq(51L),
+                org.mockito.ArgumentMatchers.argThat(r -> r.validFrom().equals(firstEnd.plusDays(1))));
     }
 
     @Test
@@ -454,6 +484,21 @@ class FamilyLeaveServiceTest {
         // 발령 취소로 이력에 없음
         when(appointments.leavePeriods(eq(1L), any(), any())).thenReturn(List.of());
         assertThat(service.balance(1L, START).children().get(0).parentalLeave().usedMonths()).isZero();
+    }
+
+    @Test
+    void 조기_복직_뒤_기간과_취소된_휴직은_겹침에서_제외한다() {
+        patternsForReduced(20);
+        approvedLeave(parental("첫째", null, START, START.plusMonths(6).minusDays(1)));
+        FamilyLeaveRequest r = store.get(0);
+        when(appointments.leavePeriods(eq(1L), any(), any())).thenReturn(List.of(new LeavePeriodView(1,
+                r.getLeaveApptId(), START, r.getEndDate(), START.plusMonths(3).minusDays(1), 999L, "조기 복직")));
+
+        service.create(1L, reduced(START.plusMonths(4), START.plusMonths(6).minusDays(1), 10L), "hr1");
+
+        store.remove(1);
+        when(appointments.leavePeriods(eq(1L), any(), any())).thenReturn(List.of());
+        service.create(1L, care(START.plusMonths(1), START.plusMonths(2).minusDays(1)), "hr1");
     }
 
     @Test

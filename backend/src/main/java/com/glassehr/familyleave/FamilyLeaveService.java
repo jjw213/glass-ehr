@@ -158,8 +158,15 @@ public class FamilyLeaveService {
         } else {
             // 법 제19조의2·제19조의3: 단축 기간만 단축 근무유형을 쓰고, 끝나면 원래 근무유형으로 돌아간다.
             AssignmentView before = currentPattern(empId, d.startDate());
-            AssignmentView reduced = workPatterns.assign(empId,
-                    new AssignRequest(d.workPatternId(), d.startDate(), label + " 시작"), actor);
+            Optional<FamilyLeaveRequest> contiguous = approved(empId, reqId).stream()
+                    .filter(o -> o.getKind() == Kind.CHILDCARE_REDUCED_HOURS
+                            && o.getEndDate().plusDays(1).equals(d.startDate()) && o.getRestoreAssignId() != null)
+                    .findFirst();
+            AssignmentView reduced = contiguous.isPresent()
+                    ? workPatterns.replaceLatest(empId, contiguous.get().getRestoreAssignId(),
+                            new AssignRequest(d.workPatternId(), d.startDate(), label + " 시작"))
+                    : workPatterns.assign(empId,
+                            new AssignRequest(d.workPatternId(), d.startDate(), label + " 시작"), actor);
             AssignmentView restore = workPatterns.assign(empId,
                     new AssignRequest(before.patternId(), next, label + " 종료, 원래 근무유형"), actor);
             r.approveReduced(reduced.assignId(), restore.assignId(), actor, now());
@@ -280,10 +287,14 @@ public class FamilyLeaveService {
         }
         for (FamilyLeaveRequest o : requests.findByEmpIdOrderByStartDateAscReqIdAsc(e.getEmpId())) {
             boolean active = o.getStatus() == Status.REQUESTED || o.getStatus() == Status.APPROVED;
-            if (active && !o.getReqId().equals(excludeId)
-                    && !o.getStartDate().isAfter(d.endDate()) && !o.getEndDate().isBefore(d.startDate())) {
+            if (!active || o.getReqId().equals(excludeId)) {
+                continue;
+            }
+            Optional<LeavePeriodView> period = overlapPeriod(o);
+            if (period.isPresent()
+                    && !period.get().startDate().isAfter(d.endDate()) && !period.get().endDate().isBefore(d.startDate())) {
                 throw FamilyLeaveException.conflict("기간이 겹치는 " + o.getKind().label() + " 신청(" + o.getReqId()
-                        + ", " + o.getStartDate() + "~" + o.getEndDate() + ")이 있어요");
+                        + ", " + period.get().startDate() + "~" + period.get().endDate() + ")이 있어요");
             }
         }
         List<FamilyLeaveRequest> approved = approved(e.getEmpId(), excludeId);
@@ -311,6 +322,13 @@ public class FamilyLeaveService {
         if (total.exceeds(limit)) {
             throw FamilyLeaveException.conflict("같은 자녀의 육아휴직이 " + limit + "개월을 넘어요(법 제19조 제2항). 합계 "
                     + total.months() + "개월 " + total.days() + "일");
+        }
+        // 법 제19조의2 제4항: 육아휴직 사용으로 미사용 기간 가산분이 줄어도 이미 쓴 단축 기간이 새 한도를 넘을 수 없다.
+        MonthsDays reduced = sum(usedPeriods(approved, Kind.CHILDCARE_REDUCED_HOURS, d.childLabel()));
+        int reducedLimit = reducedLimit(total, on, null).orElseThrow(() -> missing("육아기 근로시간 단축 기간"));
+        if (reduced.exceeds(reducedLimit)) {
+            throw FamilyLeaveException.conflict("육아휴직 사용 후 같은 자녀의 육아기 근로시간 단축 한도 " + reducedLimit
+                    + "개월보다 이미 쓴 단축 기간이 길어요(법 제19조의2 제4항)");
         }
     }
 
@@ -445,6 +463,14 @@ public class FamilyLeaveService {
         return appointments.leavePeriods(r.getEmpId(), r.getStartDate(), r.getEndDate()).stream()
                 .filter(p -> r.getLeaveApptId() != null && p.leaveApptId() == r.getLeaveApptId())
                 .findFirst();
+    }
+
+    private Optional<LeavePeriodView> overlapPeriod(FamilyLeaveRequest r) {
+        if (r.getStatus() == Status.APPROVED && r.getKind().isLeaveOfAbsence()) {
+            return actualLeave(r);
+        }
+        return Optional.of(new LeavePeriodView(r.getEmpId(), 0, r.getStartDate(), r.getEndDate(), r.getEndDate(),
+                null, null));
     }
 
     /** 법 제19조 제2항: 육아휴직 기간 + (추가 요건 확인 시) 추가 기간. */
