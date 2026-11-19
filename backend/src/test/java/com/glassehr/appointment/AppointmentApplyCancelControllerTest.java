@@ -40,6 +40,9 @@ class AppointmentApplyCancelControllerTest {
     @MockitoBean
     private AppointmentService service;
 
+    @MockitoBean
+    private AppointmentBulkService bulk;
+
     @Test
     void 취소_발령_등록은_201이고_원_발령을_돌려준다() throws Exception {
         AppointmentView v = new AppointmentView(9, "AP-2026-000009", "TRANSFER", 1, D,
