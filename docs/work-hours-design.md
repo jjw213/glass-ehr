@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 근로기준법 제50조 제1항 | 1주 근로시간(휴게 제외) — 넘으면 연장 | `WEEKLY_STANDARD_WORK_HOURS` |
 | 근로기준법 제50조 제2항 | 1일 근로시간(휴게 제외) — 넘으면 연장 | `DAILY_STANDARD_WORK_HOURS` |
-| 근로기준법 제53조 제1항 | 연장근로 제한(한도 검사는 이 이슈 범위 밖, 집계값을 제공) | `WEEKLY_OVERTIME_LIMIT_HOURS` (미사용) |
+| 근로기준법 제53조 제1항 | 연장근로 제한(한도 검사는 #31 `docs/weekly-hours-monitor-design.md`) | `WEEKLY_OVERTIME_LIMIT_HOURS` (#31에서 사용) |
 | 근로기준법 제54조 제1항 | 휴게시간은 근로시간 도중에 주며 실근로에서 뺀다 | — |
 | 근로기준법 제56조 제1항 | 연장근로 가산 | `OVERTIME_PREMIUM_RATE` |
 | 근로기준법 제56조 제2항 | 휴일근로 가산, 기준시간 이내(제1호)·초과(제2호) | `HOLIDAY_PREMIUM_THRESHOLD_HOURS`, `HOLIDAY_PREMIUM_RATE`, `HOLIDAY_EXCESS_PREMIUM_RATE` |
