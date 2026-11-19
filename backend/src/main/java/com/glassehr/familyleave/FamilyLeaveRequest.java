@@ -14,7 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * 육아휴직·육아기 근로시간 단축·가족돌봄휴직 신청 1건(#37). 테이블: V024 family_leave_request.
+ * 육아휴직·육아기 근로시간 단축·가족돌봄휴직 신청 1건(#37). 테이블: V026 family_leave_request.
  * 신청 내용은 고치지 않고 상태만 REQUESTED → APPROVED / REJECTED / CANCELLED 로 바꾼다.
  */
 @Entity

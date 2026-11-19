@@ -7,6 +7,7 @@ import {
   type Actor, type EmployeeApi, type EmployeeCreate, type EmployeeSummary, type EmployeeView, type EmpStatus, type FlatDept, type StatusFilter,
 } from '../api/employees';
 import { useCodes } from '../hooks/useCodes';
+import { appointmentApi, APPT_TYPE_LABEL, cancelLabel, type AppointmentApi, type AppointmentView, type Snapshot } from '../api/appointments';
 import { httpEmployeeImportApi, type EmployeeImportApi, type ImportConfirmed } from '../api/employeeImport';
 import { EmployeeExportButton, EmployeeImportDialog } from '../components/EmployeeImport';
 import { canExportEmployees, canRegisterEmployee, canRevealRrn, canViewPersonal, HIDDEN, shownPersonal, type ViewerRole } from '../lib/privacy';
@@ -45,8 +46,8 @@ function useNames(api: CodeApi) {
 type Names = ReturnType<typeof useNames>;
 
 /** 화면 본문. 스토어 없이 api·viewer·toast 만 받아서 테스트할 수 있다. today 는 Asia/Seoul 'YYYY-MM-DD'. */
-export function EmployeeDirectory({ api, codes, viewer, toast, today: todayProp, importApi = httpEmployeeImportApi }: {
-  api: EmployeeApi; codes: CodeApi; viewer: Viewer; toast: (text: string) => void; today?: string; importApi?: EmployeeImportApi;
+export function EmployeeDirectory({ api, codes, viewer, toast, today: todayProp, importApi = httpEmployeeImportApi, appointments = appointmentApi }: {
+  api: EmployeeApi; codes: CodeApi; viewer: Viewer; toast: (text: string) => void; today?: string; importApi?: EmployeeImportApi; appointments?: AppointmentApi;
 }) {
   const today = todayProp ?? seoulToday();
   const names = useNames(codes);
@@ -170,7 +171,7 @@ export function EmployeeDirectory({ api, codes, viewer, toast, today: todayProp,
       </Card>
 
       {sel !== null && (
-        <EmployeeCard key={sel} api={api} empId={sel} viewer={viewer} names={names} deptName={deptName} today={today} onClose={() => setSel(null)} />
+        <EmployeeCard key={sel} api={api} appointments={appointments} empId={sel} viewer={viewer} names={names} deptName={deptName} today={today} onClose={() => setSel(null)} />
       )}
 
       <Modal open={creating} onClose={() => setCreating(false)} title="신규 사원 등록">
@@ -190,8 +191,8 @@ const RRN_SHOW_MS = 30_000;
 
 const hm = (m: number | null) => (m === null ? '' : `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}`);
 
-function EmployeeCard({ api, empId, viewer, names, deptName, today, onClose }: {
-  api: EmployeeApi; empId: number; viewer: Viewer; names: Names; deptName: (id: number | null) => string; today: string; onClose: () => void;
+function EmployeeCard({ api, appointments, empId, viewer, names, deptName, today, onClose }: {
+  api: EmployeeApi; appointments: AppointmentApi; empId: number; viewer: Viewer; names: Names; deptName: (id: number | null) => string; today: string; onClose: () => void;
 }) {
   const [emp, setEmp] = useState<EmployeeView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -256,7 +257,7 @@ function EmployeeCard({ api, empId, viewer, names, deptName, today, onClose }: {
 
             <div role="tabpanel" aria-label={tab} className="emp-panel">
               {tab === '인적사항' && <PersonalTab emp={emp} viewer={viewer} names={names} rrnPlain={rrnPlain} rrnError={rrnError} revealing={revealing} onReveal={() => void reveal()} onHide={() => setRrnPlain(null)} />}
-              {tab === '발령 이력' && <AssignmentTab emp={emp} names={names} deptName={deptName} />}
+              {tab === '발령 이력' && <AssignmentTab emp={emp} names={names} deptName={deptName} appointments={appointments} />}
               {tab === '근로계약' && (personal ? <ContractTab emp={emp} names={names} /> : <Locked />)}
               {tab === '근태 요약' && (personal ? <AttendanceTab /> : <Locked />)}
             </div>
@@ -317,19 +318,50 @@ function PersonalTab({ emp, viewer, names, rrnPlain, rrnError, revealing, onReve
   );
 }
 
-function AssignmentTab({ emp, names, deptName }: { emp: EmployeeView; names: Names; deptName: (id: number | null) => string }) {
-  const rows: Array<{ date: string; kind: string; detail: string }> = [
-    { date: emp.hireDate, kind: '입사', detail: [deptName(emp.currentDeptId), names.grade.nameOf(emp.jobGradeCode), names.title.nameOf(emp.jobTitleCode)].filter(Boolean).join(' · ') },
-  ];
-  if (emp.retireDate) rows.push({ date: emp.retireDate, kind: '퇴직', detail: names.reason.nameOf(emp.retireReasonCode) });
+interface TimelineRow { key: string; date: string; kind: string; tone: 'blue' | 'amber' | 'neutral'; detail: string; state?: string }
+
+/**
+ * 발령 이력 탭(#60). 서버 발령 이력(GET /employees/{id}/appointments)을 발령일 역순으로 보인다.
+ * 일반 사원은 서버가 본인 것·확정분만 준다(다른 사람 것은 403). 발령 기능 전에 등록된 사원은 입사·퇴직 발령이 없을 수 있어
+ * 그때는 근로자 명부의 입사일·퇴직일로 그 줄을 채운다.
+ */
+function AssignmentTab({ emp, names, deptName, appointments }: { emp: EmployeeView; names: Names; deptName: (id: number | null) => string; appointments: AppointmentApi }) {
+  const [list, setList] = useState<AppointmentView[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    appointments.byEmployee(emp.empId).then((l) => { if (alive) setList(l); }, (e: unknown) => { if (alive) { setList([]); setError(errText(e, '발령 이력을 불러오지 못했어요')); } });
+    return () => { alive = false; };
+  }, [appointments, emp.empId]);
+
+  const describe = (s: Snapshot) => [deptName(s.deptId), names.grade.nameOf(s.jobGradeCode), names.title.nameOf(s.jobTitleCode)].filter(Boolean).join(' · ');
+  const rows: TimelineRow[] = (list ?? []).map((a) => ({
+    key: `a${a.apptId}`, date: a.effectiveDate,
+    kind: `${APPT_TYPE_LABEL[a.apptTypeCode] ?? a.apptTypeCode}${a.cancelOfApptId !== null ? ' 취소' : ''}`,
+    tone: a.cancelOfApptId !== null || a.apptTypeCode === 'RETIREMENT' ? 'amber' : 'blue',
+    detail: [a.apptTypeCode === 'LEAVE' && a.leaveStartDate ? `${a.leaveStartDate} ~ ${a.leaveEndDate ?? ''}` : describe(a.after), a.reason].filter(Boolean).join(' · '),
+    state: a.cancelledByApptId !== null ? cancelLabel(list ?? [], a.cancelledByApptId) : a.confirmed ? undefined : '미확정',
+  }));
+  if (list !== null && !list.some((a) => a.apptTypeCode === 'HIRE')) {
+    rows.push({ key: 'hire', date: emp.hireDate, kind: '입사', tone: 'blue', detail: [deptName(emp.currentDeptId), names.grade.nameOf(emp.jobGradeCode), names.title.nameOf(emp.jobTitleCode)].filter(Boolean).join(' · ') });
+  }
+  if (list !== null && emp.retireDate && !list.some((a) => a.apptTypeCode === 'RETIREMENT' && a.confirmed && a.cancelledByApptId === null)) {
+    rows.push({ key: 'retire', date: emp.retireDate, kind: '퇴직', tone: 'amber', detail: names.reason.nameOf(emp.retireReasonCode) });
+  }
+  // 발령일 역순, 같은 날은 나중에 등록된 것이 위
+  const shown = rows.map((r, i) => ({ r, i })).sort((x, y) => (x.r.date < y.r.date ? 1 : x.r.date > y.r.date ? -1 : y.i - x.i)).map((x) => x.r);
   return (
     <>
-      <ol className="emp-timeline">
-        {[...rows].reverse().map((r) => (
-          <li key={r.kind + r.date}><span className="num">{r.date}</span><Badge tone={r.kind === '퇴직' ? 'amber' : 'blue'}>{r.kind}</Badge><span>{r.detail}</span></li>
-        ))}
-      </ol>
-      <p className="muted sm emp-note">부서이동·승진·휴직·복직 이력은 인사발령 기능이 생기면 여기에 쌓여요. 부서명은 오늘 기준 조직명이에요.</p>
+      {error && <p className="badge badge--amber" role="alert">{error}</p>}
+      {list === null ? <p className="muted code-empty">불러오는 중…</p> : (
+        <ol className="emp-timeline">
+          {shown.map((r) => (
+            <li key={r.key}><span className="num">{r.date}</span><Badge tone={r.tone}>{r.kind}</Badge><span>{r.detail}{r.state && <> <Badge tone="neutral">{r.state}</Badge></>}</span></li>
+          ))}
+        </ol>
+      )}
+      <p className="muted sm emp-note">발령 이력은 인사발령에서 확정한 것부터 반영돼요. 부서명은 오늘 기준 조직명이에요.</p>
     </>
   );
 }

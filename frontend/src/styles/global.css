@@ -566,6 +566,23 @@ input[type='date'] { color-scheme: dark; }
 .punch-widget__actions { display: flex; gap: 8px; margin: 10px 0; }
 .punch-widget__actions .btn { flex: 1; }
 
+/* 주 52시간 위젯 (#31) */
+.gauge { position: relative; height: 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); overflow: hidden; margin: 8px 0 12px; }
+.gauge__fill { position: absolute; inset: 0 auto 0 0; width: var(--p); border-radius: inherit; background: #4ade80; transition: width 0.4s ease; }
+.gauge--near .gauge__fill { background: #fbbf24; }
+.gauge--over .gauge__fill { background: #f87171; }
+.weekly-hours__stats { display: flex; flex-wrap: wrap; gap: 18px; margin: 0 0 10px; }
+.weekly-hours__stats dd { margin: 2px 0 0; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.weekly-hours__warn { padding: 8px 12px; border-radius: 12px; }
+.weekly-hours__warn--near { background: rgba(251, 191, 36, 0.16); }
+.weekly-hours__warn--over { background: rgba(248, 113, 113, 0.2); font-weight: 600; }
+.weekly-hours__team { margin-top: 14px; }
+.weekly-hours__dept h4 { margin: 12px 0 6px; }
+.weekly-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.weekly-table th, .weekly-table td { padding: 8px 6px; text-align: left; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.weekly-table__row--near { background: rgba(251, 191, 36, 0.12); }
+.weekly-table__row--over { background: rgba(248, 113, 113, 0.16); font-weight: 600; }
+
 .bars { display: flex; align-items: flex-end; gap: clamp(8px, 2vw, 22px); height: 210px; padding-top: 26px; }
 .bars__col { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .bars__stack { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 5px; position: relative; }
@@ -820,6 +837,20 @@ select.input option { color: #1a1a1a; }
 .emp-locked { display: flex; align-items: center; gap: 8px; padding: 22px 4px; }
 .emp-form { max-height: 70vh; overflow-y: auto; padding-right: 4px; }
 
+/* 인사발령 (#60) — 목록 표는 emp-table 을 그대로 써서 모바일에서도 한 건당 카드 한 장 */
+.appt-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.appt-filters .input { width: auto; min-width: 130px; }
+.appt-filters .chips { margin: 0; }
+.appt-table tbody tr { cursor: default; }
+.appt-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.appt-pick { border: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.appt-pick__all { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.appt-pick__list { list-style: none; max-height: 220px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px 12px; padding: 4px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); }
+.appt-pick__list label { display: flex; align-items: center; gap: 6px; font-size: 13.5px; padding: 6px 4px; cursor: pointer; }
+.appt-result { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.appt-result__list { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
+.appt-result__list li { padding: 6px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+
 /* 조직도 (#13) — 글래스 카드 안의 세로 트리 */
 .org-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; align-items: start; }
 .org-layout--mobile { grid-template-columns: minmax(0, 1fr); gap: 12px; }
@@ -871,6 +902,13 @@ select.input option { color: #1a1a1a; }
   .grid--stats { grid-template-columns: 1fr 1fr; }
   .grid--home, .grid--att, .grid--pay, .grid--settings, .grid--people, .grid--codes { grid-template-columns: minmax(0, 1fr); }
   .code-table .hide-sm { display: none; }
+  /* 주 52시간 부서별 표는 모바일에서 사원당 카드 한 장(#31) */
+  .weekly-table thead { display: none; }
+  .weekly-table, .weekly-table tbody { display: block; }
+  .weekly-table tr { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 10px 6px; border-top: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; }
+  .weekly-table td { padding: 0; border: 0; }
+  .weekly-table td:first-child { flex-basis: 100%; }
+  .weekly-table td:not(:first-child)::before { content: attr(data-label) ' '; opacity: 0.6; font-size: 12px; }
   /* 사원 목록은 모바일에서 한 사람당 카드 한 장 */
   .emp-table thead { display: none; }
   .emp-table, .emp-table tbody { display: block; }
@@ -885,6 +923,10 @@ select.input option { color: #1a1a1a; }
   .emp-table .emp-table__status { order: 2; }
   .emp-table .emp-table__no, .emp-table .emp-table__dept, .emp-table .emp-table__grade { order: 3; font-size: 12.5px; color: var(--text-2); }
   .emp-filters { max-width: none; }
+  /* 인사발령: 필터는 한 줄에 하나, 처리 버튼은 카드 맨 아래 줄 */
+  .appt-filters > .input { flex: 1 1 100%; }
+  .appt-table .appt-actions { order: 4; flex: 1 0 100%; justify-content: flex-start; }
+  .appt-pick__list { grid-template-columns: minmax(0, 1fr); }
   .emp-rows > div { grid-template-columns: 96px 1fr; }
   .emp-tabs button { font-size: 12.5px; }
   .emp-timeline li { grid-template-columns: 86px auto; }

@@ -3,6 +3,7 @@ import { LuUsers, LuBriefcase, LuPlane, LuFileCheck, LuArrowUpRight, LuDownload,
 import type { IconType } from 'react-icons';
 import { Card, CardHead, PageHead, Segmented, Sparkline, Badge, Avatar, vars, cx, ymd } from '../components/ui';
 import { PunchWidget } from '../components/PunchWidget';
+import { WeeklyHoursWidget } from '../components/WeeklyHoursWidget';
 import { useData, useStore } from '../state/store';
 import type { TrendPoint } from '../api';
 
@@ -30,6 +31,7 @@ export function HomePage() {
   const { pendingCount, go, toast } = useStore();
   const { me, dashboard: db, approvals } = useData();
   const [period, setPeriod] = useState<Period>('7개월');
+  const [weeklyHoursRefreshKey, setWeeklyHoursRefreshKey] = useState(0);
   const t = db.trend;
   // headcount at the end of each of the last 7 months, walking back from today
   const net = t.map((p) => p.hire - p.leave);
@@ -80,7 +82,9 @@ export function HomePage() {
 
       {/* 출퇴근 위젯(#28): 내 오늘 출근 시각·근무 경과 시간, 출근·퇴근 버튼 */}
       <div className="grid grid--home">
-        <PunchWidget i={5} />
+        <PunchWidget i={5} onPunched={() => setWeeklyHoursRefreshKey((key) => key + 1)} />
+        {/* 주 52시간 위젯(#31): 내 이번 주 누적 근로시간 게이지, 부서장·인사는 부서별 표 */}
+        <WeeklyHoursWidget i={6} refreshKey={weeklyHoursRefreshKey} />
       </div>
 
       <div className="grid grid--home">

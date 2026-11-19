@@ -3,8 +3,11 @@ package com.glassehr.appointment;
 import com.glassehr.appointment.AppointmentDtos.AppointmentRequest;
 import com.glassehr.appointment.AppointmentDtos.AppointmentView;
 import com.glassehr.appointment.AppointmentDtos.AssignmentView;
+import com.glassehr.appointment.AppointmentDtos.BulkAppointmentRequest;
+import com.glassehr.appointment.AppointmentDtos.BulkAppointmentResult;
 import com.glassehr.appointment.AppointmentDtos.CancelRequest;
 import com.glassehr.appointment.AppointmentDtos.LeavePeriodView;
+import com.glassehr.auth.AuthUser;
 import com.glassehr.auth.Permission;
 import com.glassehr.auth.RequiresPermission;
 import jakarta.validation.Valid;
@@ -23,11 +26,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 인사발령 API. 사유는 필수다(근로기준법 제23조 제1항).
- * 권한은 근로계약 API와 같게 조회는 {@code EMP_READ_ALL}, 등록·수정·확정·삭제는 {@code EMP_WRITE}.
+ * 권한은 근로계약 API와 같게 조회는 {@code EMP_READ_ALL}, 등록·수정·확정·삭제·일괄 발령은 {@code EMP_WRITE}(인사·관리자).
+ * 사원별 발령 이력은 일반 사원도 본인 것만, 확정된 발령만 볼 수 있다(#60).
  * <ul>
- *   <li>GET    /api/employees/{empId}/appointments — 사원의 발령 이력(발령일 순)</li>
+ *   <li>GET    /api/employees/{empId}/appointments — 사원의 발령 이력(발령일 순, 본인은 확정분만)</li>
  *   <li>POST   /api/employees/{empId}/appointments — 발령 등록(미확정)</li>
- *   <li>GET    /api/appointments?confirmed=&amp;type=&amp;from=&amp;to= — 발령 목록</li>
+ *   <li>POST   /api/appointments/bulk — 일괄 발령(사원별 결과, 실패한 사원만 되돌림)</li>
+ *   <li>GET    /api/appointments?confirmed=&amp;type=&amp;from=&amp;to=&amp;deptId= — 발령 목록</li>
  *   <li>GET    /api/appointments/{apptId} — 발령 1건</li>
  *   <li>PUT    /api/appointments/{apptId} — 발령 수정(미확정만)</li>
  *   <li>POST   /api/appointments/{apptId}/confirm — 발령 확정</li>
@@ -42,15 +47,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class AppointmentController {
 
     private final AppointmentService service;
+    private final AppointmentBulkService bulk;
 
-    public AppointmentController(AppointmentService service) {
+    public AppointmentController(AppointmentService service, AppointmentBulkService bulk) {
         this.service = service;
+        this.bulk = bulk;
     }
 
-    @RequiresPermission(Permission.EMP_READ_ALL)
+    @RequiresPermission({Permission.EMP_READ_ALL, Permission.EMP_READ_SELF})
     @GetMapping("/api/employees/{empId}/appointments")
-    public List<AppointmentView> listByEmployee(@PathVariable long empId) {
-        return service.listByEmployee(empId);
+    public List<AppointmentView> listByEmployee(@PathVariable long empId, AuthUser user) {
+        if (user.has(Permission.EMP_READ_ALL)) {
+            return service.listByEmployee(empId);
+        }
+        if (!user.isSelf(empId)) {
+            throw new AppointmentException(HttpStatus.FORBIDDEN, "본인 발령 이력만 볼 수 있어요");
+        }
+        // 미확정 발령은 인사담당이 작성 중인 문서라 본인에게도 보이지 않는다
+        return service.listByEmployee(empId).stream().filter(AppointmentView::confirmed).toList();
+    }
+
+    @RequiresPermission(Permission.EMP_WRITE)
+    @PostMapping("/api/appointments/bulk")
+    public BulkAppointmentResult bulk(@Valid @RequestBody BulkAppointmentRequest req) {
+        return bulk.createAll(req);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
@@ -65,8 +85,9 @@ public class AppointmentController {
     public List<AppointmentView> search(@RequestParam(name = "confirmed", required = false) Boolean confirmed,
             @RequestParam(name = "type", required = false) String type,
             @RequestParam(name = "from", required = false) LocalDate from,
-            @RequestParam(name = "to", required = false) LocalDate to) {
-        return service.search(confirmed, type, from, to);
+            @RequestParam(name = "to", required = false) LocalDate to,
+            @RequestParam(name = "deptId", required = false) Long deptId) {
+        return service.search(confirmed, type, from, to, deptId);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)

@@ -93,6 +93,16 @@ describe('대시보드 출퇴근 위젯', () => {
     expect(host.querySelector('[role="status"]')?.textContent).toContain('출근 기록이 없어');
   });
 
+  it('출퇴근 저장 후 주간 현황 갱신 콜백을 호출한다', async () => {
+    const api = createMockPunchApi(() => T0);
+    const onPunched = vi.fn();
+    await act(async () => root.render(<PunchWidget api={api} now={() => T0} onPunched={onPunched} />));
+    await flush();
+    await act(async () => buttonByText(host, '출근').click());
+    await flush();
+    expect(onPunched).toHaveBeenCalledOnce();
+  });
+
   it('자정이 지나면 서버의 새 날짜 기록을 다시 보여 준다', async () => {
     vi.useFakeTimers();
     let ms = Date.parse('2099-03-02T23:59:45+09:00');

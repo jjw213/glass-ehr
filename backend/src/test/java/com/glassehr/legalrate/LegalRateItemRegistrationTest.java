@@ -43,7 +43,7 @@ class LegalRateItemRegistrationTest {
             "db/oracle/V015__legal_rate_items_work_pattern.sql",
             "db/oracle/V018__legal_rate_item_public_holiday_paid.sql",
             "db/oracle/V022__retirement_process.sql",
-            "db/oracle/V024__family_leave_request.sql");
+            "db/oracle/V026__family_leave_request.sql");
 
     /** #7 에서 등록한 인사·근태 항목 마이그레이션(V003·V005). */
     private static final List<String> HR_ATTENDANCE_ITEM_MIGRATIONS = ITEM_MIGRATIONS.subList(0, 2);
