@@ -142,6 +142,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V024__approval.sql"))
                     .execute(dataSource);
         }
+        Integer overtime = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'OVERTIME_REQUEST'", Integer.class);
+        if (overtime == null || overtime == 0) {
+            // #30: 연장·휴일근로 신청, 특별연장근로 인가 정보
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V025__overtime_request.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

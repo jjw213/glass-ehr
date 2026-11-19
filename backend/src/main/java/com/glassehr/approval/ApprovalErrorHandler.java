@@ -1,5 +1,6 @@
 package com.glassehr.approval;
 
+import com.glassehr.overtime.OvertimeController;
 import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -10,8 +11,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-/** 결재 API 오류를 {"error": "..."} 형식으로 돌려준다. */
-@RestControllerAdvice(assignableTypes = ApprovalController.class)
+/** 결재 API와 결재를 올리는 신청 API(연장·휴일근로) 오류를 {"error": "..."} 형식으로 돌려준다. */
+@RestControllerAdvice(assignableTypes = {ApprovalController.class, OvertimeController.class})
 public class ApprovalErrorHandler {
 
     @ExceptionHandler(ApprovalException.class)
