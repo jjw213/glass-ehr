@@ -194,8 +194,11 @@ public class FamilyLeaveService {
         LocalDate date = asOf == null ? today() : asOf;
         List<FamilyLeaveRequest> approved = approved(empId, null);
         List<String> notes = new ArrayList<>();
+        // 승인 대기 신청의 자녀도 넣어, 승인 전에 그 자녀의 남은 기간을 볼 수 있게 한다(사용 기간에는 승인된 것만 센다).
         Set<String> labels = new LinkedHashSet<>();
-        approved.stream().filter(r -> r.getKind() != Kind.FAMILY_CARE_LEAVE)
+        requests.findByEmpIdOrderByStartDateAscReqIdAsc(empId).stream()
+                .filter(r -> r.getKind() != Kind.FAMILY_CARE_LEAVE
+                        && (r.getStatus() == Status.APPROVED || r.getStatus() == Status.REQUESTED))
                 .forEach(r -> labels.add(r.getChildLabel()));
 
         List<ChildBalance> children = new ArrayList<>();
@@ -333,8 +336,10 @@ public class FamilyLeaveService {
             throw FamilyLeaveException.badRequest("단축 근무유형의 주 소정근로시간(" + minutes(weekly) + ")이 지금 근무유형("
                     + minutes(current.getWeeklyContractMinutes()) + ")보다 짧아야 해요");
         }
-        // 법 제19조의4 제2항: 나누어 쓸 때 1회 최소 기간
-        int unit = req(LegalRateItem.CHILDCARE_REDUCED_MIN_UNIT_MONTHS, on);
+        // 법 제19조의4 제2항: 나누어 쓸 때 1회 최소 기간. 개정 최소 기간(법률 제20521호, 2025-02-23)은 시행 당시 사용 중인
+        // 단축에도 적용되므로(같은 법률 부칙 제4조, docs/legal-rate-seed-sources.md 336행) 기간 마지막 날의 기준값을 쓴다.
+        // 정답: tests/legal-fixtures/family-leave-balance.csv 월말1개월_1월31일시작(2025-01-31~02-28 허용)
+        int unit = req(LegalRateItem.CHILDCARE_REDUCED_MIN_UNIT_MONTHS, d.endDate());
         MonthsDays len = FamilyLeavePeriods.length(d.startDate(), d.endDate());
         if (len.months() < unit) {
             throw FamilyLeaveException.badRequest("육아기 근로시간 단축은 한 번에 " + unit + "개월 이상 써야 해요(법 제19조의4 제2항)");
