@@ -36,7 +36,7 @@
 - 요청 헤더 `X-Actor-Id`(로그인 아이디)로 `app_user`를 찾는다. 없거나 사용 중지면 401.
   **역할은 DB에서 읽고 `X-Actor-Role` 헤더는 무시한다**(헤더로 역할을 올리는 우회 차단).
 - 인증(비밀번호·세션·토큰)은 아직 없다. 이 헤더는 인증 이슈 전까지의 임시 방식이며, 바꿀 때는
-  `AuthInterceptor.loginIdOf`와 프론트 `api/http.ts`의 `setActorId`만 바꾼다.
+  `AuthInterceptor.loginIdOf`와 프론트 `api/http.ts`의 `setActorId`만 바꾼다. 바꿀 방식은 7장(#75 결정).
 - `AuthInterceptor`가 `/api/**` 모든 컨트롤러 메서드를 검사한다.
   - `@PublicApi`(헬스 체크)만 통과.
   - `@RequiresPermission`이 없는 메서드는 403(새 API를 만들고 권한을 빠뜨려도 열리지 않음).
@@ -73,3 +73,20 @@
 - 접속기록 보관 기간·점검 주기(안전성 확보조치 기준 해당 조항) — 원문 확인 후 `legal_rate` 항목으로 넣고 보관·파기 작업을 별도 이슈로.
 - 로그인 인증(비밀번호·세션), 사용자·역할 관리 화면 — 지금은 SQL 로 `app_user`·`app_user_role`을 넣는다. 사용자 시드는 없다.
 - 부서장 범위는 오늘 조직도 기준. 과거 기준일 조회 시 그때의 부서장 범위를 쓸지는 인사발령 이슈에서 정한다.
+
+## 7. 로그인 방식 (#75 결정, 2026-11-16)
+
+저장소 주인 결정: **세션 쿠키** — HttpOnly 쿠키 + 서버 세션, 세션은 Spring Session JDBC로 Oracle에 저장.
+
+- 이유: 화면과 API를 같은 출처에서 서비스한다. 지금 Node 서버(`server/src/auth.ts`, `ghr_session` HttpOnly·SameSite=Lax 쿠키 +
+  `HR_SESSIONS` 테이블)와 같은 방식이라 옮기기 쉽고, 로그아웃·강제 만료는 서버에서 세션 행을 지우면 된다.
+  서버를 여러 대로 늘려도 세션이 DB에 있어 공유된다.
+- 토큰(JWT 등)은 쓰지 않는다. 모바일 앱이나 다른 서비스가 API를 직접 부를 계획이 생기면 그때 다시 정한다.
+- 바뀌는 곳: `AuthInterceptor.loginIdOf`가 `X-Actor-Id` 헤더 대신 세션의 로그인 아이디를 읽는다. 역할은 지금처럼 DB(`app_user_role`)에서 읽는다.
+  프론트 `api/http.ts`는 `X-Actor-Id`를 보내지 않고 같은 출처 쿠키로 요청한다. 운영에서는 `X-Actor-Id`를 받지 않는다.
+- 구현 이슈에서 정할 것(이번 결정 범위 밖, 정할 때 질문):
+  - Spring Session JDBC 테이블 마이그레이션(Oracle용 스키마), 세션 유효 시간·유휴 만료, 쿠키 이름·`Secure`·`SameSite`.
+  - 비밀번호 저장 방식(`app_user`에 해시 열 추가, 해시 알고리즘)과 기존 Node `HR_` 계정을 옮길지 여부.
+  - CSRF 방어(쿠키 방식이라 필요), 로그인 시도 제한, 로그인 시 세션 ID 재발급(세션 고정 방지).
+  - 사용자 사용 중지·퇴직 시 그 사용자의 세션을 모두 끊는 경로.
+  - 로그인·로그아웃 기록을 접속기록으로 남길지(6장 접속기록 미결과 함께).

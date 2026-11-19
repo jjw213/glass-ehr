@@ -96,8 +96,9 @@ public class AppointmentService {
         return views(list, linksFor(list));
     }
 
-    /** 전체 발령. 조건은 모두 선택(확정 여부, 유형, 발령일 from~to 양끝 포함). 발령일 순. */
-    public List<AppointmentView> search(Boolean confirmed, String typeCode, LocalDate from, LocalDate to) {
+    /** 전체 발령. 조건은 모두 선택(확정 여부, 유형, 발령일 from~to 양끝 포함, 부서는 이전·이후 소속 중 하나). 발령일 순. */
+    public List<AppointmentView> search(Boolean confirmed, String typeCode, LocalDate from, LocalDate to,
+            Long deptId) {
         if (from != null && to != null && to.isBefore(from)) {
             throw AppointmentException.badRequest("조회 종료일은 시작일 이후여야 해요");
         }
@@ -107,6 +108,7 @@ public class AppointmentService {
                 .filter(a -> type == null || a.getApptTypeCode().equals(type))
                 .filter(a -> from == null || !a.getEffectiveDate().isBefore(from))
                 .filter(a -> to == null || !a.getEffectiveDate().isAfter(to))
+                .filter(a -> deptId == null || deptId.equals(a.before().deptId()) || deptId.equals(a.after().deptId()))
                 .toList();
         return views(list, list.isEmpty() ? Map.of() : allLinks());
     }

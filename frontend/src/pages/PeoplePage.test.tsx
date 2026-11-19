@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import css from '../styles/global.css?raw';
 import { createMockCodeApi } from '../api/codes';
 import { createMockEmployeeApi } from '../api/employees';
+import { createMockAppointmentApi, type AppointmentApi } from '../api/appointments';
+import { ApiError } from '../api/types';
 import { EMP_SEED } from '../data/employees';
 import type { ViewerRole } from '../lib/privacy';
 import { EmployeeDirectory } from './PeoplePage';
@@ -40,11 +42,11 @@ describe('EmployeeDirectory (사원 목록·인사기록카드)', () => {
   beforeEach(() => { host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); });
   afterEach(() => { act(() => root.unmount()); host.remove(); });
 
-  async function mount(role: ViewerRole = 'HR') {
+  async function mount(role: ViewerRole = 'HR', appointments: AppointmentApi = createMockAppointmentApi()) {
     const api = createMockEmployeeApi({ employees: EMP_SEED, rrns: { 4: FAKE_RRN } });
     const toast = vi.fn();
     await act(async () => {
-      root.render(<EmployeeDirectory api={api} codes={createMockCodeApi()} viewer={{ id: `${role.toLowerCase()}-user`, role }} toast={toast} today={TODAY} />);
+      root.render(<EmployeeDirectory api={api} codes={createMockCodeApi()} viewer={{ id: `${role.toLowerCase()}-user`, role }} toast={toast} today={TODAY} appointments={appointments} />);
     });
     await flush();
     return { api, toast };
@@ -114,6 +116,40 @@ describe('EmployeeDirectory (사원 목록·인사기록카드)', () => {
 
     await act(async () => { byText(card, '[role="tab"]', '근태 요약').click(); });
     expect(card.querySelector('[role="tabpanel"]')?.textContent).toContain('근태 모듈');
+  });
+
+  it('발령 이력 탭은 서버 발령 이력을 발령일 역순으로 보이고 미확정·취소 상태를 표시한다', async () => {
+    const emp8 = EMP_SEED.find((e) => e.name === '예시사원08')!;
+    const appts = createMockAppointmentApi();
+    const base = { afterDeptId: null, afterJobGradeCode: null, afterJobTitleCode: null, leaveStartDate: null, leaveEndDate: null };
+    const r = await appts.bulk([emp8.empId], { ...base, apptTypeCode: 'PROMOTION', effectiveDate: '2026-10-01', afterJobGradeCode: 'G3', reason: '정기 승진' }, true);
+    await appts.bulk([emp8.empId], { ...base, apptTypeCode: 'LEAVE', effectiveDate: '2026-12-01', reason: '육아휴직', leaveStartDate: '2026-12-01', leaveEndDate: '2027-05-31' }, false);
+    await appts.cancel(r.items[0].appointment!.apptId, '승진 착오');
+    const spy = vi.spyOn(appts, 'byEmployee');
+    await mount('HR', appts);
+    const card = await open('예시사원08');
+    await act(async () => { byText(card, '[role="tab"]', '발령 이력').click(); });
+    await flush();
+    expect(spy).toHaveBeenCalledWith(emp8.empId);
+    const items = [...card.querySelectorAll('.emp-timeline li')].map((li) => li.textContent ?? '');
+    expect(items[0]).toContain('휴직');
+    expect(items[0]).toContain('2026-12-01 ~ 2027-05-31');
+    expect(items[0]).toContain('미확정');
+    expect(items.some((t) => t.includes('승진 취소') && t.includes('승진 착오'))).toBe(true);
+    expect(items.some((t) => t.includes('정기 승진') && t.includes('취소 대기'))).toBe(true);
+    // 발령 기능 이전 사원은 입사 발령이 없으므로 명부의 입사일로 채운다
+    expect(items[items.length - 1]).toContain('입사');
+  });
+
+  it('발령 이력을 볼 수 없으면(다른 사람 이력, 403) 서버 문구를 보이고 명부 입사일만 남긴다', async () => {
+    const appts = createMockAppointmentApi();
+    appts.byEmployee = vi.fn(async () => { throw new ApiError(403, '본인 발령 이력만 볼 수 있어요'); });
+    await mount('EMPLOYEE', appts);
+    const card = await open('예시사원04');
+    await act(async () => { byText(card, '[role="tab"]', '발령 이력').click(); });
+    await flush();
+    expect(card.querySelector('[role="tabpanel"] [role="alert"]')?.textContent).toBe('본인 발령 이력만 볼 수 있어요');
+    expect(card.querySelectorAll('.emp-timeline li')).toHaveLength(1);
   });
 
   it('퇴직자 카드에는 퇴직 발령과 사유가 보인다', async () => {
