@@ -4,7 +4,7 @@
 제19조의3(단축 중 근로조건), 제19조의4(분할 사용), 제22조의2(가족돌봄휴직).
 조문 원문(law.go.kr) 재확인은 이 실행 환경에서 하지 못했다 — PR 본문에 **미확인**으로 적는다.
 
-## 1. 테이블 (V023)
+## 1. 테이블 (V024 — main의 V023(#29)과 겹쳐 병합 때 번호를 바꿨다. 시드 주석의 V023은 이 파일을 가리킨다)
 - `family_leave_request`: 신청 1건 = 1행. 상태 `REQUESTED → APPROVED / REJECTED / CANCELLED`, 행을 지우지 않는다.
 - 자녀는 `child_label`(예: 첫째)과 생년월일만 둔다. 실명·주민등록번호는 넣지 않는다.
 - 승인 시 만든 발령(`leave_appt_id`, `return_appt_id`)·근무유형 배정(`reduced_assign_id`, `restore_assign_id`) ID를 남긴다.
