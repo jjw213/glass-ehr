@@ -44,6 +44,9 @@ class AppointmentControllerTest {
     @MockitoBean
     private AppointmentService service;
 
+    @MockitoBean
+    private AppointmentBulkService bulk;
+
     private static AppointmentView view(boolean confirmed) {
         return new AppointmentView(7, "AP-2026-000007", "LEAVE", 1, D,
                 new Snapshot(10L, "STAFF", null, EmpStatus.ACTIVE), new Snapshot(10L, "STAFF", null, EmpStatus.ON_LEAVE),
@@ -110,12 +113,12 @@ class AppointmentControllerTest {
         mvc.perform(delete("/api/appointments/9")).andExpect(status().isNoContent());
         verify(service).delete(9L);
 
-        when(service.search(any(), any(), any(), any())).thenReturn(List.of(view(false)));
+        when(service.search(any(), any(), any(), any(), any())).thenReturn(List.of(view(false)));
         mvc.perform(get("/api/appointments").param("confirmed", "false").param("type", "LEAVE")
-                        .param("from", "2026-12-01"))
+                        .param("from", "2026-12-01").param("deptId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].apptId").value(7));
-        verify(service).search(eq(false), eq("LEAVE"), eq(D), isNull());
+        verify(service).search(eq(false), eq("LEAVE"), eq(D), isNull(), eq(10L));
 
         when(service.get(7L)).thenThrow(AppointmentException.notFound("발령이 없어요: 7"));
         mvc.perform(get("/api/appointments/7")).andExpect(status().is(HttpStatus.NOT_FOUND.value()));

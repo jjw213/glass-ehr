@@ -393,17 +393,31 @@ class AppointmentServiceTest {
         AppointmentView a = service.create(1, req("TRANSFER", D, DEPT_B, null, null));
         AppointmentView b = service.create(2, req("PROMOTION", D.plusDays(5), null, "MANAGER", null));
         service.confirm(b.apptId());
-        assertThat(service.search(null, null, null, null)).extracting(AppointmentView::apptId)
+        assertThat(service.search(null, null, null, null, null)).extracting(AppointmentView::apptId)
                 .containsExactly(a.apptId(), b.apptId());
-        assertThat(service.search(true, null, null, null)).extracting(AppointmentView::apptId)
+        assertThat(service.search(true, null, null, null, null)).extracting(AppointmentView::apptId)
                 .containsExactly(b.apptId());
-        assertThat(service.search(null, "TRANSFER", null, null)).extracting(AppointmentView::apptId)
+        assertThat(service.search(null, "TRANSFER", null, null, null)).extracting(AppointmentView::apptId)
                 .containsExactly(a.apptId());
-        assertThat(service.search(null, null, D.plusDays(1), D.plusDays(5))).extracting(AppointmentView::apptId)
+        assertThat(service.search(null, null, D.plusDays(1), D.plusDays(5), null)).extracting(AppointmentView::apptId)
                 .containsExactly(b.apptId());
-        assertThat(service.search(null, null, D, D)).extracting(AppointmentView::apptId).containsExactly(a.apptId());
+        assertThat(service.search(null, null, D, D, null)).extracting(AppointmentView::apptId)
+                .containsExactly(a.apptId());
         assertThat(service.listByEmployee(2)).extracting(AppointmentView::apptId).containsExactly(b.apptId());
-        assertStatus(() -> service.search(null, null, D, D.minusDays(1)), HttpStatus.BAD_REQUEST, "종료일");
+        assertStatus(() -> service.search(null, null, D, D.minusDays(1), null), HttpStatus.BAD_REQUEST, "종료일");
+    }
+
+    @Test
+    void 부서_조건은_이전_또는_이후_소속이_그_부서인_발령이다() {
+        emp(2, null);
+        AppointmentView a = service.create(1, req("TRANSFER", D, DEPT_B, null, null));
+        AppointmentView b = service.create(2, req("PROMOTION", D.plusDays(5), null, "MANAGER", null));
+        // a: A→B 전보, b: A 소속 그대로 승진
+        assertThat(service.search(null, null, null, null, DEPT_B)).extracting(AppointmentView::apptId)
+                .containsExactly(a.apptId());
+        assertThat(service.search(null, null, null, null, DEPT_A)).extracting(AppointmentView::apptId)
+                .containsExactly(a.apptId(), b.apptId());
+        assertThat(service.search(null, null, null, null, DEPT_FUTURE)).isEmpty();
         assertStatus(() -> service.listByEmployee(99), HttpStatus.NOT_FOUND, "사원");
     }
 }

@@ -837,6 +837,20 @@ select.input option { color: #1a1a1a; }
 .emp-locked { display: flex; align-items: center; gap: 8px; padding: 22px 4px; }
 .emp-form { max-height: 70vh; overflow-y: auto; padding-right: 4px; }
 
+/* 인사발령 (#60) — 목록 표는 emp-table 을 그대로 써서 모바일에서도 한 건당 카드 한 장 */
+.appt-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.appt-filters .input { width: auto; min-width: 130px; }
+.appt-filters .chips { margin: 0; }
+.appt-table tbody tr { cursor: default; }
+.appt-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.appt-pick { border: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.appt-pick__all { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.appt-pick__list { list-style: none; max-height: 220px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px 12px; padding: 4px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); }
+.appt-pick__list label { display: flex; align-items: center; gap: 6px; font-size: 13.5px; padding: 6px 4px; cursor: pointer; }
+.appt-result { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.appt-result__list { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
+.appt-result__list li { padding: 6px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+
 /* 조직도 (#13) — 글래스 카드 안의 세로 트리 */
 .org-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; align-items: start; }
 .org-layout--mobile { grid-template-columns: minmax(0, 1fr); gap: 12px; }
@@ -909,6 +923,10 @@ select.input option { color: #1a1a1a; }
   .emp-table .emp-table__status { order: 2; }
   .emp-table .emp-table__no, .emp-table .emp-table__dept, .emp-table .emp-table__grade { order: 3; font-size: 12.5px; color: var(--text-2); }
   .emp-filters { max-width: none; }
+  /* 인사발령: 필터는 한 줄에 하나, 처리 버튼은 카드 맨 아래 줄 */
+  .appt-filters > .input { flex: 1 1 100%; }
+  .appt-table .appt-actions { order: 4; flex: 1 0 100%; justify-content: flex-start; }
+  .appt-pick__list { grid-template-columns: minmax(0, 1fr); }
   .emp-rows > div { grid-template-columns: 96px 1fr; }
   .emp-tabs button { font-size: 12.5px; }
   .emp-timeline li { grid-template-columns: 86px auto; }

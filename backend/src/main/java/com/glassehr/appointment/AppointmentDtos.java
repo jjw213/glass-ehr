@@ -1,11 +1,14 @@
 package com.glassehr.appointment;
 
 import com.glassehr.appointment.HrAppointment.Snapshot;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /** 인사발령 API 요청·응답 형식. 길이 제한은 V014 컬럼 길이와 같다. */
 public final class AppointmentDtos {
@@ -64,6 +67,28 @@ public final class AppointmentDtos {
             @NotBlank(message = "발령 사유를 입력해 주세요(근로기준법 제23조)")
             @Size(max = 1000, message = "발령 사유는 1000자 이내로 써 주세요")
             String reason) {
+    }
+
+    /**
+     * 일괄 발령 요청(#60). 선택한 사원 모두에게 같은 발령 내용을 등록하고, {@code confirm}이면 바로 확정한다.
+     * 한 번에 200명까지(한 요청이 너무 오래 걸리지 않게).
+     */
+    public record BulkAppointmentRequest(
+            @NotEmpty(message = "발령할 사원을 선택해 주세요")
+            @Size(max = 200, message = "한 번에 200명까지 발령할 수 있어요")
+            List<Long> empIds,
+            @NotNull(message = "발령 내용을 입력해 주세요")
+            @Valid
+            AppointmentRequest appointment,
+            boolean confirm) {
+    }
+
+    /** 사원 한 명의 일괄 발령 결과. 성공이면 발령, 실패면 화면에 보일 오류 문구. */
+    public record BulkItemResult(long empId, boolean ok, AppointmentView appointment, String error) {
+    }
+
+    /** 일괄 발령 결과. 실패한 사원은 등록·확정 모두 되돌려져 있다. */
+    public record BulkAppointmentResult(int succeeded, int failed, List<BulkItemResult> items) {
     }
 
     /** 기준일의 사원 소속·직급·직책·재직상태(확정 발령 이력 기준). */
