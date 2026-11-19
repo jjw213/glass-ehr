@@ -11,10 +11,10 @@ import java.util.Objects;
  *   <li>근로기준법 제50조 제1항: 1주 근로시간(휴게 제외) {@code WEEKLY_STANDARD_WORK_HOURS}.</li>
  *   <li>근로기준법 제53조 제1항: 1주 연장 한도 {@code WEEKLY_OVERTIME_LIMIT_HOURS}.</li>
  * </ul>
- * 두 가지를 함께 본다. (1) 누적 실근로(휴일 포함)가 제50조 제1항 + 제53조 제1항 시간을 넘는가,
- * (2) 1일·1주 기준을 넘은 연장(#29 집계의 overtime)과 휴일 1일 기준 초과분(holiday_excess)의 합이 제53조 제1항 한도를 넘는가.
- * 하나라도 넘으면 OVER, 남은 시간이 회사 설정 경고 기준 이하이면 NEAR. 한도와 같으면 넘은 것이 아니므로 NEAR.
- * 정답 사례 fixture 대조는 아직 없다(docs/weekly-hours-monitor-design.md).
+ * 제53조 제1항 한도 위반 여부의 연장근로는 1주 총 실근로 중 제50조 제1항의 40시간을 넘은 시간이다.
+ * 소정근로일과 휴일을 구분하지 않으며, 제56조의 가산수당 산정용 일별 연장 집계와도 구분한다.
+ * (고용노동부 2024-01-22 행정해석 변경, 대법원 2023-12-07 선고 2020도15393 판결)
+ * 한도를 넘으면 OVER, 남은 시간이 회사 설정 경고 기준 이하이면 NEAR. 한도와 같으면 넘은 것이 아니므로 NEAR.
  */
 public final class WeeklyHoursMonitor {
 
@@ -48,7 +48,7 @@ public final class WeeklyHoursMonitor {
      * @param extraMinutes        법내 초과 합
      * @param overtimeMinutes     연장 합(1일·1주 기준 초과, 휴일 제외)
      * @param holidayMinutes      휴일근로 합(1일 기준 이내 + 초과)
-     * @param limitOvertimeMinutes 제53조 한도 대상 연장(overtime + holiday_excess)
+     * @param limitOvertimeMinutes 제53조 한도 대상 연장(1주 총 실근로 - 제50조 제1항 주간 기준, 0 미만은 0)
      * @param missingOut          퇴근 기록이 없는 날이 있어 일부 근무가 빠졌을 수 있음
      */
     public record Week(int workedMinutes, int regularMinutes, int extraMinutes, int overtimeMinutes,
@@ -64,7 +64,6 @@ public final class WeeklyHoursMonitor {
         int extra = 0;
         int overtime = 0;
         int holiday = 0;
-        int holidayExcess = 0;
         boolean missingOut = false;
         for (DailyWorkSummaryRow r : rows) {
             worked += n(r.workedMinutes());
@@ -72,10 +71,11 @@ public final class WeeklyHoursMonitor {
             extra += n(r.extraMinutes());
             overtime += n(r.overtimeMinutes());
             holiday += n(r.holidayMinutes()) + n(r.holidayExcessMinutes());
-            holidayExcess += n(r.holidayExcessMinutes());
             missingOut |= r.issues() != null && List.of(r.issues().split(",")).contains(WorkHoursService.ISSUE_MISSING_OUT);
         }
-        int limitOvertime = overtime + holidayExcess;
+        // 근로기준법 제53조 제1항: 한도 위반 여부는 일별 연장 합이 아니라 1주 총 실근로 중
+        // 제50조 제1항의 주간 기준을 초과한 시간으로 판단한다(대법원 2020도15393, 고용노동부 2024-01-22).
+        int limitOvertime = Math.max(0, worked - limits.standardMinutes());
         int remaining = limits.totalMinutes() - worked;
         int overtimeRemaining = limits.overtimeMinutes() - limitOvertime;
         Status status;

@@ -39,7 +39,7 @@ class WeeklyHoursMonitorTest {
         Week w = WeeklyHoursMonitor.judge(List.of(day(0, 300, 0, 0, 0, null), day(6, 200, 0, 150, 50, null)), LIMITS);
         assertThat(w.workedMinutes()).isEqualTo(500);
         assertThat(w.holidayMinutes()).isEqualTo(200);
-        assertThat(w.limitOvertimeMinutes()).isEqualTo(50);
+        assertThat(w.limitOvertimeMinutes()).isZero();
         assertThat(w.status()).isEqualTo(Status.NORMAL);
     }
 
@@ -56,17 +56,18 @@ class WeeklyHoursMonitorTest {
     }
 
     @Test
-    void 누적이_한도_안이어도_연장이_연장_한도를_넘으면_초과() {
-        // 누적 500분(한도 720 안)이지만 1일 기준 초과 연장 합 121분 > 120분
+    void 제53조_한도는_일별_연장합이_아니라_주간_기준_초과분으로_판단한다() {
+        // 일별 연장 합은 121분이지만 주간 총 실근로 500분이 주간 기준 600분 이내이므로 한도 대상 연장은 0분이다.
         Week w = WeeklyHoursMonitor.judge(List.of(day(0, 250, 61, 0, 0, null), day(1, 250, 60, 0, 0, null)), LIMITS);
-        assertThat(w.limitOvertimeMinutes()).isEqualTo(121);
-        assertThat(w.overtimeRemainingMinutes()).isEqualTo(-1);
-        assertThat(w.status()).isEqualTo(Status.OVER);
+        assertThat(w.overtimeMinutes()).isEqualTo(121);
+        assertThat(w.limitOvertimeMinutes()).isZero();
+        assertThat(w.overtimeRemainingMinutes()).isEqualTo(120);
+        assertThat(w.status()).isEqualTo(Status.NORMAL);
     }
 
     @Test
     void 연장_남은_시간이_경고_기준_이하면_근접() {
-        Week w = WeeklyHoursMonitor.judge(List.of(day(0, 400, 60, 0, 0, null)), LIMITS);
+        Week w = WeeklyHoursMonitor.judge(List.of(day(0, 660, 60, 0, 0, null)), LIMITS);
         assertThat(w.overtimeRemainingMinutes()).isEqualTo(60);
         assertThat(w.status()).isEqualTo(Status.NEAR);
     }

@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api/types';
 import { createMockWeeklyHoursApi, formatHours, gaugePercent, type WeeklyHoursApi } from '../api/weeklyHours';
 import { WeeklyHoursWidget } from './WeeklyHoursWidget';
@@ -83,5 +83,16 @@ describe('WeeklyHoursWidget', () => {
     act(() => root.render(<WeeklyHoursWidget api={api} />));
     await flush();
     expect(host.querySelector('[role="alert"]')?.textContent).toBe('기준값이 없어요');
+  });
+
+  it('refreshKey가 바뀌면 주간 현황을 다시 조회한다', async () => {
+    const base = createMockWeeklyHoursApi();
+    const api: WeeklyHoursApi = { mine: vi.fn(base.mine), team: vi.fn(base.team) };
+    act(() => root.render(<WeeklyHoursWidget api={api} refreshKey={0} />));
+    await flush();
+    act(() => root.render(<WeeklyHoursWidget api={api} refreshKey={1} />));
+    await flush();
+    expect(api.mine).toHaveBeenCalledTimes(2);
+    expect(api.team).toHaveBeenCalledTimes(2);
   });
 });

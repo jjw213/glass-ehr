@@ -15,7 +15,7 @@ const TONE: Record<WeeklyStatus, 'green' | 'amber' | 'red'> = { NORMAL: 'green',
  * - 부서장·인사: 부서별 표에서 한도 근접·초과자를 위로 올리고 강조한다. /team 이 403 이면 표를 숨긴다.
  * 모바일(≤899px)에서는 표가 사원별 카드로 바뀐다(global.css).
  */
-export function WeeklyHoursWidget({ api = defaultApi, i = 0 }: { api?: WeeklyHoursApi; i?: number }) {
+export function WeeklyHoursWidget({ api = defaultApi, i = 0, refreshKey = 0 }: { api?: WeeklyHoursApi; i?: number; refreshKey?: number }) {
   const [mine, setMine] = useState<MyWeek | null>(null);
   const [mineError, setMineError] = useState<string | null>(null);
   const [team, setTeam] = useState<TeamWeek | null>(null);
@@ -37,7 +37,7 @@ export function WeeklyHoursWidget({ api = defaultApi, i = 0 }: { api?: WeeklyHou
       },
     );
     return () => { alive = false; };
-  }, [api]);
+  }, [api, refreshKey]);
 
   const w = mine?.me.week;
   const range = mine ?? team;
