@@ -16,6 +16,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 특별연장근로 인가 정보(근로기준법 제53조 제4항: 고용노동부장관의 인가와 근로자의 동의). 테이블: V025.
@@ -55,7 +57,9 @@ public class SpecialOvertimeAuth {
     @Column(name = "reason", nullable = false, updatable = false)
     private String reason;
 
-    @Column(name = "worker_consent", nullable = false, updatable = false)
+    // V025 DDL의 CHAR(1)과 Hibernate 스키마 검증의 JDBC 타입을 맞춘다.
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "worker_consent", nullable = false, updatable = false, length = 1)
     private String workerConsent;
 
     @Column(name = "created_by", nullable = false, updatable = false)

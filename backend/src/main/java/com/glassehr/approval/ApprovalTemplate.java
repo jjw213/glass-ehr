@@ -20,6 +20,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 결재선 템플릿(신청 유형별, 유효기간 [validFrom, validTo)). 테이블: V024 approval_template·approval_template_step.
@@ -43,6 +45,8 @@ public class ApprovalTemplate {
         private String approverRef;
 
         @Convert(converter = YnConverter.class)
+        // V024 DDL의 CHAR(1)과 Hibernate 스키마 검증의 JDBC 타입을 맞춘다.
+        @JdbcTypeCode(SqlTypes.CHAR)
         @Column(name = "skip_if_self", nullable = false, length = 1)
         private boolean skipIfSelf;
 
