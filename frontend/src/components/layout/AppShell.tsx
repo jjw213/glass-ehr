@@ -17,6 +17,7 @@ import { PrivacyLogsPage } from '../../pages/PrivacyLogsPage';
 import { HolidaysPage } from '../../pages/HolidaysPage';
 import { AgreementsPage } from '../../pages/AgreementsPage';
 import { RetirementsPage } from '../../pages/RetirementsPage';
+import { FamilyLeavesPage } from '../../pages/FamilyLeavesPage';
 import { AppointmentsPage } from '../../pages/AppointmentsPage';
 import { OvertimePage } from '../../pages/OvertimePage';
 import { ApprovalInboxPage } from '../../pages/ApprovalInboxPage';
@@ -35,6 +36,7 @@ const PAGES: Record<PageId, () => JSX.Element> = {
   workPatterns: WorkPatternsPage,
   holidays: HolidaysPage,
   agreements: AgreementsPage,
+  familyLeaves: FamilyLeavesPage,
   retirements: RetirementsPage,
   appointments: AppointmentsPage,
   privacyLogs: PrivacyLogsPage,
