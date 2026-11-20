@@ -32,6 +32,12 @@ public final class AnnualLeaveRules {
     /** 1년 = 12개월(달력 단위, 법정 수치 아님). */
     private static final int MONTHS_PER_YEAR = 12;
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
+    /**
+     * 법률 제17185호 시행일(2020-03-31, 부칙 제1조 공포한 날부터 시행). 부칙 제2조: 제60조 제7항 단서(최초 1년 월 단위분은
+     * 최초 1년의 근로가 끝날 때까지 사용)는 시행 후 발생하는 연차부터 적용하고, 그 전 발생분은 종전대로 발생일부터 1년 사용한다.
+     * 요율·기준값이 아니라 법률 시행일이라 legal_rate가 아닌 상수로 둔다.
+     */
+    static final LocalDate LAW_17185_EFFECTIVE = LocalDate.of(2020, 3, 31);
 
     private AnnualLeaveRules() {
     }
@@ -155,20 +161,9 @@ public final class AnnualLeaveRules {
         if (lastWorkDay != null && lastWorkDay.isBefore(hireDate)) {
             throw new IllegalArgumentException("마지막 근무일이 입사일보다 앞이에요: " + lastWorkDay);
         }
-        List<Accrual> out = new ArrayList<>();
-        LocalDate firstYearEnd = periodEnd(hireDate, MONTHS_PER_YEAR);
-
-        // 제60조 제2항: 최초 1년 동안 1개월 개근마다. 제7항 단서: 최초 1년의 근로가 끝날 때까지 사용.
-        for (int m = 1; m < MONTHS_PER_YEAR; m++) {
-            DateRange month = monthPeriod(hireDate, m);
-            LocalDate grant = month.to().plusDays(1);
-            if (!accrues(grant, asOfDate, lastWorkDay)) {
-                break;
-            }
-            if (attendance.absentIn(month) == 0) {
-                out.add(new Accrual(grant, Kind.MONTHLY_FIRST_YEAR, ratesAt.apply(grant).monthlyDays(), month, firstYearEnd));
-            }
-        }
+        // 제60조 제2항: 최초 1년 동안 1개월 개근마다. 제7항 단서: 최초 1년의 근로가 끝날 때까지 사용
+        // (법률 제17185호 부칙 제2조: 시행일 전 발생분은 발생일부터 1년).
+        List<Accrual> out = new ArrayList<>(firstYearMonthly(hireDate, asOfDate, lastWorkDay, attendance, ratesAt));
 
         for (int year = 1; ; year++) {
             DateRange period = new DateRange(periodStart(hireDate, MONTHS_PER_YEAR * (year - 1)),
@@ -197,6 +192,25 @@ public final class AnnualLeaveRules {
         return out;
     }
 
+    /** 제60조 제2항: 최초 1년 동안 1개월 개근마다 발생하는 월 단위분(회계연도 기준도 같은 규칙을 쓴다). */
+    static List<Accrual> firstYearMonthly(LocalDate hireDate, LocalDate asOfDate, LocalDate lastWorkDay,
+            Attendance attendance, Function<LocalDate, Rates> ratesAt) {
+        List<Accrual> out = new ArrayList<>();
+        LocalDate firstYearEnd = periodEnd(hireDate, MONTHS_PER_YEAR);
+        for (int m = 1; m < MONTHS_PER_YEAR; m++) {
+            DateRange month = monthPeriod(hireDate, m);
+            LocalDate grant = month.to().plusDays(1);
+            if (!accrues(grant, asOfDate, lastWorkDay)) {
+                break;
+            }
+            if (attendance.absentIn(month) == 0) {
+                LocalDate lastUsable = grant.isBefore(LAW_17185_EFFECTIVE) ? periodEnd(grant, MONTHS_PER_YEAR) : firstYearEnd;
+                out.add(new Accrual(grant, Kind.MONTHLY_FIRST_YEAR, ratesAt.apply(grant).monthlyDays(), month, lastUsable));
+            }
+        }
+        return out;
+    }
+
     /** 제60조 제1항·제4항: 계속근로 {@code year}년을 채웠을 때의 일수. */
     static int annualDays(int year, Rates r) {
         int extraYears = Math.max(0, year - r.incrementBaseYears());
@@ -205,7 +219,7 @@ public final class AnnualLeaveRules {
     }
 
     /** 제60조 제1항: 출근일 / 소정근로일 ≥ 기준 %. 소정근로일이 없으면 판단할 수 없어 예외. */
-    private static boolean meetsAttendanceRate(Attendance a, DateRange period, Rates r) {
+    static boolean meetsAttendanceRate(Attendance a, DateRange period, Rates r) {
         long scheduled = a.scheduledIn(period);
         if (scheduled == 0) {
             throw new IllegalArgumentException("출근율 판단 기간에 소정근로일 자료가 없어요: " + period);
@@ -215,20 +229,20 @@ public final class AnnualLeaveRules {
                 .compareTo(r.attendanceRatePercent().multiply(BigDecimal.valueOf(scheduled))) >= 0;
     }
 
-    private static boolean accrues(LocalDate grant, LocalDate asOf, LocalDate lastWorkDay) {
+    static boolean accrues(LocalDate grant, LocalDate asOf, LocalDate lastWorkDay) {
         return !grant.isAfter(asOf) && (lastWorkDay == null || !lastWorkDay.isBefore(grant));
     }
 
-    /** 입사일부터 m번째 달(1부터)의 판단 구간. */
-    private static DateRange monthPeriod(LocalDate hire, int m) {
+    /** 시작일부터 m번째 달(1부터)의 판단 구간. */
+    static DateRange monthPeriod(LocalDate hire, int m) {
         return new DateRange(periodStart(hire, m - 1), periodEnd(hire, m));
     }
 
-    private static LocalDate periodStart(LocalDate hire, int monthsBefore) {
+    static LocalDate periodStart(LocalDate hire, int monthsBefore) {
         return monthsBefore == 0 ? hire : periodEnd(hire, monthsBefore).plusDays(1);
     }
 
-    private static LocalDate periodEnd(LocalDate start, int months) {
+    static LocalDate periodEnd(LocalDate start, int months) {
         return DismissalNoticeChecker.lastDayOfMonths(start, months);
     }
 }
