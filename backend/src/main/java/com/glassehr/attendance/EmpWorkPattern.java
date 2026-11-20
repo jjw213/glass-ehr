@@ -25,7 +25,7 @@ public class EmpWorkPattern {
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
-    @Column(name = "pattern_id", nullable = false, updatable = false)
+    @Column(name = "pattern_id", nullable = false)
     private Long patternId;
 
     @Column(name = "valid_from", nullable = false, updatable = false)
@@ -58,6 +58,10 @@ public class EmpWorkPattern {
 
     void closeAt(LocalDate date) {
         this.validTo = date;
+    }
+
+    void replacePattern(long patternId) {
+        this.patternId = patternId;
     }
 
     public boolean isEffectiveOn(LocalDate d) {
