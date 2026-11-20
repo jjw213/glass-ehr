@@ -159,6 +159,33 @@ public class WorkPatternService {
         return view(saved, p);
     }
 
+    /**
+     * 같은 날 시작하는 후속 배정을 위해 가장 최근의 예정 배정을 바꾼다.
+     * 가족휴직 서비스가 직전 단축 종료 시 만든 복원 배정만 그 ID를 지정해 호출한다.
+     */
+    @Transactional
+    public AssignmentView replaceLatest(long empId, long assignId, AssignRequest req) {
+        Objects.requireNonNull(req.validFrom(), "validFrom");
+        Employee e = employees.findForUpdate(empId)
+                .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + empId));
+        WorkPattern p = patterns.findForUpdate(req.patternId())
+                .orElseThrow(() -> AttendanceException.notFound("근무유형이 없어요: " + req.patternId()));
+        if (!p.isActive()) {
+            throw AttendanceException.badRequest("사용 중지된 근무유형은 배정할 수 없어요: " + p.getPatternCode());
+        }
+        requireValid(p.spec(), req.validFrom());
+        List<EmpWorkPattern> rows = assignments.findByEmpIdOrderByValidFromAsc(empId);
+        if (rows.isEmpty()) {
+            throw AttendanceException.notFound("바꿀 근무유형 배정이 없어요: " + assignId);
+        }
+        EmpWorkPattern latest = rows.get(rows.size() - 1);
+        if (!Objects.equals(latest.getAssignId(), assignId) || !latest.getValidFrom().equals(req.validFrom())) {
+            throw AttendanceException.badRequest("가장 최근 배정만 같은 적용 시작일에 바꿀 수 있어요");
+        }
+        latest.replacePattern(p.getPatternId());
+        return view(latest, p);
+    }
+
     private WorkPatternRules.Result evaluate(WorkPatternRules.Spec spec, LocalDate asOf) {
         List<WorkPatternRules.Violation> structure = WorkPatternRules.checkStructure(spec);
         if (!structure.isEmpty()) {

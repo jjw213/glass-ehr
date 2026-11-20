@@ -230,6 +230,22 @@ class WorkPatternServiceTest {
     }
 
     @Test
+    void 가장_최근의_같은날_배정은_후속_근무유형으로_바꿀_수_있다() {
+        givenEmployee(LocalDate.of(2026, 1, 2), null);
+        WorkPattern replacement = pattern(3, true);
+        when(patterns.findForUpdate(3)).thenReturn(Optional.of(replacement));
+        LocalDate from = LocalDate.of(2026, 6, 1);
+        EmpWorkPattern latest = withId(new EmpWorkPattern(5, 2, from, "복원", "hr", LocalDateTime.now()),
+                "assignId", 9L);
+        when(assignments.findByEmpIdOrderByValidFromAsc(5)).thenReturn(List.of(latest));
+
+        AssignmentView view = service.replaceLatest(5, 9, new AssignRequest(3L, from, "후속 단축"));
+
+        assertThat(latest.getPatternId()).isEqualTo(3);
+        assertThat(view.assignId()).isEqualTo(9);
+    }
+
+    @Test
     void 입사일_전이나_퇴직일_뒤에는_배정할_수_없다() {
         givenEmployee(LocalDate.of(2026, 3, 2), LocalDate.of(2026, 9, 30));
         when(patterns.findForUpdate(3)).thenReturn(Optional.of(pattern(3, true)));
