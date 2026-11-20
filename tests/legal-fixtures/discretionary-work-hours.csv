@@ -1,0 +1,7 @@
+﻿case_id,대상업무_코드,서면합의_간주근로분,실근로분,날_성격,야간근로분,기대_인정근로분,기대_연장분,기대_야간분,기대_휴일분,기대_정의_검사,출처,검증일
+actual_more_than_deemed,RND,480,600,WORKDAY,0,480,0,0,0,OK,근로기준법 제58조제3항·제56조; 근로기준법 시행령 제31조; https://www.law.go.kr/LSW/lsInfoP.do?lsId=003058,2026-11-19
+actual_less_than_deemed,INFO_SYSTEM,480,360,WORKDAY,0,480,0,0,0,OK,근로기준법 제58조제3항·제56조; 근로기준법 시행령 제31조; https://www.law.go.kr/LSW/lsInfoP.do?lsId=003058,2026-11-19
+deemed_over_8h,DESIGN,540,540,WORKDAY,0,540,60,0,0,OK,근로기준법 제58조제3항·제56조; 근로기준법 시행령 제31조; https://www.law.go.kr/LSW/lsInfoP.do?lsId=003058,2026-11-19
+not_eligible_job,SALES,480,480,WORKDAY,0,0,0,0,0,NOT_ELIGIBLE_JOB,근로기준법 제58조제3항·제56조; 근로기준법 시행령 제31조; https://www.law.go.kr/LSW/lsInfoP.do?lsId=003058,2026-11-19
+night_premium_applies,NEWS,480,480,WORKDAY,120,480,0,120,0,OK,근로기준법 제56조제3항·제58조제3항; https://www.law.go.kr/LSW/lsInfoP.do?lsId=001872; 고용노동부 1350 행정해석 https://1350.moel.go.kr/rtmview.do?id=1000307629,2026-11-19
+holiday_premium_applies,BROADCAST_PRODUCER,480,480,PUBLIC_HOLIDAY,0,480,0,0,480,OK,근로기준법 제56조제2항·제58조제3항; https://www.law.go.kr/LSW/lsInfoP.do?lsId=001872; 고용노동부 1350 행정해석 https://1350.moel.go.kr/rtmview.do?id=1000307629,2026-11-19
