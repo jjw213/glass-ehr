@@ -142,6 +142,14 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V026__family_leave_request.sql"))
                     .execute(dataSource);
         }
+        Integer flexItems = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM legal_rate_item WHERE item_code = 'FLEX_SHORT_UNIT_PERIOD_MAX_WEEKS'",
+                Integer.class);
+        if (flexItems == null || flexItems == 0) {
+            // #38: 탄력적·선택적 근로시간제 legal_rate 항목 12개
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V028__legal_rate_items_flexible_work.sql")).execute(dataSource);
+        }
         return new Applied();
     }
 
