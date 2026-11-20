@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen, LuArrowLeftRight } from 'react-icons/lu';
+import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen, LuArrowLeftRight, LuBaby } from 'react-icons/lu';
 import type { Role } from './api/types';
 import type { PageId } from './state/store';
 
@@ -29,6 +29,7 @@ export const NAV: NavItem[] = [
   { id: 'codes', label: '공통코드 관리', short: '코드', icon: LuListTree, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'workPatterns', label: '근무유형 관리', short: '근무유형', icon: LuCalendarClock, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'agreements', label: '서면합의서 관리', short: '합의서', icon: LuSignature, section: 'system', roles: ['HR', 'ADMIN'] },
+  { id: 'familyLeaves', label: '육아·가족돌봄 휴직', short: '육아휴직', icon: LuBaby, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'appointments', label: '인사발령', short: '발령', icon: LuArrowLeftRight, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'retirements', label: '퇴직 처리', short: '퇴직', icon: LuDoorOpen, section: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'privacyLogs', label: '개인정보 조회 로그', short: '로그', icon: LuShieldCheck, section: 'system', roles: ['ADMIN'] },
@@ -54,6 +55,9 @@ export const canManageHolidays = (role: Role) => canManageWorkPatterns(role);
 
 /** 퇴직 처리·사용증명서·보존기한 목록을 다루는 역할(인사담당자·관리자, #18). 메뉴 표시용이며 실제 차단은 서버 EMP_WRITE·EMP_READ_ALL 검사가 한다. */
 export const canManageRetirements = (role: Role) => navFor(role).some((n) => n.id === 'retirements');
+
+/** 육아휴직·근로시간 단축·가족돌봄휴직 신청을 입력·승인하는 역할(인사담당자·관리자, #37). 메뉴 표시용이며 실제 차단은 서버 EMP_WRITE·EMP_READ_ALL 검사가 한다. */
+export const canManageFamilyLeaves = (role: Role) => navFor(role).some((n) => n.id === 'familyLeaves');
 
 /** 인사발령 등록·확정·취소·일괄 발령을 하는 역할(인사담당자·관리자, #60). 메뉴 표시용이며 실제 차단은 서버 EMP_WRITE·EMP_READ_ALL 검사가 한다. */
 export const canManageAppointments = (role: Role) => navFor(role).some((n) => n.id === 'appointments');

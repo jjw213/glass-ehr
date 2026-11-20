@@ -123,7 +123,7 @@ public class DismissalNoticeChecker {
      * 민법 제160조 제2항: 월로 정한 기간은 최후의 월에서 기산일에 해당한 날의 전일로 만료.
      * 민법 제160조 제3항: 최종의 월에 해당일이 없으면 그 월의 말일로 만료(예: 1월 31일 입사 3개월 → 4월 30일).
      */
-    static LocalDate lastDayOfMonths(LocalDate start, int months) {
+    public static LocalDate lastDayOfMonths(LocalDate start, int months) {
         LocalDate shifted = start.plusMonths(months);
         if (shifted.getDayOfMonth() != start.getDayOfMonth()) {
             // 해당일이 없어 plusMonths 가 그 달 말일로 맞춘 경우 — 그 말일이 만료일이다(제160조 제3항).
