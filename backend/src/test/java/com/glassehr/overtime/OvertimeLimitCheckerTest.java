@@ -67,7 +67,12 @@ class OvertimeLimitCheckerTest {
     }
 
     static DailyWorkSummaryRow actual(LocalDate d, String dayKind, int worked) {
-        return new DailyWorkSummaryRow(EMP, d, dayKind, 1L, 480, null, 0, null, null, 0, worked, 0, 0,
+        return actual(d, dayKind, worked, null, null);
+    }
+
+    static DailyWorkSummaryRow actual(LocalDate d, String dayKind, int worked, LocalDateTime start,
+            LocalDateTime end) {
+        return new DailyWorkSummaryRow(EMP, d, dayKind, 1L, 480, null, 0, start, end, 0, worked, 0, 0,
                 0, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null, "t",
                 LocalDateTime.now());
     }
@@ -98,14 +103,23 @@ class OvertimeLimitCheckerTest {
     }
 
     @Test
-    void 같은_날_실적이_있으면_승인_예정분을_대체해_두_번_세지_않는다() {
-        approved(req(1, OvertimeRequest.Kind.OVERTIME, MON, 30));
-        when(summaries.findRange(EMP, MON, MON.plusDays(6))).thenReturn(List.of(actual(MON, "WORKDAY", 150)));
+    void 실적에_포함된_신청은_중복하지_않고_아직_근무하지_않은_신청은_더한다() {
+        LocalDateTime start = MON.atTime(9, 0);
+        OvertimeRequest reflected = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, start, start.plusMinutes(30),
+                0, "사유", start.minusDays(1));
+        ReflectionTestUtils.setField(reflected, "requestId", 1L);
+        OvertimeRequest future = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, start.plusHours(3),
+                start.plusHours(3).plusMinutes(30), 0, "사유", start.minusDays(1));
+        ReflectionTestUtils.setField(future, "requestId", 2L);
+        approved(reflected, future);
+        when(summaries.findRange(EMP, MON, MON.plusDays(6)))
+                .thenReturn(List.of(actual(MON, "WORKDAY", 120, start, start.plusHours(2))));
 
-        assertThat(checker.check(req(2, OvertimeRequest.Kind.OVERTIME, MON.plusDays(2), 30)).weeklyWorkedMinutes())
+        assertThat(checker.check(reflected).weeklyWorkedMinutes()).isEqualTo(150);
+        assertThat(checker.check(req(3, OvertimeRequest.Kind.OVERTIME, MON.plusDays(2), 30)).weeklyWorkedMinutes())
                 .isEqualTo(180);
         assertThat(OvertimeLimitChecker.weekWorked(MON, Map.of(MON, 10), Map.of(MON, 30, MON.plusDays(7), 99)))
-                .isEqualTo(10);
+                .isEqualTo(40);
     }
 
     @Test

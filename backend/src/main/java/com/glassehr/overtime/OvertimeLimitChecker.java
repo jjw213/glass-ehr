@@ -9,7 +9,10 @@ import com.glassehr.legalrate.LegalRateRow;
 import com.glassehr.legalrate.LegalRateService;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,8 +29,8 @@ import org.springframework.stereotype.Component;
  *   <li>한도 판정용 연장근로 = 1주 실근로시간 중 제50조 제1항의 1주 기준(legal_rate
  *       {@code WEEKLY_STANDARD_WORK_HOURS})을 넘은 시간. 휴일근로도 소정근로일과 구분 없이 포함한다
  *       (대법원 2020도15393을 반영한 고용노동부 2024-01-22 변경 행정해석). 1일 8시간 초과분만으로는 늘지 않는다.</li>
- *   <li>1주 실근로 = 날마다 (실적이 있으면 실적 실근로분, 없으면 승인된 신청 예정분) 합 + 이번 신청 예정분.
- *       같은 날 실적이 승인 예정분을 대체해 두 번 세지 않는다.</li>
+ *   <li>1주 실근로 = 실적 실근로분 + 승인된 신청과 이번 신청 중 실적 근무 구간에 아직 반영되지 않은 예정분.
+ *       같은 날이라도 실적 근무 구간 밖의 예정분은 더하고, 이미 실적에 포함된 신청은 두 번 세지 않는다.</li>
  *   <li>근로일이 {@code WEEKLY_OVERTIME_LIMIT_HOURS}의 첫 적용시작일보다 앞서면(30~49명 사업장은
  *       법률 제15513호 부칙 제1조 제2항 제3호에 따라 2021-07-01 전) 이 한도를 적용하지 않는다.
  *       그 뒤인데 기준값이 없으면 승인하지 않는다(409).</li>
@@ -68,9 +71,11 @@ public class OvertimeLimitChecker {
         int standard = hoursAsMinutes(LegalRateItem.WEEKLY_STANDARD_WORK_HOURS, workDate);
 
         Map<LocalDate, Integer> actual = new HashMap<>();
+        Map<LocalDate, List<DailyWorkSummaryRow>> actualRows = new HashMap<>();
         for (DailyWorkSummaryRow r : summaries.findRange(target.getEmpId(), monday, sunday)) {
             if (r.workedMinutes() != null && r.workedMinutes() > 0) {
                 actual.merge(r.workDate(), r.workedMinutes(), Integer::sum);
+                actualRows.computeIfAbsent(r.workDate(), ignored -> new ArrayList<>()).add(r);
             }
         }
         Map<LocalDate, Integer> planned = new HashMap<>();
@@ -78,10 +83,13 @@ public class OvertimeLimitChecker {
                 monday, sunday, List.of(OvertimeRequest.Status.APPROVED));
         for (OvertimeRequest r : approved) {
             if (!r.getRequestId().equals(target.getRequestId())) {
-                planned.merge(r.getWorkDate(), r.getPlannedMinutes(), Integer::sum);
+                planned.merge(r.getWorkDate(), unreflectedMinutes(r, actualRows.getOrDefault(r.getWorkDate(), List.of())),
+                        Integer::sum);
             }
         }
-        int worked = weekWorked(monday, actual, planned) + target.getPlannedMinutes();
+        planned.merge(target.getWorkDate(),
+                unreflectedMinutes(target, actualRows.getOrDefault(target.getWorkDate(), List.of())), Integer::sum);
+        int worked = weekWorked(monday, actual, planned);
         Result result = new Result(monday, limit, worked, Math.max(0, worked - standard));
         if (result.exceeded()) {
             throw new ApprovalException(HttpStatus.UNPROCESSABLE_ENTITY, "승인하면 " + monday + " 주의 연장근로가 "
@@ -91,15 +99,38 @@ public class OvertimeLimitChecker {
         return result;
     }
 
-    /** 날마다 실적이 있으면 실적, 없으면 승인 예정분을 더한다(같은 근로를 두 번 세지 않음). 주 밖의 날은 무시. */
+    /** 날마다 실적과 아직 실적 근무 구간에 반영되지 않은 승인 예정분을 더한다. 주 밖의 날은 무시. */
     static int weekWorked(LocalDate monday, Map<LocalDate, Integer> actual, Map<LocalDate, Integer> planned) {
         int total = 0;
         for (int i = 0; i < 7; i++) {
             LocalDate d = monday.plusDays(i);
-            Integer a = actual.get(d);
-            total += a != null ? a : planned.getOrDefault(d, 0);
+            total += actual.getOrDefault(d, 0) + planned.getOrDefault(d, 0);
         }
         return total;
+    }
+
+    /** 신청 예정분 중 출퇴근 실적 구간과 겹치지 않아 아직 실적에 반영되지 않은 분. */
+    static int unreflectedMinutes(OvertimeRequest request, List<DailyWorkSummaryRow> rows) {
+        int reflected = 0;
+        boolean hasTimedActual = false;
+        for (DailyWorkSummaryRow row : rows) {
+            LocalDateTime start = row.workStart();
+            LocalDateTime end = row.workEnd();
+            if (start == null || end == null) {
+                continue;
+            }
+            hasTimedActual = true;
+            LocalDateTime overlapStart = request.getStartAt().isAfter(start) ? request.getStartAt() : start;
+            LocalDateTime overlapEnd = request.getEndAt().isBefore(end) ? request.getEndAt() : end;
+            if (overlapEnd.isAfter(overlapStart)) {
+                reflected += Math.toIntExact(Duration.between(overlapStart, overlapEnd).toMinutes());
+            }
+        }
+        // 과거 집계나 법령 fixture처럼 구간 없이 일 합계만 있는 실적은 기존처럼 그날 예정분을 대체한다.
+        if (!rows.isEmpty() && !hasTimedActual) {
+            return 0;
+        }
+        return Math.max(0, request.getPlannedMinutes() - Math.min(request.getPlannedMinutes(), reflected));
     }
 
     /** 한도(분). 첫 적용시작일 전이면 null(미시행), 그 뒤 누락이면 409. */
