@@ -26,8 +26,10 @@ export function buildRoutes(db: Db) {
     if (!loginId || !password) throw new HttpError(400, '아이디와 비밀번호를 입력해 주세요');
     const key = `${ctx.ip}|${loginId}`;
     checkThrottle(key);
+    // Spring 데모 전용 역할 계정은 Node 화면이 이전되는 동안 대응하는 임시 직원 화면으로 연결한다.
+    const legacyLogin = ({ admin: 'hr', payroll: 'sy.park', head: 'dy.lee', emp: 'hj.lim' } as const)[loginId as 'admin' | 'payroll' | 'head' | 'emp'] ?? loginId;
     const [emp] = await db.query<{ id: string; password_hash: string }>(
-      'SELECT ID, PASSWORD_HASH FROM HR_EMPLOYEES WHERE LOGIN_ID = :l AND LEFT_ON IS NULL', { l: loginId });
+      'SELECT ID, PASSWORD_HASH FROM HR_EMPLOYEES WHERE LOGIN_ID = :l AND LEFT_ON IS NULL', { l: legacyLogin });
     if (!emp || !(await verifyPassword(password, emp.password_hash))) {
       recordFail(key);
       throw new HttpError(401, '아이디 또는 비밀번호가 맞지 않아요');

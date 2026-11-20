@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  * </ul>
  */
 @Component
-@ConditionalOnExpression("!'${glassehr.auth.demo-password:}'.isBlank()")
+@ConditionalOnProperty(name = "glassehr.auth.demo-password")
 public class DemoAccountSeeder implements ApplicationRunner {
 
     /** 데모 비밀번호 최소 길이(운영 정책 아님, 너무 짧은 값을 막는 개발 편의 기준). */
@@ -36,10 +36,34 @@ public class DemoAccountSeeder implements ApplicationRunner {
 
     static final List<Account> ACCOUNTS = List.of(
             new Account("admin", null, "ADMIN"),
-            new Account("hr", "S01-2019-001", "HR"),            // 예시사원03 인사팀장
-            new Account("payroll", "S01-2019-002", "PAYROLL"),  // 예시사원04 급여 실무
-            new Account("head", "S01-2020-003", null),          // 예시사원08 개발1팀장(부서장 역할은 조직도로 자동)
-            new Account("emp", "S01-2020-004", null));          // 예시사원09 일반 사원
+            new Account("payroll", "S01-2024-003", "PAYROLL"),
+            new Account("head", "S01-2024-004", null),
+            new Account("emp", "S01-2025-001", null),
+            // Node 화면의 임시 HR_EMPLOYEES 계정도 Spring 인증 저장소에 연결한다.
+            new Account("hr", "S01-2018-001", "HR"),
+            new Account("sy.park", "S01-2018-002", null),
+            new Account("dy.lee", "S01-2019-001", null),
+            new Account("he.choi", "S01-2019-002", null),
+            new Account("mj.jung", "S01-2019-003", null),
+            new Account("jw.han", "S01-2020-001", null),
+            new Account("sj.yoon", "S01-2020-002", null),
+            new Account("yr.jang", "S01-2020-003", null),
+            new Account("hj.lim", "S01-2020-004", null),
+            new Account("ja.oh", "S01-2021-001", null),
+            new Account("sw.kang", "S01-2021-002", null),
+            new Account("yn.jo", "S01-2021-003", null),
+            new Account("dh.shin", "S01-2021-004", null),
+            new Account("sa.bae", "S01-2021-005", null),
+            new Account("gw.ryu", "S01-2022-001", null),
+            new Account("cw.moon", "S01-2022-002", null),
+            new Account("ty.song", "S01-2022-003", null),
+            new Account("di.hong", "S01-2022-004", null),
+            new Account("mj.kwon", "S01-2023-001", null),
+            new Account("sy.yang", "S01-2023-002", null),
+            new Account("js.hwang", "S01-2023-003", null),
+            new Account("jm.ahn", "S01-2023-004", null),
+            new Account("hr.jeon", "S01-2024-001", null),
+            new Account("eh.ko", "S01-2024-002", null));
 
     private static final Logger LOG = LoggerFactory.getLogger(DemoAccountSeeder.class);
 

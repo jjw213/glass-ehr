@@ -44,8 +44,8 @@ class LoginServiceTest {
         });
         user = new AppUser("u1", null, true, Set.of());
         user.changePassword(LoginService.hash(PW), T0.minusDays(1));
-        when(users.findById("u1")).thenReturn(Optional.of(user));
-        when(users.findById("nobody")).thenReturn(Optional.empty());
+        when(users.findByIdForUpdate("u1")).thenReturn(Optional.of(user));
+        when(users.findByIdForUpdate("nobody")).thenReturn(Optional.empty());
     }
 
     private LoginService at(LocalDateTime now) {
@@ -77,11 +77,11 @@ class LoginServiceTest {
 
         AppUser off = new AppUser("off", null, false, Set.of());
         off.changePassword(LoginService.hash(PW), T0);
-        when(users.findById("off")).thenReturn(Optional.of(off));
+        when(users.findByIdForUpdate("off")).thenReturn(Optional.of(off));
         assertThat(at(T0).login("off", PW, null).outcome()).isEqualTo(Outcome.BAD_CREDENTIALS);
         assertThat(last().getFailReason()).isEqualTo(FailReason.INACTIVE);
 
-        when(users.findById("nopw")).thenReturn(Optional.of(new AppUser("nopw", null, true, Set.of())));
+        when(users.findByIdForUpdate("nopw")).thenReturn(Optional.of(new AppUser("nopw", null, true, Set.of())));
         assertThat(at(T0).login("nopw", PW, null).outcome()).isEqualTo(Outcome.BAD_CREDENTIALS);
         assertThat(last().getFailReason()).isEqualTo(FailReason.NO_PASSWORD);
         verify(users, never()).save(any());

@@ -78,7 +78,8 @@ public class LoginService {
     public Result login(String loginId, String rawPassword, String clientIp) {
         String id = loginId.strip();
         LocalDateTime now = LocalDateTime.now(clock);
-        Optional<AppUser> found = users.findById(id);
+        // BCrypt 비교가 끝나고 실패 횟수를 저장할 때까지 행 잠금을 유지해 동시 실패 갱신 유실을 막는다.
+        Optional<AppUser> found = users.findByIdForUpdate(id);
         if (found.isEmpty()) {
             ENCODER.matches(rawPassword, DUMMY_HASH);
             return fail(id, FailReason.UNKNOWN_USER, false, clientIp, now);
