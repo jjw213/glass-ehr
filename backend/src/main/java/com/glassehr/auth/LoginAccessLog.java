@@ -16,7 +16,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 로그인·로그아웃 접속기록(추가만). 테이블: V026 login_access_log. 비밀번호는 남기지 않는다.
+ * 로그인·로그아웃 접속기록(추가만). 테이블: V027 login_access_log. 비밀번호는 남기지 않는다.
  * 개인정보 보호법 제29조·개인정보의 안전성 확보조치 기준(접속기록 보관): 누가(loginId), 언제(occurredAt),
  * 어디서(clientIp), 무엇을(event·failReason).
  */
@@ -25,14 +25,14 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "login_access_log")
 public class LoginAccessLog {
 
-    /** V026 ck_login_log_event 와 같아야 함. */
+    /** V027 ck_login_log_event 와 같아야 함. */
     public enum Event {
         LOGIN_SUCCESS,
         LOGIN_FAILURE,
         LOGOUT
     }
 
-    /** V026 ck_login_log_reason 과 같아야 함. */
+    /** V027 ck_login_log_reason 과 같아야 함. */
     public enum FailReason {
         UNKNOWN_USER,
         BAD_PASSWORD,

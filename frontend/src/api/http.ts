@@ -3,16 +3,21 @@ import { ApiError, type Api } from './types';
 /**
  * Talks to the server under /api. In dev, Vite proxies /api → Node server (4000),
  * except the Spring backend paths listed in vite.config.ts (공통코드 → 8080).
+ *
+ * 사용자는 로그인 세션 쿠키(GHR_SESSION, HttpOnly·SameSite=Lax)로 식별한다(#76, docs/auth-design.md 8장).
+ * 화면은 X-Actor-Id 를 보내지 않는다. 상태를 바꾸는 요청의 CSRF 검사용으로 모든 요청에 아래 헤더를 붙인다.
  */
-let actorId: string | null = null;
+export const CSRF_HEADERS: Readonly<Record<string, string>> = { 'X-Requested-With': 'XMLHttpRequest' };
+/** JSON 이 아닌 요청(파일 올리기·내려받기)에 붙일 헤더. */
+export function csrfHeader(): Record<string, string> { return { ...CSRF_HEADERS }; }
 
-/**
- * 로그인한 사용자 아이디. Spring 백엔드는 모든 /api 요청에서 이 값(X-Actor-Id)으로 사용자를 찾고
- * 역할·권한은 DB에서 읽는다(#19, docs/auth-design.md). 인증 이슈에서 세션·토큰으로 바뀌면 이 함수만 바꾼다.
- */
-export function setActorId(id: string | null) { actorId = id; }
-/** JSON 이 아닌 요청(파일 올리기·내려받기)에 붙일 사용자 헤더. */
-export function actorHeader(): Record<string, string> { return actorId ? { 'X-Actor-Id': actorId } : {}; }
+let onUnauthorized: (() => void) | null = null;
+/** 세션이 끝나 API 가 401 을 주면 부를 함수(로그인 화면으로 돌아가기). 로그인 요청 자체의 401 은 부르지 않는다. */
+export function setUnauthorizedHandler(fn: (() => void) | null) { onUnauthorized = fn; }
+/** 로그인 요청이 아닌 API 가 401 을 주면 세션 만료로 보고 처리한다. */
+export function notifyIfUnauthorized(status: number, path: string) {
+  if (status === 401 && path !== '/auth/login' && path !== '/login') onUnauthorized?.();
+}
 
 /**
  * body 가 문자열이면 JSON 으로 바꾸지 않고 그대로 보낸다(예: 공휴일 CSV — Content-Type 은 extraHeaders 로).
@@ -22,7 +27,7 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: s
   const hasBody = method !== 'GET' && method !== 'DELETE';
   const headers: Record<string, string> = {
     ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
-    ...(actorId ? { 'X-Actor-Id': actorId } : {}),
+    ...CSRF_HEADERS,
     ...extraHeaders,
   };
   let res: Response;
@@ -30,7 +35,7 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: s
     res = await fetch('/api' + path, {
       method,
       credentials: 'same-origin',
-      headers: Object.keys(headers).length > 0 ? headers : undefined,
+      headers,
       body: hasBody ? (typeof body === 'string' ? body : JSON.stringify(body ?? {})) : undefined,
     });
   } catch {
@@ -39,6 +44,7 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: s
   if (!res.ok) {
     let msg = `요청에 실패했어요 (${res.status})`;
     try { msg = ((await res.json()) as { error?: string }).error ?? msg; } catch { /* not JSON */ }
+    notifyIfUnauthorized(res.status, path);
     throw new ApiError(res.status, msg);
   }
   if (res.status === 204) return undefined as T;
@@ -47,8 +53,22 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: s
 
 export const httpApi: Api = {
   mode: 'http',
-  login: async (loginId, password) => { await call('POST', '/login', { loginId, password }); },
-  logout: async () => { await call('POST', '/logout'); },
+  // 로그인은 Spring(/api/auth/login, 세션 쿠키)이 정한다(#76). 홈 화면 데이터(/api/bootstrap 등)가 아직 Node 서버라
+  // 옮기는 동안만 같은 아이디·비밀번호로 Node 에도 로그인한다. Node 경로를 모두 옮기면 두 번째 호출을 지운다.
+  login: async (loginId, password) => {
+    await call('POST', '/auth/login', { loginId, password });
+    try {
+      await call('POST', '/login', { loginId, password });
+    } catch (e) {
+      try { await call('POST', '/auth/logout'); } catch { /* 이미 끝남 */ }
+      throw e;
+    }
+  },
+  logout: async () => {
+    const results = await Promise.allSettled([call('POST', '/auth/logout'), call('POST', '/logout')]);
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed) throw failed.reason;
+  },
   bootstrap: () => call('GET', '/bootstrap'),
   toggleClock: () => call('POST', '/attendance/toggle'),
   addLeave: (input) => call('POST', '/leaves', input),

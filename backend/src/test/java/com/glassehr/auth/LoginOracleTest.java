@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
- * Oracle 실DB에서 로그인·잠금·로그아웃, Spring Session JDBC 세션 저장, 접속기록(V026)을 검증한다. 실행 조건: {@code ORACLE_IT=true}.
+ * Oracle 실DB에서 로그인·잠금·로그아웃, Spring Session JDBC 세션 저장, 접속기록(V027)을 검증한다. 실행 조건: {@code ORACLE_IT=true}.
  * 세션 저장은 별도 트랜잭션이라 롤백하지 않고, 테스트마다 새 아이디를 쓰고 끝나면 사용자·세션을 지운다(접속기록은 남긴다).
  */
 @SpringBootTest

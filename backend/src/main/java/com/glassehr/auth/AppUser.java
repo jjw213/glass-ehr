@@ -43,7 +43,7 @@ public class AppUser {
     @Column(name = "role_code", nullable = false)
     private Set<String> roles = new HashSet<>();
 
-    // V026(#76). 비밀번호 해시(BCrypt). 원문은 저장하지 않고, 이 값은 응답·로그로 내보내지 않는다.
+    // V027(#76). 비밀번호 해시(BCrypt). 원문은 저장하지 않고, 이 값은 응답·로그로 내보내지 않는다.
     @Column(name = "password_hash", length = 100)
     private String passwordHash;
 

@@ -12,11 +12,11 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
-/** V026 정적 검사(Oracle 없이). */
+/** V027 정적 검사(Oracle 없이). */
 class LoginSchemaScriptTest {
 
     private static String sql() throws IOException {
-        return new ClassPathResource("db/oracle/V026__app_user_login_session.sql").getContentAsString(StandardCharsets.UTF_8);
+        return new ClassPathResource("db/oracle/V027__app_user_login_session.sql").getContentAsString(StandardCharsets.UTF_8);
     }
 
     private static Set<String> names(Class<? extends Enum<?>> e) {

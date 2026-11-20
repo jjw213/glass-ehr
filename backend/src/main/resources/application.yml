@@ -32,7 +32,7 @@ spring:
     deserialization:
       # 금액·분 단위 정수 필드에 소수(2500000.5)가 오면 잘라 내지 않고 400 으로 거부한다(AGENTS.md: 금액은 원 단위 정수).
       accept-float-as-int: false
-  # 로그인 세션(#75 결정, #76 구현). 세션은 Oracle SPRING_SESSION 테이블(V026)에 저장한다. 테이블은 앱이 만들지 않는다.
+  # 로그인 세션(#75 결정, #76 구현). 세션은 Oracle SPRING_SESSION 테이블(V027)에 저장한다. 테이블은 앱이 만들지 않는다.
   session:
     jdbc:
       initialize-schema: never

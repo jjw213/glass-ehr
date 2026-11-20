@@ -35,8 +35,7 @@
 
 - 요청 헤더 `X-Actor-Id`(로그인 아이디)로 `app_user`를 찾는다. 없거나 사용 중지면 401.
   **역할은 DB에서 읽고 `X-Actor-Role` 헤더는 무시한다**(헤더로 역할을 올리는 우회 차단).
-- 인증(비밀번호·세션·토큰)은 아직 없다. 이 헤더는 인증 이슈 전까지의 임시 방식이며, 바꿀 때는
-  `AuthInterceptor.loginIdOf`와 프론트 `api/http.ts`의 `setActorId`만 바꾼다. 바꿀 방식은 7장(#75 결정).
+- **#76부터 사용자는 로그인 세션으로 식별한다(8장).** 이 헤더는 `test` 프로필에서만 받는다.
 - `AuthInterceptor`가 `/api/**` 모든 컨트롤러 메서드를 검사한다.
   - `@PublicApi`(헬스 체크)만 통과.
   - `@RequiresPermission`이 없는 메서드는 403(새 API를 만들고 권한을 빠뜨려도 열리지 않음).
@@ -90,3 +89,31 @@
   - CSRF 방어(쿠키 방식이라 필요), 로그인 시도 제한, 로그인 시 세션 ID 재발급(세션 고정 방지).
   - 사용자 사용 중지·퇴직 시 그 사용자의 세션을 모두 끊는 경로.
   - 로그인·로그아웃 기록을 접속기록으로 남길지(6장 접속기록 미결과 함께).
+
+## 8. 로그인·세션 구현 (#76)
+
+2장의 `X-Actor-Id` 식별은 이제 **`test` 프로필 전용**이다(pom.xml surefire 가 `spring.profiles.active=test` 로 테스트를 돌린다).
+그 밖의 프로필에서는 헤더를 무시하고 세션만 본다. 세션이 있으면 test 프로필에서도 세션이 우선이다.
+
+- 마이그레이션 `V027__app_user_login_session.sql`
+  - `app_user`: `password_hash`(BCrypt, `$2a/$2b/$2y$` 형식만 CHECK), `password_changed_at`, `failed_login_count`, `locked_until`.
+  - `login_access_log`: 로그인 성공·실패(사유: 없는 아이디·비밀번호 틀림·잠김·사용 중지·비밀번호 미설정)·로그아웃, 시각, IP. 추가만, 비밀번호는 남기지 않는다.
+  - `SPRING_SESSION`, `SPRING_SESSION_ATTRIBUTES`: Spring Session JDBC Oracle 스키마. 앱은 만들지 않는다(`initialize-schema: never`).
+- API (`LoginController`, `LoginService`)
+  - `POST /api/auth/login {loginId, password}` → 200 `{loginId}` / 400 입력 없음 / 401 불일치(없는 아이디와 구분하지 않음) / 423 잠김.
+    성공하면 기존 세션을 버리고 새 세션을 만든다(세션 고정 방지).
+  - `POST /api/auth/logout` → 204(세션이 없어도). 로그아웃 기록 후 세션을 지운다.
+  - 실패 횟수·잠금 시간은 운영 설정 `glassehr.auth.max-failed-attempts`(기본 5), `glassehr.auth.lock-duration`(기본 30m). 법정 수치가 아니다.
+- 세션 쿠키 `GHR_SESSION`: HttpOnly, SameSite=Lax, `Secure` 는 `SESSION_COOKIE_SECURE`(운영 HTTPS 는 true), 유휴 만료 `SESSION_IDLE_TIMEOUT`(기본 30m).
+- CSRF: SameSite=Lax 쿠키 + 상태를 바꾸는 요청(GET·HEAD·OPTIONS 외)에 `X-Requested-With: XMLHttpRequest` 헤더 필수(없으면 403).
+  다른 출처 페이지는 CORS 사전 요청 없이 이 헤더를 붙일 수 없고, 서버는 CORS 를 열지 않는다. 화면(`api/http.ts`)이 모든 요청에 붙인다.
+- 사용 중지·삭제된 사용자의 세션으로 요청하면 401 과 함께 그 세션을 지운다.
+- 화면: 로그인 폼은 `/api/auth/login` 으로 로그인한다. 홈 데이터(`/api/bootstrap` 등)가 아직 Node 서버라 옮기는 동안만
+  같은 아이디·비밀번호로 Node `/api/login` 에도 로그인한다(개발 중엔 `DEMO_ACCOUNT_PASSWORD` 와 Node `SEED_PASSWORD` 를 같게).
+  어느 API 든 401 을 주면 로그인 화면으로 돌아간다. 데모 모드(`api/mock.ts`)는 그대로 `hr / 1234`.
+- 데모 계정: `.env` 의 `DEMO_ACCOUNT_PASSWORD` 가 있으면 시작할 때 `DemoAccountSeeder` 가 `employee_demo_seed.sql` 사원과 연결된
+  `admin·hr·payroll·head·emp` 계정을 만들고 그 값을 BCrypt 로 해시해 넣는다(시드 파일에 평문 없음, 이미 비밀번호가 있으면 그대로).
+- 근거: 개인정보 보호법 제29조(안전조치의무), 개인정보의 안전성 확보조치 기준(개인정보보호위원회고시 제2026-9호, 시행 2026. 7. 1.,
+  law.go.kr 제목 확인 2026-11-20)의 접근 권한 관리(인증 실패 시 접근 제한)·접근 통제·접속기록 보관.
+  **조문 번호와 접속기록 보관 기간은 미확인**(law.go.kr 본문이 자동 조회되지 않음). 이 구현은 보관 기간을 정하지 않고 로그를 지우지도
+  않으므로 값에 의존하지 않는다. 보관 기간·점검 주기는 6장 미결대로 원문 확인 후 별도 이슈에서 `legal_rate` 로 넣는다.
