@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen, LuArrowLeftRight, LuBaby } from 'react-icons/lu';
+import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen, LuArrowLeftRight, LuBaby, LuCalendarCheck } from 'react-icons/lu';
 import type { Role } from './api/types';
 import type { PageId } from './state/store';
 
@@ -24,6 +24,7 @@ export const NAV: NavItem[] = [
   { id: 'messages', label: '메시지', short: '메시지', icon: LuMessageCircle, section: 'workspace' },
   { id: 'people', label: '인사정보', short: '인사', icon: LuUsers, section: 'workspace' },
   { id: 'org', label: '조직도', short: '조직', icon: LuNetwork, section: 'workspace' },
+  { id: 'flexWork', label: '근무계획', short: '근무계획', icon: LuCalendarCheck, section: 'workspace' },
   { id: 'holidays', label: '휴일 달력', short: '휴일', icon: LuCalendarDays, section: 'workspace' },
   { id: 'settings', label: '설정', short: '설정', icon: LuSettings, section: 'system' },
   { id: 'codes', label: '공통코드 관리', short: '코드', icon: LuListTree, section: 'system', roles: ['HR', 'ADMIN'] },

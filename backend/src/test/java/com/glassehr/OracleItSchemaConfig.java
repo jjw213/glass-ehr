@@ -149,6 +149,20 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V027__app_user_login_session.sql"))
                     .execute(dataSource);
         }
+        Integer flexItems = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM legal_rate_item WHERE item_code = 'FLEX_SHORT_UNIT_PERIOD_MAX_WEEKS'",
+                Integer.class);
+        if (flexItems == null || flexItems == 0) {
+            // #38: 탄력적·선택적 근로시간제 legal_rate 항목 12개
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V028__legal_rate_items_flexible_work.sql")).execute(dataSource);
+        }
+        Integer flexPlan = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'FLEX_WORK_PLAN'", Integer.class);
+        if (flexPlan == null || flexPlan == 0) {
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V029__flex_work_assign.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

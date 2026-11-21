@@ -10,7 +10,8 @@ package com.glassehr.legalrate;
  * {@code V015__legal_rate_items_work_pattern.sql}(근로시간 한도·휴게·주휴일 7개, 합계 56개),
  * {@code V018__legal_rate_item_public_holiday_paid.sql}(공휴일 유급휴일 적용 규모 1개, 합계 57개),
  * {@code V022__retirement_process.sql}(해고 예고 2개, 합계 59개),
- * {@code V026__family_leave_request.sql}(육아휴직·단축·가족돌봄 자격·분할 8개, 합계 67개)이며, 이 enum과 목록·단위가 같아야 한다
+ * {@code V026__family_leave_request.sql}(육아휴직·단축·가족돌봄 자격·분할 8개, 합계 67개),
+ * {@code V028__legal_rate_items_flexible_work.sql}(탄력적·선택적 근로시간제 12개, 합계 79개)이며, 이 enum과 목록·단위가 같아야 한다
  * (LegalRateItemRegistrationTest). 근거 조문은 legal_rate_item.legal_basis 에 있다.
  * 값은 {@link LegalRateService#getEffective(LegalRateItem, java.time.LocalDate)}로 적용일 기준 조회한다.
  */
@@ -124,7 +125,23 @@ public enum LegalRateItem {
     CHILDCARE_REDUCED_UNUSED_LEAVE_MULTIPLIER(LegalRateUnit.COUNT),
     CHILDCARE_REDUCED_MIN_UNIT_MONTHS(LegalRateUnit.MONTHS),
     FAMILY_CARE_LEAVE_MIN_SERVICE_MONTHS(LegalRateUnit.MONTHS),
-    FAMILY_CARE_LEAVE_MIN_UNIT_DAYS(LegalRateUnit.DAYS);
+    FAMILY_CARE_LEAVE_MIN_UNIT_DAYS(LegalRateUnit.DAYS),
+
+    // 근로기준법 제51조 제1항·제2항, 제51조의2 제1항·제2항 제1호: 탄력적 근로시간제 단위기간·상한·휴식 (V028, #38)
+    FLEX_SHORT_UNIT_PERIOD_MAX_WEEKS(LegalRateUnit.WEEKS),
+    FLEX_SHORT_WEEK_MAX_HOURS(LegalRateUnit.HOURS),
+    FLEX_WRITTEN_UNIT_PERIOD_MAX_MONTHS(LegalRateUnit.MONTHS),
+    FLEX_WRITTEN_WEEK_MAX_HOURS(LegalRateUnit.HOURS),
+    FLEX_WRITTEN_DAY_MAX_HOURS(LegalRateUnit.HOURS),
+    FLEX_LONG_UNIT_PERIOD_MAX_MONTHS(LegalRateUnit.MONTHS),
+    FLEX_LONG_WEEK_MAX_HOURS(LegalRateUnit.HOURS),
+    FLEX_LONG_DAY_MAX_HOURS(LegalRateUnit.HOURS),
+    FLEX_LONG_DAILY_REST_MIN_HOURS(LegalRateUnit.HOURS),
+
+    // 근로기준법 제52조 제1항·제2항 제1호: 선택적 근로시간제 정산기간 한도·휴식 (V028, #38)
+    SELECTIVE_SETTLEMENT_MAX_MONTHS(LegalRateUnit.MONTHS),
+    SELECTIVE_SETTLEMENT_RND_MAX_MONTHS(LegalRateUnit.MONTHS),
+    SELECTIVE_RND_DAILY_REST_MIN_HOURS(LegalRateUnit.HOURS);
 
     private final String unit;
 

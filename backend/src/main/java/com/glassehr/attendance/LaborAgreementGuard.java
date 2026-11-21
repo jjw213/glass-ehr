@@ -51,6 +51,16 @@ public class LaborAgreementGuard {
         return agreements.findById(r.agreementId()).orElseThrow();
     }
 
+    /** 이미 배정에 연결된 합의서가 수정된 경우에도 현재 적용 범위와 기간을 확인한다. */
+    @Transactional(readOnly = true)
+    public void requireLinked(Long agreementId, AgreementType type, LocalDate from, LocalDate until, String siteCode) {
+        if (agreementId == null || agreements.findById(agreementId)
+                .filter(a -> LaborAgreementRules.covers(a, type, from, until, siteCode)).isEmpty()) {
+            throw new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    missingMessage(type, from, until, false), List.of());
+        }
+    }
+
     static String missingMessage(AgreementType type, LocalDate from, LocalDate until, boolean none) {
         String period = from + " ~ " + (until == null ? "기간 정함 없음" : until.toString());
         return type.label() + "는 근로자대표와의 서면합의가 있어야 해요(" + type.article() + "). "
