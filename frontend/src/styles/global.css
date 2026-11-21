@@ -841,6 +841,14 @@ select.input option { color: #1a1a1a; }
 .appt-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .appt-filters .input { width: auto; min-width: 130px; }
 .appt-filters .chips { margin: 0; }
+
+/* 연장·휴일근로 신청·결재함 (#30) */
+.ot-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.ot-form__wide { grid-column: 1 / -1; }
+.ot-form__foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.approval-doc { display: flex; flex-direction: column; gap: 10px; }
+.approval-doc h4 { margin: 6px 0 0; font-size: 14px; }
+.approval-steps, .approval-history { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 .appt-table tbody tr { cursor: default; }
 .appt-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .appt-pick { border: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }

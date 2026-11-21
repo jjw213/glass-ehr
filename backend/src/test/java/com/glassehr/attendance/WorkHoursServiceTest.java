@@ -41,6 +41,7 @@ class WorkHoursServiceTest {
     private WorkPatternRepository patterns;
     private HolidayService holidays;
     private ApprovedLeaveProvider leaves;
+    private ApprovedOvertimeProvider overtimes;
     private WorkHoursLegalRules legalRules;
     private EmployeeRepository employees;
     private WorkHoursService service;
@@ -73,10 +74,12 @@ class WorkHoursServiceTest {
         patterns = mock(WorkPatternRepository.class);
         holidays = mock(HolidayService.class);
         leaves = mock(ApprovedLeaveProvider.class);
+        overtimes = mock(ApprovedOvertimeProvider.class);
         legalRules = mock(WorkHoursLegalRules.class);
         employees = mock(EmployeeRepository.class);
         Clock clock = Clock.fixed(Instant.parse("2099-03-10T01:00:00Z"), WorkHoursService.SEOUL);
-        service = new WorkHoursService(mapper, assignments, patterns, holidays, leaves, legalRules, employees, clock);
+        service = new WorkHoursService(mapper, assignments, patterns, holidays, leaves, overtimes, legalRules,
+                employees, clock);
         when(employees.existsById(EMP)).thenReturn(true);
         when(assignments.findByEmpIdOrderByValidFromAsc(EMP)).thenReturn(List.of(
                 new EmpWorkPattern(EMP, PATTERN, LocalDate.of(2099, 1, 1), null, "hr1", LocalDateTime.now())));
@@ -112,6 +115,20 @@ class WorkHoursServiceTest {
         assertThat(rows.get(5).dayKind()).isEqualTo("OFFDAY");
         assertThat(rows.get(6).dayKind()).isEqualTo("HOLIDAY");
         assertThat(rows.get(0).workedMinutes()).isZero();
+    }
+
+    @Test
+    void 연장근로_실적에_승인된_사전_신청이_없으면_확인_표시를_남긴다() {
+        LocalDate wed = MON.plusDays(2);
+        punchesAre(punch(AttendancePunch.Type.IN, wed.atTime(9, 0)), punch(AttendancePunch.Type.OUT, wed.atTime(20, 0)));
+
+        List<DailyWorkSummaryRow> rows = service.recalculate(EMP, wed, wed, "hr1");
+        assertThat(rows.get(2).overtimeMinutes()).isPositive();
+        assertThat(rows.get(2).issues()).isEqualTo("OVERTIME_NOT_APPROVED");
+        assertThat(rows.get(1).issues()).isNull();
+
+        when(overtimes.approvedDates(EMP, MON, MON.plusDays(6))).thenReturn(Set.of(wed));
+        assertThat(service.recalculate(EMP, wed, wed, "hr1").get(2).issues()).isNull();
     }
 
     @Test

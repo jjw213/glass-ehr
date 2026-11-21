@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen, LuArrowLeftRight, LuBaby, LuCalendarCheck } from 'react-icons/lu';
+import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen, LuArrowLeftRight, LuTimer, LuInbox, LuBaby, LuCalendarCheck } from 'react-icons/lu';
 import type { Role } from './api/types';
 import type { PageId } from './state/store';
 
@@ -21,6 +21,8 @@ export const NAV: NavItem[] = [
   { id: 'attendance', label: '근태 · 휴가', short: '근태', icon: LuClock, section: 'main', top: true },
   { id: 'payroll', label: '급여명세서', short: '급여', icon: LuWallet, section: 'main', top: true },
   { id: 'approvals', label: '전자결재', short: '결재', icon: LuFileCheck, section: 'main', top: true },
+  { id: 'overtime', label: '연장·휴일근로 신청', short: '연장근로', icon: LuTimer, section: 'workspace' },
+  { id: 'approvalInbox', label: '결재함', short: '결재함', icon: LuInbox, section: 'workspace' },
   { id: 'messages', label: '메시지', short: '메시지', icon: LuMessageCircle, section: 'workspace' },
   { id: 'people', label: '인사정보', short: '인사', icon: LuUsers, section: 'workspace' },
   { id: 'org', label: '조직도', short: '조직', icon: LuNetwork, section: 'workspace' },
