@@ -1,3 +1,4 @@
+import { loadAppData } from './bootstrap';
 import { ApiError, type Api } from './types';
 
 /**
@@ -69,7 +70,8 @@ export const httpApi: Api = {
     const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
     if (failed) throw failed.reason;
   },
-  bootstrap: () => call('GET', '/bootstrap'),
+  // 사용자·부서·홈 요약은 Spring, 나머지는 아직 Node /api/bootstrap(#77, api/bootstrap.ts)
+  bootstrap: () => loadAppData((path) => call('GET', path)),
   toggleClock: () => call('POST', '/attendance/toggle'),
   addLeave: (input) => call('POST', '/leaves', input),
   decide: (id, action) => call('POST', `/approvals/${encodeURIComponent(id)}/${action}`),

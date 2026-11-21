@@ -2,8 +2,14 @@
  * In-browser fake backend with the same interface as the real server.
  * Used when VITE_API=mock (the shareable demo). Data resets on reload.
  */
-import { APPROVALS, DASHBOARD, DEPTS, EMPLOYEES, LEAVES, ME, PAYSLIPS, THREADS, WEEK_HOURS } from '../data/mock';
-import { ApiError, type Api, type Approval, type Attendance, type LeaveRequest, type Thread } from './types';
+import { APPROVALS, DASHBOARD, LEAVES, ME, PAYSLIPS, THREADS, WEEK_HOURS } from '../data/mock';
+import { EMP_DEPT_TREE } from '../data/employees';
+import { DEMO_EMPLOYEES } from '../data/org';
+import { toDepts, toSessionUser } from './bootstrap';
+import { ApiError, type Api, type Approval, type Attendance, type AuthMe, type DashboardSummary, type LeaveRequest, type Thread } from './types';
+
+/** 데모 계정이 연결된 사원(인사팀 팀장 예시사원03). */
+const DEMO_SELF_EMP_ID = 3;
 
 const ymd = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const wait = (ms = 250) => new Promise((r) => setTimeout(r, ms));
@@ -44,9 +50,19 @@ export const mockApi: Api = {
   async logout() { await wait(100); },
   async bootstrap() {
     await wait(200);
+    // Spring 과 같은 모양(#77): 데모 계정 hr = 인사팀 예시사원(data/org.ts), 부서는 데모 조직 트리, 요약은 데모 숫자.
+    const self = DEMO_EMPLOYEES.find((e) => e.empId === DEMO_SELF_EMP_ID);
+    const auth: AuthMe = { loginId: ME.loginId, empId: DEMO_SELF_EMP_ID, roles: ['HR'], permissions: ['EMP_READ_ALL', 'EMP_WRITE'], managedDeptIds: [] };
+    const now = new Date();
+    const dashboard: DashboardSummary = {
+      today: ymd(now), headcount: DASHBOARD.headcount, hiredThisMonth: DASHBOARD.hiredThisMonth, presentToday: DASHBOARD.presentToday,
+      trend: DASHBOARD.trend.map((p, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - (DASHBOARD.trend.length - 1 - i), 1);
+        return { month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, hire: p.hire, leave: p.leave };
+      }),
+    };
     return {
-      me: clone(ME), depts: clone(DEPTS), employees: clone(EMPLOYEES),
-      dashboard: { ...clone(DASHBOARD), schedule: DASHBOARD.schedule.map((s) => ({ ...s, date: ymd() })) },
+      me: toSessionUser(auth, self, ME.annualLeave), depts: toDepts(EMP_DEPT_TREE), dashboard,
       approvals: clone(approvals), leaves: clone(leaves), attendance: attendance(), payslips: clone(PAYSLIPS), threads: clone(threads),
     };
   },

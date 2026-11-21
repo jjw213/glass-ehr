@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { LuUsers, LuBriefcase, LuPlane, LuFileCheck, LuArrowUpRight, LuDownload, LuMegaphone, LuPin } from 'react-icons/lu';
+import { LuUsers, LuBriefcase, LuFileCheck, LuArrowUpRight, LuDownload } from 'react-icons/lu';
 import type { IconType } from 'react-icons';
-import { Card, CardHead, PageHead, Segmented, Sparkline, Badge, Avatar, vars, cx, ymd } from '../components/ui';
+import { Card, CardHead, PageHead, Segmented, Sparkline, Badge, Avatar, vars, cx } from '../components/ui';
 import { PunchWidget } from '../components/PunchWidget';
 import { WeeklyHoursWidget } from '../components/WeeklyHoursWidget';
 import { useData, useStore } from '../state/store';
@@ -32,23 +32,25 @@ export function HomePage() {
   const { me, dashboard: db, approvals } = useData();
   const [period, setPeriod] = useState<Period>('7개월');
   const [weeklyHoursRefreshKey, setWeeklyHoursRefreshKey] = useState(0);
-  const t = db.trend;
+  // 인원 요약(#77)은 Spring /api/dashboard/summary. 볼 권한(전체·부서장)이 없으면 null 이라 인원 카드·추이를 숨긴다.
+  // 휴가·부재, 다가오는 일정, 공지사항은 Spring 에 아직 기능이 없어 숨긴다(옮기는 이슈에서 다시 넣는다).
+  const t: TrendPoint[] = (db?.trend ?? []).map((p) => ({ m: `${Number(p.month.slice(5, 7))}월`, hire: p.hire, leave: p.leave }));
   // headcount at the end of each of the last 7 months, walking back from today
   const net = t.map((p) => p.hire - p.leave);
-  const hc = t.map((_, i) => db.headcount - net.slice(i + 1).reduce((s, x) => s + x, 0)).slice(-7);
-  const rate = db.headcount ? Math.round((db.presentToday / db.headcount) * 100) : 0;
+  const hc = db ? t.map((_, i) => db.headcount - net.slice(i + 1).reduce((s, x) => s + x, 0)).slice(-7) : [];
+  const rate = db?.headcount ? Math.round((db.presentToday / db.headcount) * 100) : 0;
 
   const stats: Stat[] = [
-    { label: '재직 인원', value: `${db.headcount}`, change: `+${db.hiredThisMonth} 이번 달`, up: true, icon: LuUsers, color: '#f59e0b', spark: hc },
-    { label: '오늘 출근', value: `${db.presentToday}`, change: `출근율 ${rate}%`, up: rate >= 80, icon: LuBriefcase, color: '#4ade80', spark: [rate - 6, rate - 2, rate - 4, rate + 1, rate - 3, rate] },
-    { label: '휴가 · 부재', value: `${db.onLeaveToday}`, change: '오늘 기준', up: false, icon: LuPlane, color: '#60a5fa', spark: t.slice(-7).map((p) => p.leave + 1) },
+    ...(db ? [
+      { label: '재직 인원', value: `${db.headcount}`, change: `+${db.hiredThisMonth} 이번 달`, up: true, icon: LuUsers, color: '#f59e0b', spark: hc },
+      { label: '오늘 출근', value: `${db.presentToday}`, change: `출근율 ${rate}%`, up: rate >= 80, icon: LuBriefcase, color: '#4ade80', spark: [rate - 6, rate - 2, rate - 4, rate + 1, rate - 3, rate] },
+    ] : []),
     { label: '내 결재 대기', value: `${pendingCount}`, change: pendingCount ? '처리가 필요해요' : '모두 처리했어요', up: !pendingCount, icon: LuFileCheck, color: '#f472b6', spark: [3, 5, 4, 6, 8, 6, pendingCount] },
   ];
 
-  const data = period === '7개월' ? t.slice(-7) : quarters(t);
-  const max = Math.max(...data.map((d) => d.hire)) + 1;
+  const data = period === '7개월' || t.length !== 12 ? t.slice(-7) : quarters(t);
+  const max = Math.max(0, ...data.map((d) => d.hire)) + 1;
   const pending = approvals.filter((a) => a.canDecide).slice(0, 3);
-  const today = ymd();
 
   return (
     <>
@@ -87,7 +89,7 @@ export function HomePage() {
         <WeeklyHoursWidget i={6} refreshKey={weeklyHoursRefreshKey} />
       </div>
 
-      <div className="grid grid--home">
+      {db && <div className="grid grid--home">
         <Card i={5} className="span-2">
           <CardHead
             title="입사 · 퇴사 추이"
@@ -107,24 +109,7 @@ export function HomePage() {
             ))}
           </div>
         </Card>
-
-        <Card i={6}>
-          <CardHead title="다가오는 일정" sub={new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })} />
-          <ul className="timeline">
-            {db.schedule.map((e) => (
-              <li key={e.date + e.time + e.title}>
-                <span className="timeline__time">{e.date === today ? e.time : `${Number(e.date.slice(5, 7))}/${Number(e.date.slice(8))}`}</span>
-                <span className="timeline__bar" style={{ background: e.color }} />
-                <div>
-                  <strong>{e.title}</strong>
-                  <span className="muted sm">{e.tag}{e.date !== today && ` · ${e.time}`}</span>
-                </div>
-              </li>
-            ))}
-            {db.schedule.length === 0 && <li className="empty">예정된 일정이 없어요</li>}
-          </ul>
-        </Card>
-      </div>
+      </div>}
 
       <div className="grid grid--home">
         <Card i={7} className="span-2">
@@ -141,19 +126,6 @@ export function HomePage() {
               </li>
             ))}
             {pending.length === 0 && <li className="muted">대기 중인 결재가 없어요 🎉</li>}
-          </ul>
-        </Card>
-
-        <Card i={8}>
-          <CardHead title="공지사항" right={<LuMegaphone className="muted" />} />
-          <ul className="list">
-            {db.notices.map((n) => (
-              <li key={n.id} className="list__row">
-                {n.pinned ? <LuPin className="pin" /> : <span className="bullet" />}
-                <span className="grow">{n.title}</span>
-                <span className="muted sm">{n.date}</span>
-              </li>
-            ))}
           </ul>
         </Card>
       </div>

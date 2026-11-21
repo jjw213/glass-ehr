@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, ApiError, type Bootstrap, type Dept, type NewLeave } from '../api';
+import { api, ApiError, type AppData as Bootstrap, type Dept, type NewLeave } from '../api';
 import { setUnauthorizedHandler } from '../api/http';
 
 export type PageId = 'home' | 'attendance' | 'flexWork' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'workPatterns' | 'holidays' | 'agreements' | 'familyLeaves' | 'retirements' | 'appointments' | 'privacyLogs';

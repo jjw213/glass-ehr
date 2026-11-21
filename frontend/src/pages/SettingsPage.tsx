@@ -39,8 +39,8 @@ export function SettingsPage() {
             <Avatar name={ME.name} dept={ME.dept} size={56} ring />
             <div>
               <strong>{ME.name}</strong>
-              <span className="muted sm">{dept(ME.dept)?.name}팀 · {ME.position}</span>
-              <span className="muted sm">{ME.email}</span>
+              {ME.dept && <span className="muted sm">{dept(ME.dept)?.name}</span>}
+              <span className="muted sm">{ME.loginId}</span>
             </div>
           </div>
           <div className="form__actions">

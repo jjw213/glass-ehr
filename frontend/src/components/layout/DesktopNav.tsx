@@ -6,7 +6,7 @@ import { useSession } from '../../state/session';
 import { Avatar, cx } from '../ui';
 
 export function DesktopNav() {
-  const { page, go, pendingCount, unreadCount, toast } = useStore();
+  const { page, go, pendingCount, unreadCount, toast, dept } = useStore();
   const { logout } = useSession();
   const { me } = useData();
   const [menu, setMenu] = useState(false);
@@ -47,7 +47,7 @@ export function DesktopNav() {
             {menu && (
               <div className="glass profile__menu" onMouseLeave={() => setMenu(false)}>
                 <strong>{me.name}</strong>
-                <span className="muted sm">{me.email} · {me.position}</span>
+                <span className="muted sm">{[dept(me.dept)?.name, me.loginId].filter(Boolean).join(' · ')}</span>
                 <button onClick={() => logout(false)}><LuLogOut /> 로그아웃</button>
               </div>
             )}

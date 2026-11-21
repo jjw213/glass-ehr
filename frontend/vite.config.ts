@@ -32,6 +32,9 @@ export default defineConfig({
       '/api/employment-certificates': 'http://localhost:8080',
       // 인사발령(#59·#60)도 Spring. /api/employees/{id}/appointments 는 위 /api/employees 규칙을 탄다.
       '/api/appointments': 'http://localhost:8080',
+      // 홈 대시보드 요약(#77). 로그인 직후 사용자·부서는 위 /api/auth·/api/org·/api/employees 를 쓰고,
+      // Node /api/me·/api/depts·/api/dashboard 는 더 부르지 않는다. /api/bootstrap 은 아직 옮기지 않은 결재·휴가 등만 쓴다.
+      '/api/dashboard': 'http://localhost:8080',
       '/api': 'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/
