@@ -234,7 +234,7 @@ export function MobileSidebar() {
             <Avatar name={ME.name} dept={ME.dept} size={36} />
             <div>
               <strong>{ME.name}</strong>
-              <span>{ME.email}</span>
+              <span>{ME.loginId}</span>
             </div>
             <button onClick={() => logout(false)} aria-label="로그아웃"><LuLogOut /></button>
           </div>

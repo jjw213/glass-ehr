@@ -14,6 +14,8 @@ export interface SessionUser {
   /** Spring 부서 ID(문자열). 없으면 '' */
   dept: string;
   role: Role; roles: string[]; permissions: string[];
+  /** 연차 일수. 휴가 모듈을 Spring 으로 옮길 때까지 Node /api/bootstrap 값 */
+  annualLeave: number;
 }
 
 /** Spring GET /api/dashboard/summary (#77). 사원 조회 범위(전체·부서장 맡은 부서) 안의 집계. */
