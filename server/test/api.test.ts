@@ -103,6 +103,12 @@ try {
     assert.deepEqual(a2605.line.map((s: any) => s.status), ['APPROVED', 'WAIT', 'WAIT']);
   });
 
+  await test('Spring demo aliases can use the legacy Node screen', async () => {
+    const admin = client();
+    assert.equal((await admin('POST', '/api/login', { loginId: 'admin', password: '1234' })).status, 200);
+    assert.equal((await admin('GET', '/api/bootstrap')).status, 200);
+  });
+
   await test('payslips are private: each user sees only their own', async () => {
     await dev('POST', '/api/login', { loginId: 'dy.lee', password: '1234' });
     const mine = (await hr('GET', '/api/payslips')).data;

@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError, type Bootstrap, type Dept, type NewLeave } from '../api';
-import { setActorId } from '../api/http';
+import { setUnauthorizedHandler } from '../api/http';
 
-export type PageId = 'home' | 'attendance' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'workPatterns' | 'holidays' | 'agreements' | 'familyLeaves' | 'retirements' | 'appointments' | 'privacyLogs' | 'overtime' | 'approvalInbox';
-export const PAGE_IDS: PageId[] = ['home', 'attendance', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings', 'codes', 'workPatterns', 'holidays', 'agreements', 'familyLeaves', 'retirements', 'appointments', 'privacyLogs', 'overtime', 'approvalInbox'];
+export type PageId = 'home' | 'attendance' | 'flexWork' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'workPatterns' | 'holidays' | 'agreements' | 'familyLeaves' | 'retirements' | 'appointments' | 'privacyLogs' | 'overtime' | 'approvalInbox';
+export const PAGE_IDS: PageId[] = ['home', 'attendance', 'flexWork', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings', 'codes', 'workPatterns', 'holidays', 'agreements', 'familyLeaves', 'retirements', 'appointments', 'privacyLogs', 'overtime', 'approvalInbox'];
 export type SceneId = 'sunset' | 'dawn' | 'night';
 
 interface Toast { id: number; text: string }
@@ -69,30 +69,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2800);
   }, []);
 
+  /** 세션이 끝났을 때(어느 API 든 401) 한 번만 로그인 화면으로 돌아간다(#76). */
+  const signedInRef = useRef(false);
+  const sessionLost = useCallback(() => {
+    if (!signedInRef.current) return;
+    signedInRef.current = false;
+    setData(null); lostRef.current(); toast('세션이 만료됐어요. 다시 로그인해 주세요');
+  }, [toast]);
+  useEffect(() => {
+    setUnauthorizedHandler(sessionLost);
+    return () => setUnauthorizedHandler(null);
+  }, [sessionLost]);
+
   /** run a server call; on 401 drop back to login, otherwise show the error */
   const guard = useCallback(async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
     try { return await fn(); }
     catch (e) {
-      if (e instanceof ApiError && e.status === 401) { setActorId(null); setData(null); lostRef.current(); toast('세션이 만료됐어요. 다시 로그인해 주세요'); }
+      if (e instanceof ApiError && e.status === 401) sessionLost();
       else toast(e instanceof Error ? e.message : '알 수 없는 오류가 발생했어요');
       return undefined;
     }
-  }, [toast]);
+  }, [toast, sessionLost]);
 
   const patch = (p: Partial<Bootstrap>) => setData((d) => (d ? { ...d, ...p } : d));
 
   const login = useCallback(async (loginId: string, password: string) => {
     await api.login(loginId, password);   // throws ApiError on bad credentials
     const boot = await api.bootstrap();
-    // Spring 백엔드 요청에 로그인 아이디를 싣는다(#19). 화면이 그려지기 전에 정해 둬야 첫 요청부터 실린다.
-    // 역할·권한은 서버가 DB에서 읽으므로 화면 값은 메뉴 표시에만 쓴다.
-    setActorId(boot.me.loginId);
+    // 사용자는 서버가 세션 쿠키로 식별한다(#76). 역할·권한은 서버가 DB에서 읽으므로 화면 값은 메뉴 표시에만 쓴다.
+    signedInRef.current = true;
     setData(boot);
   }, []);
 
   const signOut = useCallback(async () => {
+    signedInRef.current = false;
     try { await api.logout(); } catch { /* already gone */ }
-    setActorId(null);
     setData(null);
   }, []);
 

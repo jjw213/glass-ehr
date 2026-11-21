@@ -25,6 +25,8 @@ export default defineConfig({
       '/api/attendance/punches': 'http://localhost:8080',
       // 주 52시간 모니터링(#31)도 Spring. 대시보드 주간 근로시간 위젯이 쓴다.
       '/api/attendance/weekly-hours': 'http://localhost:8080',
+      // 유연근무 배정·계획·정산(#38).
+      '/api/attendance/flex-work': 'http://localhost:8080',
       // 퇴직 처리·사용증명서(#18)도 Spring. /api/employees/{id}/employment-certificates 는 위 /api/employees 규칙을 탄다.
       '/api/retirements': 'http://localhost:8080',
       '/api/employment-certificates': 'http://localhost:8080',

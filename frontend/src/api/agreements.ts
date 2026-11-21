@@ -3,7 +3,7 @@
  * 응답 형식은 backend LaborAgreementDtos 와 같다. 날짜는 YYYY-MM-DD, 유효기간은 양 끝 포함.
  * 유효 여부 판정(기간·대상)은 서버 LaborAgreementGuard 가 한다. 화면은 형식 검사만 한다.
  */
-import { actorHeader, call } from './http';
+import { call, csrfHeader, notifyIfUnauthorized } from './http';
 import { ApiError } from './types';
 
 export type AgreementType =
@@ -107,13 +107,14 @@ export const REP_LABEL: Record<RepType, string> = {
 async function send(path: string, init: RequestInit): Promise<Response> {
   let res: Response;
   try {
-    res = await fetch('/api' + path, { credentials: 'same-origin', ...init, headers: actorHeader() });
+    res = await fetch('/api' + path, { credentials: 'same-origin', ...init, headers: csrfHeader() });
   } catch {
     throw new ApiError(0, '서버에 연결할 수 없어요. 서버가 켜져 있는지 확인해 주세요');
   }
   if (!res.ok) {
     let msg = `요청에 실패했어요 (${res.status})`;
     try { msg = ((await res.json()) as { error?: string }).error ?? msg; } catch { /* not JSON */ }
+    notifyIfUnauthorized(res.status, path);
     throw new ApiError(res.status, msg);
   }
   return res;

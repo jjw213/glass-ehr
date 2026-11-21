@@ -2,6 +2,7 @@ package com.glassehr.auth;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -16,32 +17,74 @@ import org.springframework.web.servlet.HandlerMapping;
  * /api 아래 모든 요청의 권한 검사(API 단 검사 — 화면 메뉴 숨김과 별개로 서버에서 막는다).
  *
  * <ol>
- *   <li>{@link PublicApi} 메서드는 통과.</li>
- *   <li>{@code X-Actor-Id}로 사용자를 찾는다. 없거나 사용 중지면 401. 역할은 DB에서 읽고 {@code X-Actor-Role} 헤더는 무시한다.</li>
+ *   <li>{@link PublicApi} 메서드(헬스 체크·로그인·로그아웃)는 통과. 단 상태를 바꾸는 요청은 CSRF 헤더를 검사한다.</li>
+ *   <li>세션의 로그인 아이디로 사용자를 찾는다(#76). 없거나 사용 중지면 401(남은 세션도 끊는다).
+ *       역할은 DB에서 읽고 {@code X-Actor-Role} 헤더는 무시한다.</li>
+ *   <li>상태를 바꾸는 요청(GET·HEAD·OPTIONS 외)에 {@code X-Requested-With: XMLHttpRequest} 헤더가 없으면 403(CSRF).</li>
  *   <li>{@link RequiresPermission}이 없으면 403(빠뜨린 API가 열리지 않게).</li>
  *   <li>권한 중 하나도 없으면 403.</li>
  *   <li>{@link PrivacyAudit} 메서드에서 막히면 거부 로그를 남긴다.</li>
  * </ol>
  * 통과하면 {@link AuthUser}를 요청 속성에 넣고, 컨트롤러는 {@code AuthUser} 인자로 받아 데이터 범위를 검사한다.
  *
- * <p>사용자 식별(X-Actor-Id)은 인증 이슈 전까지의 임시 방식이다(docs/auth-design.md 2장). 로그인 세션·토큰으로 바꿀 때
- * {@link #loginIdOf(HttpServletRequest)}만 바꾸면 된다.
+ * <p>{@code X-Actor-Id} 헤더 식별은 {@code test} 프로필에서만, 세션이 없을 때만 받는다. 그 밖의 프로필에서는 무시한다
+ * (docs/auth-design.md 8장). 개인정보 보호법 제29조·개인정보의 안전성 확보조치 기준: 인증한 사용자만 접근하게 통제한다.
+ *
+ * <p>CSRF: 세션 쿠키는 SameSite=Lax 이고, 상태를 바꾸는 요청은 사용자 지정 헤더를 요구한다. 다른 출처의 페이지는
+ * CORS 사전 요청 없이 이 헤더를 붙일 수 없고, 이 서버는 CORS 를 열지 않는다.
  */
 public class AuthInterceptor implements HandlerInterceptor {
 
     public static final String ACTOR_ID_HEADER = "X-Actor-Id";
+    /** CSRF 방어용 사용자 지정 헤더와 값. 화면(api/http.ts)이 모든 요청에 붙인다. */
+    public static final String CSRF_HEADER = "X-Requested-With";
+    public static final String CSRF_HEADER_VALUE = "XMLHttpRequest";
+    /** 세션에 넣는 로그인 아이디 속성 이름(LoginController 가 로그인 성공 시 넣는다). */
+    public static final String SESSION_LOGIN_ID = "glassehr.auth.loginId";
     static final String ATTR = AuthUser.class.getName();
+    private static final String CSRF_REJECT = "요청 출처를 확인할 수 없어요. 화면을 새로 고친 뒤 다시 시도해 주세요";
 
     private final AuthUserResolver resolver;
     private final PrivacyAccessLogger privacyLog;
+    private final boolean acceptActorHeader;
 
-    public AuthInterceptor(AuthUserResolver resolver, PrivacyAccessLogger privacyLog) {
+    /**
+     * @param acceptActorHeader {@code X-Actor-Id} 헤더로 사용자를 믿을지. {@code test} 프로필에서만 true(AuthWebConfig).
+     */
+    public AuthInterceptor(AuthUserResolver resolver, PrivacyAccessLogger privacyLog, boolean acceptActorHeader) {
         this.resolver = resolver;
         this.privacyLog = privacyLog;
+        this.acceptActorHeader = acceptActorHeader;
     }
 
-    static String loginIdOf(HttpServletRequest req) {
-        return req.getHeader(ACTOR_ID_HEADER);
+    /** 세션의 로그인 아이디. 로그인 세션이 없고 test 프로필이면 X-Actor-Id 헤더. */
+    String loginIdOf(HttpServletRequest req) {
+        String fromSession = sessionLoginId(req);
+        if (fromSession != null) {
+            return fromSession;
+        }
+        return acceptActorHeader ? req.getHeader(ACTOR_ID_HEADER) : null;
+    }
+
+    private static String sessionLoginId(HttpServletRequest req) {
+        HttpSession session = req.getSession(false);
+        return session != null && session.getAttribute(SESSION_LOGIN_ID) instanceof String id ? id : null;
+    }
+
+    private static boolean changesState(HttpServletRequest req) {
+        String m = req.getMethod();
+        return !("GET".equals(m) || "HEAD".equals(m) || "OPTIONS".equals(m));
+    }
+
+    /**
+     * CSRF 헤더 검사. test 프로필에서 세션 없이 X-Actor-Id 로 보낸 요청은 그 헤더 자체가 사용자 지정 헤더라
+     * 같은 효과가 있어 통과시킨다(쿠키를 쓰지 않으므로 다른 출처 페이지가 사용자 권한으로 보낼 수도 없다).
+     */
+    private boolean csrfHeaderOk(HttpServletRequest req) {
+        if (CSRF_HEADER_VALUE.equals(req.getHeader(CSRF_HEADER))) {
+            return true;
+        }
+        return acceptActorHeader && req.getHeader(ACTOR_ID_HEADER) != null && sessionLoginId(req) == null;
     }
 
     @Override
@@ -50,6 +93,9 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true; // 정적 자원·404 처리 등. 컨트롤러 메서드가 아니면 데이터를 돌려주지 않는다.
         }
         if (hm.hasMethodAnnotation(PublicApi.class)) {
+            if (changesState(req) && !csrfHeaderOk(req)) {
+                return reject(res, HttpStatus.FORBIDDEN, CSRF_REJECT);
+            }
             return true;
         }
         PrivacyAudit audit = hm.getMethodAnnotation(PrivacyAudit.class);
@@ -60,7 +106,13 @@ public class AuthInterceptor implements HandlerInterceptor {
                 privacyLog.logAnonymousDenied(loginId, req.getRemoteAddr(), targetEmpId(req), audit.item(),
                         audit.action(), req.getRequestURI());
             }
+            if (sessionLoginId(req) != null) {
+                req.getSession(false).invalidate(); // 사용 중지·삭제된 사용자의 남은 세션
+            }
             return reject(res, HttpStatus.UNAUTHORIZED, "로그인이 필요해요");
+        }
+        if (changesState(req) && !csrfHeaderOk(req)) {
+            return reject(res, HttpStatus.FORBIDDEN, CSRF_REJECT);
         }
         AuthUser user = found.get();
         RequiresPermission rp = hm.getMethodAnnotation(RequiresPermission.class);

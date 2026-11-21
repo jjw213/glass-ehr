@@ -61,6 +61,19 @@ class LaborAgreementGuardTest {
     }
 
     @Test
+    void 연결된_합의서가_배정_기간을_더는_덮지_않으면_422() {
+        LaborAgreement shortened = agreement(5, AgreementType.SELECTIVE, JAN1, JAN1.plusDays(7),
+                LaborAgreement.Scope.ALL, null);
+        when(repo.findById(5L)).thenReturn(Optional.of(shortened));
+
+        assertThatThrownBy(() -> guard.requireLinked(5L, AgreementType.SELECTIVE, JAN1, JAN1.plusDays(14), "S01"))
+                .isInstanceOfSatisfying(AttendanceException.class, e -> {
+                    assertThat(e.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+                    assertThat(e.getMessage()).contains("근로기준법 제52조");
+                });
+    }
+
+    @Test
     void 적용_종료일이_시작일보다_빠르면_400() {
         assertThatThrownBy(() -> guard.check(AgreementType.SELECTIVE, DEC31, JAN1, null))
                 .isInstanceOfSatisfying(AttendanceException.class,
