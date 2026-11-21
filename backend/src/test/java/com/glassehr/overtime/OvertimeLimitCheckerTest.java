@@ -11,6 +11,9 @@ import static org.mockito.Mockito.when;
 import com.glassehr.approval.ApprovalException;
 import com.glassehr.attendance.DailyWorkSummaryMapper;
 import com.glassehr.attendance.DailyWorkSummaryRow;
+import com.glassehr.attendance.WorkPattern;
+import com.glassehr.attendance.WorkPatternRepository;
+import com.glassehr.attendance.WorkPatternRules;
 import com.glassehr.legalrate.LegalRateException;
 import com.glassehr.legalrate.LegalRateItem;
 import com.glassehr.legalrate.LegalRateRow;
@@ -38,6 +41,7 @@ class OvertimeLimitCheckerTest {
     LegalRateService legalRates;
     DailyWorkSummaryMapper summaries;
     OvertimeRequestRepository requests;
+    WorkPatternRepository patterns;
     OvertimeLimitChecker checker;
 
     static LegalRateRow rate(String code, int hours) {
@@ -49,7 +53,8 @@ class OvertimeLimitCheckerTest {
         legalRates = mock(LegalRateService.class);
         summaries = mock(DailyWorkSummaryMapper.class);
         requests = mock(OvertimeRequestRepository.class);
-        checker = new OvertimeLimitChecker(legalRates, summaries, requests);
+        patterns = mock(WorkPatternRepository.class);
+        checker = new OvertimeLimitChecker(legalRates, summaries, requests, patterns);
         when(legalRates.getEffective(eq(LegalRateItem.WEEKLY_OVERTIME_LIMIT_HOURS), any(LocalDate.class)))
                 .thenReturn(rate("WEEKLY_OVERTIME_LIMIT_HOURS", 1));
         when(legalRates.getEffective(eq(LegalRateItem.WEEKLY_STANDARD_WORK_HOURS), any(LocalDate.class)))
@@ -112,7 +117,7 @@ class OvertimeLimitCheckerTest {
                 start.plusHours(3).plusMinutes(30), 0, "사유", start.minusDays(1));
         ReflectionTestUtils.setField(future, "requestId", 2L);
         approved(reflected, future);
-        when(summaries.findRange(EMP, MON, MON.plusDays(6)))
+        when(summaries.findRange(EMP, MON.minusDays(1), MON.plusDays(6)))
                 .thenReturn(List.of(actual(MON, "WORKDAY", 120, start, start.plusHours(2))));
 
         assertThat(checker.check(reflected).weeklyWorkedMinutes()).isEqualTo(150);
@@ -120,6 +125,36 @@ class OvertimeLimitCheckerTest {
                 .isEqualTo(180);
         assertThat(OvertimeLimitChecker.weekWorked(MON, Map.of(MON, 10), Map.of(MON, 30, MON.plusDays(7), 99)))
                 .isEqualTo(40);
+    }
+
+    @Test
+    void 실적과_겹친_신청분에서_근무유형의_휴게시간은_반영분으로_차감하지_않는다() {
+        when(legalRates.getEffective(LegalRateItem.WEEKLY_STANDARD_WORK_HOURS, MON))
+                .thenReturn(rate("WEEKLY_STANDARD_WORK_HOURS", 10));
+        LocalDateTime requestStart = MON.atTime(12, 0);
+        OvertimeRequest request = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, requestStart,
+                requestStart.plusHours(3), 60, "사유", requestStart.minusDays(1));
+        ReflectionTestUtils.setField(request, "requestId", 1L);
+        WorkPattern pattern = new WorkPattern("DAY", "주간", new WorkPatternRules.Spec(540, 1080, 720, 60, "WWWWWOO"),
+                new WorkPatternRules.Result(480, 2400, List.of()), true, null, requestStart.minusDays(10));
+        ReflectionTestUtils.setField(pattern, "patternId", 1L);
+        when(patterns.findById(1L)).thenReturn(Optional.of(pattern));
+        when(summaries.findRange(EMP, MON.minusDays(1), MON.plusDays(6)))
+                .thenReturn(List.of(actual(MON, "WORKDAY", 180, MON.atTime(9, 0), MON.atTime(13, 0))));
+
+        assertThat(checker.check(request).weeklyWorkedMinutes()).isEqualTo(300);
+    }
+
+    @Test
+    void 전날_시작한_야간조_실적과_다음날_신청의_겹침도_반영분으로_차감한다() {
+        LocalDateTime start = MON.atTime(2, 0);
+        OvertimeRequest request = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, start, start.plusHours(2),
+                0, "사유", start.minusDays(1));
+        ReflectionTestUtils.setField(request, "requestId", 1L);
+        when(summaries.findRange(EMP, MON.minusDays(1), MON.plusDays(6))).thenReturn(List.of(
+                actual(MON.minusDays(1), "WORKDAY", 420, MON.minusDays(1).atTime(22, 0), MON.atTime(6, 0))));
+
+        assertThat(checker.check(request).weeklyWorkedMinutes()).isZero();
     }
 
     @Test

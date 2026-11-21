@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.glassehr.approval.ApprovalException;
 import com.glassehr.attendance.DailyWorkSummaryMapper;
 import com.glassehr.attendance.DailyWorkSummaryRow;
+import com.glassehr.attendance.WorkPatternRepository;
 import com.glassehr.legalrate.LegalRateException;
 import com.glassehr.legalrate.LegalRateItem;
 import com.glassehr.legalrate.LegalRateRow;
@@ -167,7 +168,8 @@ class WeeklyOvertimeLimitFixtureTest {
                 .thenReturn(items(daily).stream().map(WeeklyOvertimeLimitFixtureTest::record).toList());
         when(requests.findByEmpIdAndWorkDateBetweenAndStatusIn(anyLong(), any(), any(), any()))
                 .thenReturn(items(approvedSpec).stream().map(WeeklyOvertimeLimitFixtureTest::request).toList());
-        OvertimeLimitChecker checker = new OvertimeLimitChecker(seededRates(seedRows()), summaries, requests);
+        OvertimeLimitChecker checker = new OvertimeLimitChecker(seededRates(seedRows()), summaries, requests,
+                mock(WorkPatternRepository.class));
         OvertimeRequest target = request(newSpec);
         assertThat(target.getWorkDate().with(java.time.DayOfWeek.MONDAY)).isEqualTo(LocalDate.parse(weekStart));
 

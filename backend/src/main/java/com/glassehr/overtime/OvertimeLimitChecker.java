@@ -3,6 +3,8 @@ package com.glassehr.overtime;
 import com.glassehr.approval.ApprovalException;
 import com.glassehr.attendance.DailyWorkSummaryMapper;
 import com.glassehr.attendance.DailyWorkSummaryRow;
+import com.glassehr.attendance.WorkPattern;
+import com.glassehr.attendance.WorkPatternRepository;
 import com.glassehr.legalrate.LegalRateException;
 import com.glassehr.legalrate.LegalRateItem;
 import com.glassehr.legalrate.LegalRateRow;
@@ -44,12 +46,14 @@ public class OvertimeLimitChecker {
     private final LegalRateService legalRates;
     private final DailyWorkSummaryMapper summaries;
     private final OvertimeRequestRepository requests;
+    private final WorkPatternRepository patterns;
 
     public OvertimeLimitChecker(LegalRateService legalRates, DailyWorkSummaryMapper summaries,
-            OvertimeRequestRepository requests) {
+            OvertimeRequestRepository requests, WorkPatternRepository patterns) {
         this.legalRates = legalRates;
         this.summaries = summaries;
         this.requests = requests;
+        this.patterns = patterns;
     }
 
     /**
@@ -71,11 +75,13 @@ public class OvertimeLimitChecker {
         int standard = hoursAsMinutes(LegalRateItem.WEEKLY_STANDARD_WORK_HOURS, workDate);
 
         Map<LocalDate, Integer> actual = new HashMap<>();
-        Map<LocalDate, List<DailyWorkSummaryRow>> actualRows = new HashMap<>();
-        for (DailyWorkSummaryRow r : summaries.findRange(target.getEmpId(), monday, sunday)) {
+        List<DailyWorkSummaryRow> actualRows = new ArrayList<>();
+        for (DailyWorkSummaryRow r : summaries.findRange(target.getEmpId(), monday.minusDays(1), sunday)) {
             if (r.workedMinutes() != null && r.workedMinutes() > 0) {
-                actual.merge(r.workDate(), r.workedMinutes(), Integer::sum);
-                actualRows.computeIfAbsent(r.workDate(), ignored -> new ArrayList<>()).add(r);
+                actualRows.add(r);
+                if (!r.workDate().isBefore(monday)) {
+                    actual.merge(r.workDate(), r.workedMinutes(), Integer::sum);
+                }
             }
         }
         Map<LocalDate, Integer> planned = new HashMap<>();
@@ -83,12 +89,11 @@ public class OvertimeLimitChecker {
                 monday, sunday, List.of(OvertimeRequest.Status.APPROVED));
         for (OvertimeRequest r : approved) {
             if (!r.getRequestId().equals(target.getRequestId())) {
-                planned.merge(r.getWorkDate(), unreflectedMinutes(r, actualRows.getOrDefault(r.getWorkDate(), List.of())),
-                        Integer::sum);
+                planned.merge(r.getWorkDate(), unreflectedMinutes(r, actualRows), Integer::sum);
             }
         }
         planned.merge(target.getWorkDate(),
-                unreflectedMinutes(target, actualRows.getOrDefault(target.getWorkDate(), List.of())), Integer::sum);
+                unreflectedMinutes(target, actualRows), Integer::sum);
         int worked = weekWorked(monday, actual, planned);
         Result result = new Result(monday, limit, worked, Math.max(0, worked - standard));
         if (result.exceeded()) {
@@ -110,24 +115,44 @@ public class OvertimeLimitChecker {
     }
 
     /** 신청 예정분 중 출퇴근 실적 구간과 겹치지 않아 아직 실적에 반영되지 않은 분. */
-    static int unreflectedMinutes(OvertimeRequest request, List<DailyWorkSummaryRow> rows) {
+    int unreflectedMinutes(OvertimeRequest request, List<DailyWorkSummaryRow> rows) {
         int reflected = 0;
         boolean hasTimedActual = false;
+        boolean hasUntimedActualOnRequestDate = false;
         for (DailyWorkSummaryRow row : rows) {
             LocalDateTime start = row.workStart();
             LocalDateTime end = row.workEnd();
             if (start == null || end == null) {
+                if (row.workDate().equals(request.getWorkDate())) {
+                    hasUntimedActualOnRequestDate = true;
+                }
                 continue;
             }
             hasTimedActual = true;
             LocalDateTime overlapStart = request.getStartAt().isAfter(start) ? request.getStartAt() : start;
             LocalDateTime overlapEnd = request.getEndAt().isBefore(end) ? request.getEndAt() : end;
             if (overlapEnd.isAfter(overlapStart)) {
-                reflected += Math.toIntExact(Duration.between(overlapStart, overlapEnd).toMinutes());
+                int overlap = Math.toIntExact(Duration.between(overlapStart, overlapEnd).toMinutes());
+                if (row.patternId() != null) {
+                    WorkPattern pattern = patterns.findById(row.patternId()).orElse(null);
+                    if (pattern != null && pattern.spec().breakStartMin() != null) {
+                        LocalDate breakDay = pattern.spec().breakStartMin() >= pattern.spec().workStartMin()
+                                ? row.workDate() : row.workDate().plusDays(1);
+                        LocalDateTime breakStart = breakDay.atStartOfDay()
+                                .plusMinutes(pattern.spec().breakStartMin());
+                        LocalDateTime breakEnd = breakStart.plusMinutes(pattern.spec().breakMinutes());
+                        LocalDateTime breakOverlapStart = overlapStart.isAfter(breakStart) ? overlapStart : breakStart;
+                        LocalDateTime breakOverlapEnd = overlapEnd.isBefore(breakEnd) ? overlapEnd : breakEnd;
+                        if (breakOverlapEnd.isAfter(breakOverlapStart)) {
+                            overlap -= Math.toIntExact(Duration.between(breakOverlapStart, breakOverlapEnd).toMinutes());
+                        }
+                    }
+                }
+                reflected += overlap;
             }
         }
         // 과거 집계나 법령 fixture처럼 구간 없이 일 합계만 있는 실적은 기존처럼 그날 예정분을 대체한다.
-        if (!rows.isEmpty() && !hasTimedActual) {
+        if (hasUntimedActualOnRequestDate && !hasTimedActual) {
             return 0;
         }
         return Math.max(0, request.getPlannedMinutes() - Math.min(request.getPlannedMinutes(), reflected));
