@@ -5,6 +5,7 @@ import { DesktopNav } from './DesktopNav';
 import { MobileSidebar } from './MobileSidebar';
 import { HomePage } from '../../pages/HomePage';
 import { AttendancePage } from '../../pages/AttendancePage';
+import { FlexWorkPage } from '../../pages/FlexWorkPage';
 import { PayrollPage } from '../../pages/PayrollPage';
 import { ApprovalsPage } from '../../pages/ApprovalsPage';
 import { MessagesPage } from '../../pages/MessagesPage';
@@ -24,6 +25,7 @@ import { useEffect, useState, type JSX } from 'react';
 const PAGES: Record<PageId, () => JSX.Element> = {
   home: HomePage,
   attendance: AttendancePage,
+  flexWork: FlexWorkPage,
   payroll: PayrollPage,
   approvals: ApprovalsPage,
   messages: MessagesPage,

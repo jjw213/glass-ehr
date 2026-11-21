@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { call, setActorId } from '../api/http';
+import { call } from '../api/http';
 import { createMockPrivacyLogApi, toSearchParams, validateQuery, type PrivacyLogRow } from '../api/privacyLogs';
 import { canReadPrivacyLogs, navFor } from '../nav';
 import { daysBefore, PrivacyLogViewer } from './PrivacyLogsPage';
@@ -55,17 +55,14 @@ describe('조회 조건', () => {
 });
 
 describe('요청자 헤더', () => {
-  afterEach(() => { setActorId(null); vi.unstubAllGlobals(); });
-  it('로그인 아이디를 모든 요청에 X-Actor-Id 로 싣고, 역할 헤더는 보내지 않는다', async () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  it('#76: 사용자는 세션 쿠키로 식별하고, X-Actor-Id·역할 헤더는 보내지 않는다(CSRF 헤더만)', async () => {
     const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    setActorId('admin1');
     await call('GET', '/admin/privacy-logs');
     const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
-    expect(init.headers).toEqual({ 'X-Actor-Id': 'admin1' });
-    setActorId(null);
-    await call('GET', '/org/tree');
-    expect((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].headers).toBeUndefined();
+    expect(init.headers).toEqual({ 'X-Requested-With': 'XMLHttpRequest' });
+    expect(init.credentials).toBe('same-origin');
   });
 });
 

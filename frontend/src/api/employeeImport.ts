@@ -2,7 +2,7 @@
  * 사원 엑셀(CSV) 일괄 등록·목록 내려받기 (#20). 백엔드: EmployeeImportController, EmployeeController.export.
  * 서버가 권한을 다시 검사하고(등록 = 관리자·인사, 내려받기 = 관리자·인사·급여), 내려받을 때 사원마다 다운로드 로그를 남긴다.
  */
-import { actorHeader } from './http';
+import { csrfHeader, notifyIfUnauthorized } from './http';
 import { ApiError } from './types';
 
 export interface ImportRow { rowNo: number; name: string | null; siteCode: string | null; hireDate: string | null; errors: string[] }
@@ -23,9 +23,10 @@ export interface EmployeeImportApi {
   confirm(file: File): Promise<ImportConfirmed>;
 }
 
-const headers = actorHeader;
+const headers = csrfHeader;
 
 async function fail(res: Response): Promise<never> {
+  notifyIfUnauthorized(res.status, '/employees');
   let msg = `요청에 실패했어요 (${res.status})`;
   let body: { error?: string; preview?: ImportPreview } | null = null;
   try { body = (await res.json()) as { error?: string; preview?: ImportPreview }; } catch { /* not JSON */ }

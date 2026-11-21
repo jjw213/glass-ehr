@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -80,6 +81,7 @@ class FlexibleWorkServiceTest {
         when(e.getSiteCode()).thenReturn("HQ");
         when(e.getHireDate()).thenReturn(LocalDate.of(2020, 1, 1));
         when(employees.findById(EMP)).thenReturn(Optional.of(e));
+        when(employees.findForUpdate(EMP)).thenReturn(Optional.of(e));
         when(assigns.findByEmpIdOrderByPeriodStartAsc(anyLong())).thenReturn(List.of());
         when(assigns.save(any())).thenAnswer(inv -> {
             FlexWorkAssign a = inv.getArgument(0);
@@ -117,6 +119,7 @@ class FlexibleWorkServiceTest {
                 ce, deemed, sys.requiredAgreement() == null ? null : 7L, null, "hr1", LocalDateTime.now());
         setField(a, "flexId", 1L);
         when(assigns.findById(1L)).thenReturn(Optional.of(a));
+        when(assigns.findForUpdate(1L)).thenReturn(Optional.of(a));
         return a;
     }
 
@@ -217,6 +220,20 @@ class FlexibleWorkServiceTest {
     }
 
     @Test
+    void 연결된_합의서가_무효면_계획_저장과_정산을_막는다() {
+        FlexWorkAssign assign = stored(WorkSystem.SELECTIVE, "GENERAL", null, null, null);
+        doThrow(new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY, "유효한 서면합의서가 없어요", List.of()))
+                .when(guard).requireLinked(assign.getAgreementId(), AgreementType.SELECTIVE,
+                        assign.getPeriodStart(), assign.getPeriodEnd(), "HQ");
+
+        assertThatThrownBy(() -> service.savePlan(1L, List.of(day(2, 9, 18, 480)), SELF))
+                .hasMessageContaining("서면합의서");
+        assertThatThrownBy(() -> service.settle(1L, SELF)).hasMessageContaining("서면합의서");
+        verify(plans, never()).deleteAllOfAssign(1L);
+        verify(workHours, never()).weekInputs(any());
+    }
+
+    @Test
     void 다른_사원의_선택적_계획은_403() {
         stored(WorkSystem.SELECTIVE, "GENERAL", null, null, null);
         assertThatThrownBy(() -> service.savePlan(1L, List.of(day(2, 9, 18, 480)), OTHER))
@@ -301,6 +318,24 @@ class FlexibleWorkServiceTest {
         assertThat(s.totalLimitMinutes()).isEqualTo(limit);
         assertThat(s.overtimeMinutes()).isEqualTo(31 * 300 - limit);
         assertThat(s.check()).isEqualTo(Check.OK);
+    }
+
+    @Test
+    void 탄력적과_선택적_정산에_휴일근로_기준_초과분을_포함한다() {
+        actualEveryDay(0);
+        LocalDate sunday = LocalDate.of(2026, 3, 1);
+        var holiday = new DailyWorkSummaryRow(EMP, sunday, "HOLIDAY", 1L, 0, null, 0, sunday.atTime(9, 0),
+                sunday.atTime(17, 20), 0, 500, 0, 0, 0, 0, 420, 80, null, null, null, null, null, "PREVIEW", null);
+        when(workHours.computeWeek(eq(EMP), any())).thenAnswer(inv -> {
+            WorkHoursService.WeekInputs week = inv.getArgument(1);
+            return week.monday().equals(sunday.minusDays(6)) ? List.of(holiday) : List.of();
+        });
+
+        stored(WorkSystem.SELECTIVE, "GENERAL", null, null, null);
+        assertThat(service.settle(1L, SELF).holidayMinutes()).isEqualTo(500);
+
+        stored(WorkSystem.FLEXIBLE_WRITTEN, null, null, null, null);
+        assertThat(service.settle(1L, HR).holidayMinutes()).isEqualTo(500);
     }
 
     @Test

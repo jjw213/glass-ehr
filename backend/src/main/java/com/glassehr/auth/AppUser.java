@@ -43,6 +43,19 @@ public class AppUser {
     @Column(name = "role_code", nullable = false)
     private Set<String> roles = new HashSet<>();
 
+    // V027(#76). 비밀번호 해시(BCrypt). 원문은 저장하지 않고, 이 값은 응답·로그로 내보내지 않는다.
+    @Column(name = "password_hash", length = 100)
+    private String passwordHash;
+
+    @Column(name = "password_changed_at")
+    private LocalDateTime passwordChangedAt;
+
+    @Column(name = "failed_login_count", nullable = false)
+    private int failedLoginCount;
+
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
     protected AppUser() {
     }
 
@@ -51,6 +64,55 @@ public class AppUser {
         this.empId = empId;
         this.active = active;
         this.roles = new HashSet<>(roles);
+    }
+
+    String getPasswordHash() {
+        return passwordHash;
+    }
+
+    LocalDateTime getPasswordChangedAt() {
+        return passwordChangedAt;
+    }
+
+    int getFailedLoginCount() {
+        return failedLoginCount;
+    }
+
+    LocalDateTime getLockedUntil() {
+        return lockedUntil;
+    }
+
+    /** 지금 잠겨 있는가(잠금 시각이 지나면 풀린 것으로 본다). */
+    boolean isLockedAt(LocalDateTime now) {
+        return lockedUntil != null && lockedUntil.isAfter(now);
+    }
+
+    void changePassword(String hash, LocalDateTime now) {
+        this.passwordHash = hash;
+        this.passwordChangedAt = now;
+    }
+
+    /**
+     * 비밀번호가 틀렸을 때. 지난 잠금이 풀린 뒤의 첫 실패면 횟수를 다시 센다.
+     *
+     * @return 이번 실패로 잠겼으면 true
+     */
+    boolean recordFailure(LocalDateTime now, int maxFailures, java.time.Duration lockFor) {
+        if (lockedUntil != null && !lockedUntil.isAfter(now)) {
+            failedLoginCount = 0;
+            lockedUntil = null;
+        }
+        failedLoginCount++;
+        if (failedLoginCount >= maxFailures) {
+            lockedUntil = now.plus(lockFor);
+            return true;
+        }
+        return false;
+    }
+
+    void recordSuccess() {
+        failedLoginCount = 0;
+        lockedUntil = null;
     }
 
     public String getLoginId() {

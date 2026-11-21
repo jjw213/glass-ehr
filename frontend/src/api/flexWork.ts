@@ -61,24 +61,27 @@ export const parseHm = (s: string): number | null => {
 export const hmOf = (iso: string | null) => (iso ? iso.slice(11, 16) : '');
 
 /** 화면 한 줄(시업·종업·휴게분). 모두 비우면 근로하지 않는 날. */
-export interface PlanRow { date: string; start: string; end: string; breakMinutes: string }
+export interface PlanRow { date: string; start: string; endDate: string; end: string; breakMinutes: string }
 
 export function rowOf(p: PlanDay | undefined, date: string): PlanRow {
-  if (!p || !p.start || !p.end) return { date, start: '', end: '', breakMinutes: '' };
+  if (!p || !p.start || !p.end) return { date, start: '', endDate: date, end: '', breakMinutes: '' };
   const span = (Date.parse(`${p.end}Z`) - Date.parse(`${p.start}Z`)) / 60_000;
-  return { date, start: hmOf(p.start), end: hmOf(p.end), breakMinutes: String(span - p.minutes) };
+  return { date, start: hmOf(p.start), endDate: p.end.slice(0, 10), end: hmOf(p.end), breakMinutes: String(span - p.minutes) };
 }
 
-/** 화면 줄 → API 계획. 종업은 같은 날(자정 넘는 계획은 다음 날 줄에 나눠 입력). 형식이 틀리면 오류 문자열. */
+/** 화면 줄을 ISO 서울 시각으로 변환한다. 종업일이 다르면 자정을 넘는 근무로 저장한다. */
 export function toPlanDay(r: PlanRow): PlanDay | string {
-  if (r.start.trim() === '' && r.end.trim() === '') return { date: r.date, start: null, end: null, minutes: 0 };
-  const s = parseHm(r.start);
-  const e = parseHm(r.end);
-  if (s === null || e === null) return `${r.date}: 시업·종업을 HH:MM 으로 입력해 주세요`;
-  if (e <= s) return `${r.date}: 종업은 시업보다 늦어야 해요`;
-  const brk = r.breakMinutes.trim() === '' ? 0 : Number(r.breakMinutes);
-  if (!Number.isInteger(brk) || brk < 0 || brk >= e - s) return `${r.date}: 휴게는 0분 이상, 근로시간보다 짧아야 해요`;
-  return { date: r.date, start: `${r.date}T${r.start}:00`, end: `${r.date}T${r.end}:00`, minutes: e - s - brk };
+  if (r.start === '' && r.end === '' && r.breakMinutes === '') {
+    return { date: r.date, start: null, end: null, minutes: 0 };
+  }
+  if (parseHm(r.start) === null || parseHm(r.end) === null) return `${r.date} 시업·종업 시각을 입력해 주세요`;
+  const start = `${r.date}T${r.start}:00`;
+  const end = `${r.endDate}T${r.end}:00`;
+  const span = (Date.parse(`${end}Z`) - Date.parse(`${start}Z`)) / 60_000;
+  if (!Number.isFinite(span) || span <= 0) return `${r.date} 종업은 시업보다 늦어야 해요`;
+  const brk = Number(r.breakMinutes);
+  if (!Number.isInteger(brk) || brk < 0 || brk >= span) return `${r.date} 휴게는 0분 이상, 근로시간보다 짧아야 해요`;
+  return { date: r.date, start, end, minutes: span - brk };
 }
 
 export const duration = (m: number) => {

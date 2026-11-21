@@ -34,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 유연근무제 배정·근무계획·정산(#38). 판정은 {@link FlexibleWorkCalculator}, 한도는 {@link FlexibleWorkLegalRules}
- * (legal_rate, 단위기간 시작일 기준). 설계: docs/flexible-work-design.md
+ * (legal_rate, 단위기간 시작일 기준). 설계: docs/work-schedule-types-design.md
  *
  * <ul>
  *   <li>배정: 근로기준법 제51조 제2항·제51조의2 제1항·제52조 제1항·제58조 제3항은 근로자대표와의 서면합의가 전제라,
@@ -119,7 +119,7 @@ public class FlexibleWorkService {
         if (req.periodEnd().isBefore(req.periodStart())) {
             throw AttendanceException.badRequest("기간 종료일은 시작일 이후여야 해요");
         }
-        Employee e = employees.findById(req.empId())
+        Employee e = employees.findForUpdate(req.empId())
                 .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + req.empId()));
         if (e.getHireDate().isAfter(req.periodEnd())
                 || (e.getRetireDate() != null && e.getRetireDate().isBefore(req.periodStart()))) {
@@ -203,7 +203,7 @@ public class FlexibleWorkService {
      */
     @Transactional
     public Detail savePlan(long flexId, List<PlanInput> input, AuthUser user) {
-        FlexWorkAssign a = assigns.findById(flexId)
+        FlexWorkAssign a = assigns.findForUpdate(flexId)
                 .orElseThrow(() -> AttendanceException.notFound("유연근무 배정이 없어요: " + flexId));
         WorkSystem sys = a.getWorkSystem();
         boolean hr = user.has(Permission.EMP_WRITE);
@@ -216,6 +216,7 @@ public class FlexibleWorkService {
         if (sys == WorkSystem.SELECTIVE && !hr && !user.isSelf(a.getEmpId())) {
             throw forbidden("본인의 근무계획만 입력할 수 있어요");
         }
+        requireLinkedAgreement(a, employee(a.getEmpId()));
         List<PlanDay> days = toPlanDays(a, input == null ? List.of() : input);
         Limits l = limitsFor(sys, a.getJobCode(), a.getPeriodStart());
         if (sys.isFlexible()) {
@@ -273,8 +274,8 @@ public class FlexibleWorkService {
                 throw AttendanceException.badRequest("시업은 그날, 종업은 시업보다 늦어야 해요: " + d);
             }
             long span = Duration.between(p.start(), p.end()).toMinutes();
-            if (minutes <= 0 || minutes > span) {
-                throw AttendanceException.badRequest("근로분은 1분 이상, 시업~종업 시간 이하여야 해요(휴게 제외): " + d);
+            if (minutes <= 0 || minutes > span || minutes > MINUTES_PER_DAY) {
+                throw AttendanceException.badRequest("근로분은 1분 이상이며 시업~종업 시간과 하루 분 수를 넘을 수 없어요(휴게 제외): " + d);
             }
             out.add(new PlanDay(d, p.start().truncatedTo(ChronoUnit.MINUTES), p.end().truncatedTo(ChronoUnit.MINUTES),
                     minutes));
@@ -288,8 +289,8 @@ public class FlexibleWorkService {
     @Transactional(readOnly = true)
     public Settlement settle(long flexId, AuthUser user) {
         FlexWorkAssign a = readable(flexId, user);
-        Employee e = employees.findById(a.getEmpId())
-                .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + a.getEmpId()));
+        Employee e = employee(a.getEmpId());
+        requireLinkedAgreement(a, e);
         LocalDate workFrom = e.getHireDate().isAfter(a.getPeriodStart()) ? e.getHireDate() : a.getPeriodStart();
         LocalDate workTo = e.getRetireDate() != null && e.getRetireDate().isBefore(a.getPeriodEnd())
                 ? e.getRetireDate() : a.getPeriodEnd();
@@ -391,7 +392,8 @@ public class FlexibleWorkService {
     }
 
     private static int holidaySum(Map<LocalDate, DailyWorkSummaryRow> actual) {
-        return actual.values().stream().mapToInt(r -> nz(r.holidayMinutes())).sum();
+        // 근로기준법 제56조 제2항: 휴일근로 집계에는 가산 기준시간 이내와 초과분을 모두 포함한다.
+        return actual.values().stream().mapToInt(r -> nz(r.holidayMinutes()) + nz(r.holidayExcessMinutes())).sum();
     }
 
     // ---------------------------------------------------------------- 공통
@@ -409,6 +411,19 @@ public class FlexibleWorkService {
             return SelectiveJob.valueOf(job);
         } catch (IllegalArgumentException | NullPointerException e) {
             throw AttendanceException.badRequest("선택적 근로시간제 업무 구분은 GENERAL 또는 RND예요: " + job);
+        }
+    }
+
+    private Employee employee(long empId) {
+        return employees.findById(empId)
+                .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + empId));
+    }
+
+    private void requireLinkedAgreement(FlexWorkAssign assign, Employee employee) {
+        AgreementType type = assign.getWorkSystem().requiredAgreement();
+        if (type != null) {
+            guard.requireLinked(assign.getAgreementId(), type, assign.getPeriodStart(), assign.getPeriodEnd(),
+                    employee.getSiteCode());
         }
     }
 
