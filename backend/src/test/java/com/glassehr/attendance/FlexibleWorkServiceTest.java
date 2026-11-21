@@ -45,9 +45,9 @@ class FlexibleWorkServiceTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     /** 임의 기준값(법령 수치 아님): 단위기간 1개월, 특정 주 3000분, 특정 날 600분, 1일 420분, 1주 1800분. */
-    private static final Limits FAKE_FLEX = new Limits(0, 1, 3000, 600, 0, 420, 1800);
+    private static final Limits FAKE_FLEX = new Limits(0, 1, 3000, 600, 0, 420, 1800, 0);
     /** 임의 기준값(법령 수치 아님): 정산기간 1개월, 휴식 검사 600분(1개월 초과 정산기간에서만). */
-    private static final Limits FAKE_SEL = new Limits(0, 1, 0, 0, 600, 420, 1800);
+    private static final Limits FAKE_SEL = new Limits(0, 1, 0, 0, 600, 420, 1800, 0);
     private static final long EMP = 5L;
 
     private FlexWorkAssignRepository assigns;
@@ -162,7 +162,7 @@ class FlexibleWorkServiceTest {
     @Test
     void 취업규칙형_2주_탄력적은_합의서를_요구하지_않는다() {
         when(rules.flexibleAsOf(eq(WorkSystem.FLEXIBLE_SHORT), any()))
-                .thenReturn(new Limits(2, 0, 3000, 0, 0, 420, 1800));
+                .thenReturn(new Limits(2, 0, 3000, 0, 0, 420, 1800, 0));
         var v = service.assign(req(WorkSystem.FLEXIBLE_SHORT, LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 15),
                 null, null, null, null), "hr1");
         assertThat(v.agreementId()).isNull();
@@ -176,6 +176,21 @@ class FlexibleWorkServiceTest {
                 .isInstanceOf(AttendanceException.class)
                 .hasMessageContaining("제51조 제2항");
         verify(guard, never()).requireValid(any(), any(), any(), any());
+    }
+
+    @Test
+    void 장기_탄력적_배정은_기준값의_최소_단위기간을_초과해야_한다() {
+        LocalDate first = LocalDate.of(2026, 3, 1);
+        when(rules.flexibleAsOf(WorkSystem.FLEXIBLE_LONG, first))
+                .thenReturn(new Limits(0, 6, 3000, 600, 600, 420, 1800, 2));
+        when(guard.requireValid(eq(AgreementType.FLEXIBLE_LONG), any(), any(), eq("HQ"))).thenReturn(agreement(7L));
+        LocalDate last = first.plusMonths(2).minusDays(1);
+
+        assertThatThrownBy(() -> service.assign(req(WorkSystem.FLEXIBLE_LONG, first, last, null, null, null, null), "hr1"))
+                .isInstanceOf(AttendanceException.class)
+                .hasMessageContaining("2개월을 초과");
+        var assign = service.assign(req(WorkSystem.FLEXIBLE_LONG, first, last.plusDays(1), null, null, null, null), "hr1");
+        assertThat(assign.agreementId()).isEqualTo(7L);
     }
 
     @Test

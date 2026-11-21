@@ -148,8 +148,9 @@ public class FlexibleWorkService {
                 throw AttendanceException.badRequest("간주근로시간은 재량근로에서만 넣어요");
             }
             Limits l = limitsFor(sys, job, req.periodStart());
-            if (!FlexibleWorkCalculator.withinUnitPeriod(req.periodStart(), req.periodEnd(), l)) {
-                throw unprocessable(periodMessage(sys, l));
+            Check check = FlexibleWorkCalculator.checkUnitPeriod(req.periodStart(), req.periodEnd(), l);
+            if (check != Check.OK) {
+                throw unprocessable(planMessage(check, sys, l));
             }
         }
         for (FlexWorkAssign a : assigns.findByEmpIdOrderByPeriodStartAsc(e.getEmpId())) {
@@ -462,6 +463,8 @@ public class FlexibleWorkService {
         };
         return switch (c) {
             case UNIT_PERIOD_EXCEEDED, SETTLEMENT_EXCEEDED -> periodMessage(sys, l);
+            case UNIT_PERIOD_TOO_SHORT -> "장기 탄력적 근로시간제 단위기간은 " + l.unitMonthsMinimumExclusive()
+                    + "개월을 초과해야 해요(근로기준법 제51조의2 제1항)";
             case DAY_CAP_EXCEEDED -> "특정한 날 계획이 " + l.dayCap() + "분을 넘어요(" + article + ")";
             case WEEK_CAP_EXCEEDED -> "특정한 주 계획이 " + l.weekCap() + "분을 넘어요(" + article + ")";
             case AVG_EXCEEDED -> "단위기간 평균이 1주 " + l.weeklyStandard() + "분을 넘어요(" + article + ")";

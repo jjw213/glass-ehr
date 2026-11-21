@@ -38,16 +38,17 @@ public class FlexibleWorkLegalRules {
         return switch (system) {
             // 근로기준법 제51조 제1항: 2주 이내, 특정한 주 48시간(특정한 날 상한 없음)
             case FLEXIBLE_SHORT -> new Limits(count(LegalRateItem.FLEX_SHORT_UNIT_PERIOD_MAX_WEEKS, date), 0,
-                    minutes(LegalRateItem.FLEX_SHORT_WEEK_MAX_HOURS, date), 0, 0, day, week);
+                    minutes(LegalRateItem.FLEX_SHORT_WEEK_MAX_HOURS, date), 0, 0, day, week, 0);
             // 근로기준법 제51조 제2항: 3개월 이내, 특정한 주 52시간·특정한 날 12시간
             case FLEXIBLE_WRITTEN -> new Limits(0, count(LegalRateItem.FLEX_WRITTEN_UNIT_PERIOD_MAX_MONTHS, date),
                     minutes(LegalRateItem.FLEX_WRITTEN_WEEK_MAX_HOURS, date),
-                    minutes(LegalRateItem.FLEX_WRITTEN_DAY_MAX_HOURS, date), 0, day, week);
+                    minutes(LegalRateItem.FLEX_WRITTEN_DAY_MAX_HOURS, date), 0, day, week, 0);
             // 근로기준법 제51조의2 제1항·제2항 제1호: 6개월 이내, 52시간·12시간, 근로일 간 11시간 휴식
             case FLEXIBLE_LONG -> new Limits(0, count(LegalRateItem.FLEX_LONG_UNIT_PERIOD_MAX_MONTHS, date),
                     minutes(LegalRateItem.FLEX_LONG_WEEK_MAX_HOURS, date),
                     minutes(LegalRateItem.FLEX_LONG_DAY_MAX_HOURS, date),
-                    minutes(LegalRateItem.FLEX_LONG_DAILY_REST_MIN_HOURS, date), day, week);
+                    minutes(LegalRateItem.FLEX_LONG_DAILY_REST_MIN_HOURS, date), day, week,
+                    count(LegalRateItem.FLEX_WRITTEN_UNIT_PERIOD_MAX_MONTHS, date));
             default -> throw new IllegalArgumentException("탄력적 근로시간제가 아니에요: " + system);
         };
     }
@@ -61,7 +62,7 @@ public class FlexibleWorkLegalRules {
                 : LegalRateItem.SELECTIVE_SETTLEMENT_MAX_MONTHS, date);
         // 근로기준법 제52조 제2항 제1호: 1개월 초과 정산기간의 근로일 간 연속 11시간 휴식
         int rest = minutes(LegalRateItem.SELECTIVE_RND_DAILY_REST_MIN_HOURS, date);
-        return new Limits(0, months, 0, 0, rest, base.dailyStandardMinutes(), base.weeklyStandardMinutes());
+        return new Limits(0, months, 0, 0, rest, base.dailyStandardMinutes(), base.weeklyStandardMinutes(), 0);
     }
 
     private int count(LegalRateItem item, LocalDate date) {

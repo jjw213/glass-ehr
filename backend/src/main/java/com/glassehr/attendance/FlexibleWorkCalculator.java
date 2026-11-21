@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 유연근무제 정의 검사와 단위기간·정산기간 집계(#38, docs/flexible-work-design.md). 상태 없는 순수 계산.
+ * 유연근무제 정의 검사와 단위기간·정산기간 집계(#38, docs/work-schedule-types-design.md). 상태 없는 순수 계산.
  * 한도 값은 {@link FlexibleWorkLegalRules}가 legal_rate 에서 적용일 기준으로 읽어 {@link Limits}로 넘긴다.
  *
  * <ul>
@@ -100,7 +100,7 @@ public final class FlexibleWorkCalculator {
 
     /** 정의 검사 결과(fixture 기대_정의_검사와 같은 이름). */
     public enum Check {
-        OK, UNIT_PERIOD_EXCEEDED, WEEK_CAP_EXCEEDED, DAY_CAP_EXCEEDED, REST_SHORT, AVG_EXCEEDED,
+        OK, UNIT_PERIOD_EXCEEDED, UNIT_PERIOD_TOO_SHORT, WEEK_CAP_EXCEEDED, DAY_CAP_EXCEEDED, REST_SHORT, AVG_EXCEEDED,
         SETTLEMENT_EXCEEDED, NOT_ELIGIBLE_JOB
     }
 
@@ -112,9 +112,10 @@ public final class FlexibleWorkCalculator {
      * @param weekCap     특정 주 상한(분)
      * @param dayCap      특정 날 상한(분)
      * @param restMinutes 근로일 간 연속 휴식 하한(분), 0이면 검사 안 함
+     * @param unitMonthsMinimumExclusive 장기 탄력적 단위기간의 배타 하한(개월), 0이면 검사 안 함
      */
     public record Limits(int unitWeeks, int unitMonths, int weekCap, int dayCap, int restMinutes,
-            int dailyStandard, int weeklyStandard) {
+            int dailyStandard, int weeklyStandard, int unitMonthsMinimumExclusive) {
         public Limits {
             if (dailyStandard <= 0 || weeklyStandard <= 0) {
                 throw new IllegalArgumentException("기준시간은 0보다 커야 해요");
@@ -192,6 +193,18 @@ public final class FlexibleWorkCalculator {
         return !end.isAfter(last);
     }
 
+    static Check checkUnitPeriod(LocalDate start, LocalDate end, Limits limits) {
+        if (end.isBefore(start) || !withinUnitPeriod(start, end, limits)) {
+            return Check.UNIT_PERIOD_EXCEEDED;
+        }
+        // 근로기준법 제51조의2 제1항: 장기 탄력적 단위기간은 단기 서면합의형의 상한보다 길어야 한다.
+        int minimum = limits.unitMonthsMinimumExclusive();
+        if (minimum > 0 && !end.isAfter(lastDayOfMonths(start, minimum))) {
+            return Check.UNIT_PERIOD_TOO_SHORT;
+        }
+        return Check.OK;
+    }
+
     /**
      * 시작일부터 n개월 기간의 마지막 날. 민법 제157조(초일 산입은 근로기간이 0시 시작이라 산입)·제160조 제2항(해당일의 전일),
      * 제160조 제3항(최종 월에 해당일이 없으면 그 월의 말일). 예: 1월 31일부터 3개월 → 4월 30일.
@@ -230,8 +243,9 @@ public final class FlexibleWorkCalculator {
      * 주는 단위기간 시작일부터 7일씩 끊는다.
      */
     public static Check checkFlexiblePlan(LocalDate periodStart, LocalDate periodEnd, List<PlanDay> plan, Limits l) {
-        if (periodEnd.isBefore(periodStart) || !withinUnitPeriod(periodStart, periodEnd, l)) {
-            return Check.UNIT_PERIOD_EXCEEDED;
+        Check period = checkUnitPeriod(periodStart, periodEnd, l);
+        if (period != Check.OK) {
+            return period;
         }
         // 근로기준법 제51조 제2항 단서·제51조의2 제1항 단서: 특정한 날 12시간
         if (l.dayCap() > 0 && plan.stream().anyMatch(d -> d.minutes() > l.dayCap())) {
