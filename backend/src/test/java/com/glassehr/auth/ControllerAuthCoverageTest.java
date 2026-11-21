@@ -52,6 +52,8 @@ class ControllerAuthCoverageTest {
         }
         assertThat(handlers).isGreaterThan(15);
         assertThat(missing).as("권한 표시가 없거나 둘 다 있는 메서드").isEmpty();
-        assertThat(publics).containsExactly("HealthController.health");
+        // 로그인 없이 부를 수 있는 API 는 헬스 체크와 로그인·로그아웃(#76)뿐이다.
+        assertThat(publics).containsExactlyInAnyOrder("HealthController.health", "LoginController.login",
+                "LoginController.logout");
     }
 }

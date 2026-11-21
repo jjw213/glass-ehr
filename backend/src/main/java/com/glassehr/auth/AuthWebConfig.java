@@ -2,7 +2,11 @@ package com.glassehr.auth;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.core.MethodParameter;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
@@ -15,17 +19,27 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class AuthWebConfig implements WebMvcConfigurer {
 
+    /** 이 프로필에서만 X-Actor-Id 헤더 식별을 받는다(#76). 테스트는 pom.xml surefire 설정(spring.profiles.active=test)이 켠다. */
+    static final String ACTOR_HEADER_PROFILE = "test";
+
+    private static final Logger LOG = LoggerFactory.getLogger(AuthWebConfig.class);
+
     private final AuthUserResolver resolver;
     private final PrivacyAccessLogger privacyLog;
+    private final boolean acceptActorHeader;
 
-    public AuthWebConfig(AuthUserResolver resolver, PrivacyAccessLogger privacyLog) {
+    public AuthWebConfig(AuthUserResolver resolver, PrivacyAccessLogger privacyLog, Environment env) {
         this.resolver = resolver;
         this.privacyLog = privacyLog;
+        this.acceptActorHeader = env.acceptsProfiles(Profiles.of(ACTOR_HEADER_PROFILE));
+        if (acceptActorHeader) {
+            LOG.warn("test 프로필: X-Actor-Id 헤더로 사용자를 식별합니다. 운영에서 이 프로필을 켜지 마세요");
+        }
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new AuthInterceptor(resolver, privacyLog)).addPathPatterns("/api/**");
+        registry.addInterceptor(new AuthInterceptor(resolver, privacyLog, acceptActorHeader)).addPathPatterns("/api/**");
     }
 
     @Override

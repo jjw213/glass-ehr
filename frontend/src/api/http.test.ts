@@ -1,0 +1,68 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { call, httpApi, setUnauthorizedHandler } from './http';
+
+/** #76 로그인·세션: Spring /api/auth/login 연결, CSRF 헤더, 세션 만료 처리 */
+type Call = [string, RequestInit];
+const json = (status: number, body: unknown = {}) => new Response(status === 204 ? null : JSON.stringify(body), { status });
+
+afterEach(() => { setUnauthorizedHandler(null); vi.unstubAllGlobals(); });
+
+describe('httpApi 로그인·로그아웃', () => {
+  it('Spring /api/auth/login 으로 로그인하고, 옮기는 동안 Node /api/login 에도 로그인한다', async () => {
+    const fetchMock = vi.fn(async () => json(200, { loginId: 'hr' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await httpApi.login('hr', 'pw-12345678');
+    const calls = fetchMock.mock.calls as unknown as Call[];
+    expect(calls.map((c) => c[0])).toEqual(['/api/auth/login', '/api/login']);
+    expect(calls[0][1].method).toBe('POST');
+    expect(JSON.parse(String(calls[0][1].body))).toEqual({ loginId: 'hr', password: 'pw-12345678' });
+    expect(calls[0][1].headers).toMatchObject({ 'X-Requested-With': 'XMLHttpRequest' });
+  });
+
+  it('Spring 이 거부하면(401) Node 로는 보내지 않고, 세션 만료 처리도 하지 않는다', async () => {
+    const fetchMock = vi.fn(async () => json(401, { error: '아이디 또는 비밀번호가 맞지 않아요' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const lost = vi.fn();
+    setUnauthorizedHandler(lost);
+    await expect(httpApi.login('hr', 'bad')).rejects.toMatchObject({ status: 401, message: '아이디 또는 비밀번호가 맞지 않아요' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(lost).not.toHaveBeenCalled();
+  });
+
+  it('잠금(423)은 서버 문구를 그대로 보여 준다', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(423, { error: '계정이 잠겼어요' })));
+    await expect(httpApi.login('hr', 'x')).rejects.toMatchObject({ status: 423, message: '계정이 잠겼어요' });
+  });
+
+  it('Node 로그인이 실패하면 Spring 세션을 로그아웃으로 되돌린다', async () => {
+    const fetchMock = vi.fn(async (url: string) => (url === '/api/login' ? json(401, { error: 'x' }) : json(url === '/api/auth/logout' ? 204 : 200)));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(httpApi.login('hr', 'pw')).rejects.toMatchObject({ status: 401 });
+    expect((fetchMock.mock.calls as unknown as Call[]).map((c) => c[0])).toEqual(['/api/auth/login', '/api/login', '/api/auth/logout']);
+  });
+
+  it('로그아웃은 Spring·Node 세션을 모두 끝낸다', async () => {
+    const fetchMock = vi.fn(async () => json(204));
+    vi.stubGlobal('fetch', fetchMock);
+    await httpApi.logout();
+    expect((fetchMock.mock.calls as unknown as Call[]).map((c) => c[0]).sort()).toEqual(['/api/auth/logout', '/api/logout']);
+  });
+});
+
+describe('세션 만료', () => {
+  it('로그인 외 API 가 401 을 주면 등록한 처리(로그인 화면으로)를 부른다', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(401, { error: '로그인이 필요해요' })));
+    const lost = vi.fn();
+    setUnauthorizedHandler(lost);
+    await expect(call('GET', '/employees')).rejects.toMatchObject({ status: 401 });
+    expect(lost).toHaveBeenCalledTimes(1);
+  });
+
+  it('403 은 세션 만료가 아니다', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(403, { error: '권한이 없어요' })));
+    const lost = vi.fn();
+    setUnauthorizedHandler(lost);
+    await expect(call('POST', '/employees', {})).rejects.toMatchObject({ status: 403 });
+    expect(lost).not.toHaveBeenCalled();
+  });
+});

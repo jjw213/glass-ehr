@@ -32,6 +32,10 @@ spring:
     deserialization:
       # 금액·분 단위 정수 필드에 소수(2500000.5)가 오면 잘라 내지 않고 400 으로 거부한다(AGENTS.md: 금액은 원 단위 정수).
       accept-float-as-int: false
+  # 로그인 세션(#75 결정, #76 구현). 세션은 Oracle SPRING_SESSION 테이블(V027)에 저장한다. 테이블은 앱이 만들지 않는다.
+  session:
+    jdbc:
+      initialize-schema: never
 
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
@@ -40,6 +44,16 @@ mybatis:
 
 server:
   port: ${PORT:8080}
+  servlet:
+    session:
+      # 마지막 요청 후 이 시간이 지나면 세션이 끝난다(운영 설정). 끝나면 API 가 401 을 주고 화면은 로그인으로 돌아간다.
+      timeout: ${SESSION_IDLE_TIMEOUT:30m}
+      cookie:
+        name: GHR_SESSION
+        http-only: true
+        same-site: lax
+        # HTTPS 로 서비스하는 운영에서는 true 로 둔다(.env SESSION_COOKIE_SECURE=true).
+        secure: ${SESSION_COOKIE_SECURE:false}
 
 # 주민등록번호 컬럼 암호화 키(docs/rrn-design.md). 값은 .env·비밀 저장소로만 넣는다. 비어 있으면 주민등록번호 저장·조회가 거부된다.
 glassehr:
@@ -65,3 +79,10 @@ glassehr:
   # 본인·부서장 화면에 '한도 근접'으로 강조한다. 법정 수치가 아니라 회사 운영 설정이다(기본 240분 = 4시간).
   attendance:
     weekly-hours-warn-remain-minutes: ${WEEKLY_HOURS_WARN_REMAIN_MINUTES:240}
+  # 로그인(#76). 비밀번호가 이 횟수만큼 연속으로 틀리면 lock-duration 동안 잠근다. 법정 수치가 아니라 운영 설정이다
+  # (개인정보의 안전성 확보조치 기준은 '일정 횟수 이상 인증 실패 시 접근 제한'만 요구한다, docs/auth-design.md 8장).
+  # demo-password 는 개발·시연용 데모 계정(DemoAccountSeeder) 비밀번호다. 운영에서는 비워 둔다.
+  auth:
+    max-failed-attempts: ${AUTH_MAX_FAILED_ATTEMPTS:5}
+    lock-duration: ${AUTH_LOCK_DURATION:30m}
+    demo-password: ${DEMO_ACCOUNT_PASSWORD:}

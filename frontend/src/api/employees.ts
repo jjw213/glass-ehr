@@ -46,7 +46,7 @@ export interface OrgTree { baseDate: string; roots: DeptNode[] }
 /** 원문 조회 목적(RrnAccessLog.Purpose) */
 export type RrnPurpose = 'VIEW' | 'SOCIAL_INSURANCE' | 'WITHHOLDING';
 
-/** 요청자. 백엔드는 인증 이슈 전까지 X-Actor-Id·X-Actor-Role 헤더로 받는다(docs/employee-design.md 5장). */
+/** 요청자(화면 표시·데모 모드용). 서버로 헤더를 보내지 않는다(#76: 로그인 세션으로 식별). */
 export interface Actor { id: string; role: string }
 
 export interface EmployeeApi {
@@ -58,14 +58,13 @@ export interface EmployeeApi {
   orgTree(date: string): Promise<OrgTree>;
 }
 
-const actorHeaders = (a: Actor) => ({ 'X-Actor-Id': a.id, 'X-Actor-Role': a.role });
-
+// 서버는 로그인 세션으로 요청자를 찾고 역할은 DB에서 읽는다(#76). actor 는 데모 모드(mock)의 조회 로그에만 쓴다.
 export const httpEmployeeApi: EmployeeApi = {
   list: (includeRetired) => call('GET', `/employees?includeRetired=${includeRetired}`),
   get: (empId) => call('GET', `/employees/${empId}`),
-  create: (input, actor) => call('POST', '/employees', toCreateBody(input), actorHeaders(actor)),
-  revealRrn: async (empId, purpose, actor) =>
-    (await call<{ empId: number; rrn: string }>('GET', `/employees/${empId}/rrn?purpose=${purpose}`, undefined, actorHeaders(actor))).rrn,
+  create: (input) => call('POST', '/employees', toCreateBody(input)),
+  revealRrn: async (empId, purpose) =>
+    (await call<{ empId: number; rrn: string }>('GET', `/employees/${empId}/rrn?purpose=${purpose}`)).rrn,
   orgTree: (date) => call('GET', `/org/tree?date=${encodeURIComponent(date)}`),
 };
 
