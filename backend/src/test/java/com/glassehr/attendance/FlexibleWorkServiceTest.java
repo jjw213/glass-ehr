@@ -183,7 +183,8 @@ class FlexibleWorkServiceTest {
         LocalDate first = LocalDate.of(2026, 3, 1);
         when(rules.flexibleAsOf(WorkSystem.FLEXIBLE_LONG, first))
                 .thenReturn(new Limits(0, 6, 3000, 600, 600, 420, 1800, 2));
-        when(guard.requireValid(eq(AgreementType.FLEXIBLE_LONG), any(), any(), eq("HQ"))).thenReturn(agreement(7L));
+        LaborAgreement agreement = agreement(7L);
+        when(guard.requireValid(eq(AgreementType.FLEXIBLE_LONG), any(), any(), eq("HQ"))).thenReturn(agreement);
         LocalDate last = first.plusMonths(2).minusDays(1);
 
         assertThatThrownBy(() -> service.assign(req(WorkSystem.FLEXIBLE_LONG, first, last, null, null, null, null), "hr1"))
