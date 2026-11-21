@@ -50,7 +50,7 @@ class WorkHoursFixtureTest {
                     + "\\s*(\\d+(?:\\.\\d+)?),\\s*'([A-Z_]+)'");
 
     /** Maven은 backend/에서, IDE는 저장소 루트에서 돌 수 있어 둘 다 찾는다. */
-    private static Path repoFile(String relative) {
+    static Path repoFile(String relative) {
         for (Path base : List.of(Path.of(".."), Path.of("."))) {
             Path p = base.resolve(relative).normalize();
             if (Files.isRegularFile(p)) {
@@ -61,8 +61,13 @@ class WorkHoursFixtureTest {
     }
 
     private static List<LegalRateRow> seedRows() throws IOException {
+        return seedRows(SEEDS);
+    }
+
+    /** 시드 파일의 insert_period 행(다른 fixture 테스트도 쓴다). */
+    static List<LegalRateRow> seedRows(List<String> seeds) throws IOException {
         List<LegalRateRow> rows = new ArrayList<>();
-        for (String seed : SEEDS) {
+        for (String seed : seeds) {
             Matcher m = SEED_ROW.matcher(Files.readString(repoFile(seed), StandardCharsets.UTF_8));
             while (m.find()) {
                 rows.add(new LegalRateRow(m.group(1), LocalDate.parse(m.group(2)),
@@ -74,7 +79,7 @@ class WorkHoursFixtureTest {
     }
 
     /** 시드 행으로 적용일 조회를 흉내 낸다. 해당 기간 행이 정확히 1개가 아니면 실패. */
-    private static LegalRateService seededRates(List<LegalRateRow> rows) {
+    static LegalRateService seededRates(List<LegalRateRow> rows) {
         LegalRateService s = mock(LegalRateService.class);
         when(s.getEffective(any(LegalRateItem.class), any(LocalDate.class))).thenAnswer(inv -> {
             LegalRateItem item = inv.getArgument(0);
@@ -90,7 +95,7 @@ class WorkHoursFixtureTest {
     }
 
     /** 따옴표 안 쉼표를 허용하는 CSV 한 줄. */
-    private static List<String> parseCsvLine(String line) {
+    static List<String> parseCsvLine(String line) {
         List<String> out = new ArrayList<>();
         StringBuilder cur = new StringBuilder();
         boolean quoted = false;
