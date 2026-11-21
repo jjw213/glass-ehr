@@ -1,7 +1,6 @@
 package com.glassehr.dashboard;
 
 import com.glassehr.attendance.AttendancePunch;
-import com.glassehr.attendance.AttendancePunchRepository;
 import com.glassehr.auth.AuthUser;
 import com.glassehr.employee.EmployeeDtos.EmployeeSummary;
 import com.glassehr.employee.EmployeeService;
@@ -40,15 +39,15 @@ public class DashboardService {
     }
 
     private final EmployeeService employees;
-    private final AttendancePunchRepository punches;
+    private final DashboardPunchQueries punches;
     private final Clock clock;
 
     @Autowired
-    public DashboardService(EmployeeService employees, AttendancePunchRepository punches) {
+    public DashboardService(EmployeeService employees, DashboardPunchQueries punches) {
         this(employees, punches, Clock.system(SEOUL));
     }
 
-    DashboardService(EmployeeService employees, AttendancePunchRepository punches, Clock clock) {
+    DashboardService(EmployeeService employees, DashboardPunchQueries punches, Clock clock) {
         this.employees = employees;
         this.punches = punches;
         this.clock = clock;

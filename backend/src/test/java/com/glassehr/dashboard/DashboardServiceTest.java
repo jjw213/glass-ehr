@@ -5,7 +5,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.glassehr.attendance.AttendancePunch;
-import com.glassehr.attendance.AttendancePunchRepository;
 import com.glassehr.auth.TestAuthUsers;
 import com.glassehr.employee.EmployeeDtos.EmployeeSummary;
 import com.glassehr.employee.EmployeeService;
@@ -24,7 +23,7 @@ class DashboardServiceTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2099-03-01T15:30:00Z"), DashboardService.SEOUL);
 
     private final EmployeeService employees = mock(EmployeeService.class);
-    private final AttendancePunchRepository punches = mock(AttendancePunchRepository.class);
+    private final DashboardPunchQueries punches = mock(DashboardPunchQueries.class);
     private final DashboardService service = new DashboardService(employees, punches, CLOCK);
 
     private static EmployeeSummary emp(long id, Long dept, LocalDate hire, LocalDate retire) {
