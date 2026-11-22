@@ -1,6 +1,6 @@
 /* Sample data for the in-browser demo API (src/api/mock.ts).
    The server seeds the same people and documents into Oracle (server/src/db/seed.ts). */
-import type { Approval, Dashboard, Dept, Employee, LeaveRequest, Me, Payslip, PayLine, Thread, WorkStatus } from '../api/types';
+import type { Approval, Dashboard, Dept, Employee, LeaveRequest, Me, Payslip, PayLine, WorkStatus } from '../api/types';
 
 export const DEPTS: Dept[] = [
   { id: 'mgmt', name: '경영지원', color: '#f59e0b', lead: '박서연', desc: '재무 · 총무 · 법무' },
@@ -104,21 +104,22 @@ export const APPROVALS: Approval[] = [
   doc({ id: 'A-2588', kind: '출장', title: '해외 전시회 참관 출장', requester: '신도현', dept: 'sales', date: '10.18', amount: 3_900_000, body: '전시회 참관 목적의 4박 5일 출장 신청입니다.', names: ['정민준', '김지훈', '박서연'], status: '반려' }),
 ];
 
-export const THREADS: Thread[] = [
-  { id: 't1', name: '박서연', dept: 'mgmt', preview: '일정표는 11/10까지 확정하면 될 것 같아요', unread: 2, msgs: [
-    { from: 'them', text: '지훈님, 연말정산 공지 초안 공유드려요.', time: '17:42' },
-    { from: 'them', text: '일정표는 11/10까지 확정하면 될 것 같아요. 확인 부탁드립니다!', time: '17:43' },
+/**
+ * 데모 메시지 대화방(#80). 참여자는 데모 사원(data/org.ts DEMO_EMPLOYEES)의 empId, 데모 계정 본인은 3.
+ * 메시지: [보낸 사원, 본문, 며칠 전, 시:분]. readBySelf=false 인 남의 메시지는 안 읽음.
+ */
+export const DEMO_THREADS: { id: number; members: number[]; msgs: [number, string, number, string, boolean][] }[] = [
+  { id: 1, members: [3, 2], msgs: [
+    [2, '연말정산 공지 초안 공유드려요.', 0, '09:12', false],
+    [2, '일정표는 다음 주 금요일까지 확정하면 될 것 같아요. 확인 부탁드립니다!', 0, '09:13', false],
   ] },
-  { id: 't2', name: '이도윤', dept: 'dev', preview: '네 오늘 중으로 정리해서 드릴게요.', unread: 1, msgs: [
-    { from: 'them', text: '백엔드 채용 요청 건 결재 올렸습니다.', time: '15:10' },
-    { from: 'me', text: '확인했어요. JD 초안도 같이 보내주실 수 있을까요?', time: '15:22' },
-    { from: 'them', text: '네 오늘 중으로 정리해서 드릴게요.', time: '15:24' },
+  { id: 2, members: [3, 6], msgs: [
+    [6, '채용 요청 건 결재 올렸습니다.', 1, '15:10', true],
+    [3, '확인했어요. 직무 설명 초안도 같이 보내주실 수 있을까요?', 1, '15:22', true],
+    [6, '네 오늘 중으로 정리해서 드릴게요.', 0, '08:40', false],
   ] },
-  { id: 't3', name: '최하은', dept: 'design', preview: '감사합니다 🙏', unread: 0, msgs: [
-    { from: 'me', text: '온보딩 키트 디자인 너무 좋네요!', time: '어제' },
-    { from: 'them', text: '감사합니다 🙏', time: '어제' },
-  ] },
-  { id: 't4', name: '정민준', dept: 'sales', preview: '출장 일정 변경 가능할까요?', unread: 0, msgs: [
-    { from: 'them', text: '부산 출장 일정이 하루 당겨질 수도 있는데, 변경 가능할까요?', time: '월' },
+  { id: 3, members: [3, 8, 9], msgs: [
+    [3, '온보딩 일정 공유드려요.', 3, '10:00', true],
+    [9, '감사합니다 🙏', 3, '10:05', true],
   ] },
 ];

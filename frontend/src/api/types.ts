@@ -1,6 +1,8 @@
-import type { Approval, Attendance, Bootstrap, Dept, LeaveRequest, NewLeave, Role, Thread } from '../../../shared/types';
+import type { Approval, Attendance, Bootstrap, Dept, LeaveRequest, NewLeave, Role } from '../../../shared/types';
+import type { ChatMessage, MessagePage, MessageThread } from './messages';
 
 export * from '../../../shared/types';
+export type { ChatMessage, MessagePage, MessageThread, ThreadMember } from './messages';
 
 /** Spring GET /api/auth/me (#19·#76). */
 export interface AuthMe { loginId: string; empId: number | null; roles: string[]; permissions: string[]; managedDeptIds: number[] }
@@ -26,15 +28,17 @@ export interface DashboardSummary {
 }
 
 /**
- * 로그인 직후 화면 데이터(#77). 사용자·부서·홈 요약은 Spring, 나머지는 아직 Node 서버(옮기는 이슈에서 바꾼다).
+ * 로그인 직후 화면 데이터(#77). 사용자·부서·홈 요약·메시지 대화방(#80)은 Spring, 나머지는 아직 Node 서버(옮기는 이슈에서 바꾼다).
  * dashboard 는 요약을 볼 권한(EMP_READ_ALL·EMP_READ_DEPT)이 없으면 null — 화면이 인원 카드를 숨긴다.
  */
-export interface AppData extends Omit<Bootstrap, 'me' | 'depts' | 'employees' | 'dashboard'> {
+export interface AppData extends Omit<Bootstrap, 'me' | 'depts' | 'employees' | 'dashboard' | 'threads'> {
   me: SessionUser;
   depts: Dept[];
-  /** Node 에 남은 결재·메시지의 기존 부서 ID를 이름으로 표시하기 위한 임시 조회 목록. */
+  /** Node 에 남은 결재의 기존 부서 ID를 이름으로 표시하기 위한 임시 조회 목록. */
   legacyDepts: Dept[];
   dashboard: DashboardSummary | null;
+  /** Spring GET /api/threads. 메시지 본문은 화면이 대화방을 열 때 페이지로 받는다. */
+  threads: MessageThread[];
 }
 
 /** 요약 API 를 볼 수 있는 권한(서버 DashboardController 와 같게). */
@@ -59,9 +63,11 @@ export interface Api {
   toggleClock(): Promise<Attendance>;
   addLeave(input: NewLeave): Promise<{ leaves: LeaveRequest[]; approvals: Approval[] }>;
   decide(id: string, action: 'approve' | 'reject'): Promise<{ approvals: Approval[]; leaves: LeaveRequest[] }>;
-  threads(): Promise<Thread[]>;
-  send(threadId: string, text: string): Promise<Thread[]>;
-  markRead(threadId: string): Promise<void>;
+  /** 메시지(#80, Spring /api/threads). 참여자가 아닌 대화방은 403. */
+  threads(): Promise<MessageThread[]>;
+  messages(threadId: number, beforeId?: number): Promise<MessagePage>;
+  send(threadId: number, text: string): Promise<ChatMessage>;
+  markRead(threadId: number): Promise<void>;
 }
 
 export class ApiError extends Error {

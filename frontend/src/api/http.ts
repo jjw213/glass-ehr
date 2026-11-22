@@ -75,7 +75,9 @@ export const httpApi: Api = {
   toggleClock: () => call('POST', '/attendance/toggle'),
   addLeave: (input) => call('POST', '/leaves', input),
   decide: (id, action) => call('POST', `/approvals/${encodeURIComponent(id)}/${action}`),
+  // 메시지(#80)는 Spring.
   threads: () => call('GET', '/threads'),
-  send: (threadId, text) => call('POST', `/threads/${encodeURIComponent(threadId)}/messages`, { text }),
-  markRead: async (threadId) => { await call('POST', `/threads/${encodeURIComponent(threadId)}/read`); },
+  messages: (threadId, beforeId) => call('GET', `/threads/${threadId}/messages${beforeId != null ? `?beforeId=${beforeId}` : ''}`),
+  send: (threadId, text) => call('POST', `/threads/${threadId}/messages`, { text }),
+  markRead: async (threadId) => { await call('POST', `/threads/${threadId}/read`); },
 };
