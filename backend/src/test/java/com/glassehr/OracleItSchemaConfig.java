@@ -177,6 +177,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V029__flex_work_assign.sql"))
                     .execute(dataSource);
         }
+        Integer message = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'MSG_THREAD'", Integer.class);
+        if (message == null || message == 0) {
+            // #80: 사내 메시지 대화방·참여자·메시지·읽음
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V030__message_thread.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
