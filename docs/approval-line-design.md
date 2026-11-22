@@ -128,3 +128,11 @@ ApprovalCompletionHandler (interface, 모듈마다 구현)
 - 일정 기간 미처리 시 알림·자동 처리 여부
 - 회수 가능 시점을 "첫 결재 전"보다 넓힐지
 - 설정 단위를 회사로 할지 사업장으로 할지(#9 사업장코드와 연계)
+
+## 9. 구현 현황 (#30 · #113)
+- 공통 결재는 #30에서 `com.glassehr.approval`(V024: `approval_template`·`approval_template_step`·`approval_doc`·`approval_doc_step`·`approval_doc_step_approver`·`approval_action_log`)로 먼저 만들었고, #113은 이 모듈을 공통 결재 기능으로 확정한다. 새 마이그레이션은 없다.
+- 8장 미결 사항 중 결재자 미발견·ROLE/POSITION 다수 후보는 2026-11-19 사람 답변 1번안(신청 거부, 후보 중 아무나 한 명)으로 정했다(`docs/overtime-request-design.md` 5장). 같은 답변에 따라 대결·위임·전결·병렬 결재는 넣지 않았다. 조건별 결재선·미처리 알림도 없고, 회수는 첫 승인 전까지, 설정 단위는 회사다(2장·4장 기본안 그대로).
+- #30 연장·휴일근로 신청은 처음부터 이 공통 모듈(`OvertimeApprovalHandler`, 유형 `OVERTIME`)을 쓰므로 옮길 코드가 없다.
+- 권한: 처리는 지금 차례 단계의 결재자 후보만, 회수는 신청자만, 상세는 신청자·결재자 후보·전체 사원 조회 권한자만. 결재 응답에는 사원 ID·성명과 신청 내용만 담고, 개인정보 조회 로그 대상 항목(`PrivacyAccessLog.Item`: 인사 개인정보·사원 목록 다운로드·주민등록번호)은 내보내지 않으므로 조회 로그 대상이 아니다.
+- 화면: `결재함`(`ApprovalInboxPage`)이 Spring `/api/approvals/inbox|processed|mine|{id}`를 쓴다. 옛 `전자결재` 화면·배지·홈 '결재 대기' 카드는 Node 휴가 결재(`POST /api/leaves`가 만드는 문서)용이라, 휴가 신청이 Spring으로 옮겨질 때 함께 바꾼다.
+- 테스트: 단위(`ApprovalServiceTest`·`ApproverResolverTest`·`ApprovalTemplateServiceTest`·`ApprovalControllerTest`)와 Oracle 통합 `ApprovalOracleTest`(유효기간·스냅샷·순차 진행·반려 사유 필수·회수·결재함 쿼리·이력 추가만·문서 중복 방지).
