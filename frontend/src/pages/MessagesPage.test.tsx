@@ -73,6 +73,36 @@ describe('MessagesPage', () => {
     expect(host.textContent).not.toContain('이전 메시지 보기');
   });
 
+  it('본문 조회가 성공한 뒤에만 읽음 처리한다', async () => {
+    const page = deferred<MessagePage | undefined>();
+    store.loadMessages.mockImplementationOnce(() => page.promise);
+    act(() => root.render(<MessagesPage />));
+    await flush();
+    expect(store.markRead).not.toHaveBeenCalled();
+
+    page.resolve({ messages: [msg(10, false, '조회 성공')], hasMore: false });
+    await flush();
+    expect(store.markRead).toHaveBeenCalledWith(5);
+  });
+
+  it('이전 메시지를 앞에 추가해도 현재 스크롤 위치를 보존한다', async () => {
+    act(() => root.render(<MessagesPage />));
+    await flush();
+    const body = host.querySelector<HTMLDivElement>('.chat__body')!;
+    let height = 300;
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => height });
+    body.scrollTop = 80;
+    store.loadMessages.mockImplementationOnce(async () => {
+      height = 500;
+      return { messages: [msg(3, true, '옛날 메시지')], hasMore: false };
+    });
+
+    const older = [...host.querySelectorAll('button')].find((b) => b.textContent === '이전 메시지 보기')!;
+    act(() => older.click());
+    await flush();
+    expect(body.scrollTop).toBe(280);
+  });
+
   it('공백만 있는 메시지는 보내지 않고, 보낸 메시지는 대화에 붙는다', async () => {
     act(() => root.render(<MessagesPage />));
     await flush();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { LuArrowLeft, LuSend, LuPlus } from 'react-icons/lu';
 import { Card, PageHead, Avatar, cx } from '../components/ui';
 import { useData, useStore } from '../state/store';
@@ -20,9 +20,12 @@ export function MessagesPage() {
   const [sending, setSending] = useState(false);
   const sel = threads.find((t) => t.id === selId) ?? null;
   const endRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const selectedThreadRef = useRef(selId);
   const requestVersionRef = useRef(0);
   const msgsRef = useRef<ChatMessage[]>([]);
+  const [loadedThreadId, setLoadedThreadId] = useState<number | null>(null);
+  const scrollRef = useRef<{ mode: 'bottom' | 'preserve'; height?: number; top?: number } | null>(null);
   selectedThreadRef.current = selId;
   const today = seoulToday();
 
@@ -36,8 +39,10 @@ export function MessagesPage() {
     let page = await loadMessages(threadId);
     if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
     if (reset) {
+      scrollRef.current = { mode: 'bottom' };
       replaceMessages(page.messages);
       setHasMore(page.hasMore);
+      setLoadedThreadId(threadId);
       return;
     }
 
@@ -51,13 +56,15 @@ export function MessagesPage() {
       if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
       received = mergeMessages(page.messages, received);
     }
-    replaceMessages(mergeMessages(previous, received));
+    scrollRef.current = { mode: 'bottom' };
+    replaceMessages(mergeMessages(msgsRef.current, received));
+    setLoadedThreadId(threadId);
   }, [loadMessages, replaceMessages]);
 
   // 대화방을 바꾸면 그 방의 최신 페이지를 새로 받는다.
   useEffect(() => {
     const version = ++requestVersionRef.current;
-    replaceMessages([]); setHasMore(false); setSending(false); setText('');
+    replaceMessages([]); setHasMore(false); setSending(false); setText(''); setLoadedThreadId(null);
     if (selId != null) void loadLatest(selId, true, version);
   }, [selId, loadLatest, replaceMessages]);
 
@@ -71,16 +78,30 @@ export function MessagesPage() {
     return () => clearInterval(id);
   }, [refreshThreads, loadLatest, selId]);
 
-  // 대화방을 열거나(안 읽은 메시지가 새로 오면) 읽음 처리한다.
-  useEffect(() => { if (selId != null && sel?.unread) markRead(selId); }, [selId, sel?.unread, markRead]);
-  useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end', behavior: 'smooth' }); }, [msgs.length]);
+  // 현재 대화방 본문 조회가 성공한 뒤에만 읽음 처리한다.
+  useEffect(() => {
+    if (selId != null && loadedThreadId === selId && sel?.unread) markRead(selId);
+  }, [selId, loadedThreadId, sel?.unread, markRead]);
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    const body = bodyRef.current;
+    if (!scroll || !body) return;
+    if (scroll.mode === 'preserve') {
+      body.scrollTop = (scroll.top ?? 0) + body.scrollHeight - (scroll.height ?? 0);
+    } else {
+      endRef.current?.scrollIntoView?.({ block: 'end', behavior: 'smooth' });
+    }
+    scrollRef.current = null;
+  }, [msgs]);
 
   const loadOlder = async () => {
     if (selId == null || msgsRef.current.length === 0) return;
     const threadId = selId;
     const version = requestVersionRef.current;
+    const scroll = { mode: 'preserve' as const, height: bodyRef.current?.scrollHeight, top: bodyRef.current?.scrollTop };
     const page = await loadMessages(threadId, msgsRef.current[0].id);
     if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
+    scrollRef.current = scroll;
     replaceMessages(mergeMessages(page.messages, msgsRef.current));
     setHasMore(page.hasMore);
   };
@@ -95,6 +116,7 @@ export function MessagesPage() {
     setSending(true);
     const sent = await send(threadId, text);
     if (sent && selectedThreadRef.current === threadId && requestVersionRef.current === version) {
+      scrollRef.current = { mode: 'bottom' };
       setSending(false); replaceMessages(mergeMessages(msgsRef.current, [sent])); setText('');
     } else if (selectedThreadRef.current === threadId && requestVersionRef.current === version) {
       setSending(false);
@@ -130,7 +152,7 @@ export function MessagesPage() {
               <Avatar name={threadTitle(sel)} dept={threadDept(sel)} size={36} />
               <div><strong>{threadTitle(sel)}</strong><span className="muted sm">{dept(threadDept(sel))?.name}</span></div>
             </div>
-            <div className="chat__body">
+            <div className="chat__body" ref={bodyRef}>
               {hasMore && <button type="button" className="glass pill" onClick={() => void loadOlder()}>이전 메시지 보기</button>}
               {msgs.map((m) => (
                 <div key={m.id} className={cx('bubble', m.mine ? 'me' : 'them')}>
