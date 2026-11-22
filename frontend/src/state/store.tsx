@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, ApiError, type Bootstrap, type Dept, type NewLeave } from '../api';
+import { api, ApiError, type AppData as Bootstrap, type Dept, type NewLeave } from '../api';
 import { setUnauthorizedHandler } from '../api/http';
 
 export type PageId = 'home' | 'attendance' | 'flexWork' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'workPatterns' | 'holidays' | 'agreements' | 'familyLeaves' | 'retirements' | 'appointments' | 'privacyLogs' | 'overtime' | 'approvalInbox';
@@ -141,7 +141,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (r) patch({ threads: r });
   }, [guard]);
 
-  const deptMap = useMemo(() => new Map((data?.depts ?? []).map((d) => [d.id, d])), [data?.depts]);
+  const deptMap = useMemo(() => new Map([
+    ...(data?.legacyDepts ?? []).map((d) => [d.id, d] as const),
+    ...(data?.depts ?? []).map((d) => [d.id, d] as const),
+  ]), [data?.depts, data?.legacyDepts]);
   const dept = useCallback((id: string) => deptMap.get(id), [deptMap]);
 
   const value = useMemo<Store>(() => ({
