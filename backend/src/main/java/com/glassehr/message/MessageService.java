@@ -8,10 +8,12 @@ import com.glassehr.message.MessageDtos.ThreadSummary;
 import com.glassehr.message.MessageRepository.MessageRow;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MessageService {
 
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
     /** 본문 최대 길이(문자 수, 앞뒤 공백 제외). DB 열 VARCHAR2(1000 CHAR)와 같다. 법정 수치가 아니다. */
     static final int MAX_TEXT_LENGTH = 1000;
     /** 메시지 한 페이지 기본·최대 건수. */
@@ -32,7 +36,12 @@ public class MessageService {
     private final MessageRepository repo;
     private final Clock clock;
 
-    public MessageService(MessageRepository repo, Clock clock) {
+    @Autowired
+    public MessageService(MessageRepository repo) {
+        this(repo, Clock.system(SEOUL));
+    }
+
+    MessageService(MessageRepository repo, Clock clock) {
         this.repo = repo;
         this.clock = clock;
     }

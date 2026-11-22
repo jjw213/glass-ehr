@@ -27,6 +27,11 @@ const THREADS: MessageThread[] = [
 const msg = (id: number, mine: boolean, text: string): ChatMessage => ({ id, senderEmpId: mine ? 1 : 8, mine, text, sentAt: '2099-03-02T09:00:00' });
 
 const flush = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+};
 
 describe('MessagesPage', () => {
   let host: HTMLDivElement;
@@ -89,5 +94,42 @@ describe('MessagesPage', () => {
     expect(store.send).toHaveBeenCalledWith(5, '안녕하세요');
     expect([...host.querySelectorAll('.bubble.me p')].map((p) => p.textContent)).toEqual(['안녕하세요']);
     expect(input.value).toBe('');
+  });
+
+  it('대화방을 바꾼 뒤 도착한 이전 대화방 응답은 무시한다', async () => {
+    const first = deferred<MessagePage | undefined>();
+    store.loadMessages
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValueOnce({ messages: [msg(20, false, '다른 방 메시지')], hasMore: false });
+    act(() => root.render(<MessagesPage />));
+    act(() => host.querySelectorAll<HTMLLIElement>('.list__row')[1].click());
+    await flush();
+    expect(host.textContent).toContain('다른 방 메시지');
+
+    first.resolve({ messages: [msg(10, false, '늦게 온 이전 방 메시지')], hasMore: false });
+    await flush();
+    expect(host.textContent).not.toContain('늦게 온 이전 방 메시지');
+    expect(host.textContent).toContain('다른 방 메시지');
+  });
+
+  it('폴링 최신 페이지가 기존 메시지와 겹치지 않으면 겹치는 페이지까지 조회한다', async () => {
+    vi.useFakeTimers();
+    try {
+      store.loadMessages.mockResolvedValueOnce({ messages: [msg(98, false, '기존'), msg(99, false, '기존 마지막')], hasMore: false });
+      act(() => root.render(<MessagesPage />));
+      await flush();
+
+      const latest = Array.from({ length: 50 }, (_, i) => msg(100 + i, false, `새 메시지 ${100 + i}`));
+      store.loadMessages
+        .mockResolvedValueOnce({ messages: latest, hasMore: true })
+        .mockResolvedValueOnce({ messages: [msg(99, false, '기존 마지막'), msg(100, false, '새 메시지 100')], hasMore: true });
+      await act(async () => { vi.advanceTimersByTime(4000); await Promise.resolve(); await Promise.resolve(); });
+
+      expect(store.loadMessages).toHaveBeenCalledWith(5, 100);
+      expect(host.textContent).toContain('기존 마지막');
+      expect(host.textContent).toContain('새 메시지 149');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

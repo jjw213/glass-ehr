@@ -20,28 +20,53 @@ export function MessagesPage() {
   const [sending, setSending] = useState(false);
   const sel = threads.find((t) => t.id === selId) ?? null;
   const endRef = useRef<HTMLDivElement>(null);
+  const selectedThreadRef = useRef(selId);
+  const requestVersionRef = useRef(0);
+  const msgsRef = useRef<ChatMessage[]>([]);
+  selectedThreadRef.current = selId;
   const today = seoulToday();
 
-  /** 최신 페이지를 받아 이미 받은 메시지와 합친다. */
-  const loadLatest = useCallback(async (threadId: number, reset: boolean) => {
-    const page = await loadMessages(threadId);
-    if (!page) return;
-    setMsgs((prev) => (reset ? page.messages : mergeMessages(prev, page.messages)));
-    if (reset) setHasMore(page.hasMore);
-  }, [loadMessages]);
+  const replaceMessages = useCallback((next: ChatMessage[]) => {
+    msgsRef.current = next;
+    setMsgs(next);
+  }, []);
+
+  /** 최신 페이지부터 기존 마지막 메시지와 만날 때까지 받아 폴링 중 생긴 누락을 메운다. */
+  const loadLatest = useCallback(async (threadId: number, reset: boolean, version: number) => {
+    let page = await loadMessages(threadId);
+    if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
+    if (reset) {
+      replaceMessages(page.messages);
+      setHasMore(page.hasMore);
+      return;
+    }
+
+    const previous = msgsRef.current;
+    const lastReceivedId = previous.at(-1)?.id;
+    let received = page.messages;
+    while (lastReceivedId != null && page.hasMore && !received.some((message) => message.id === lastReceivedId)) {
+      const beforeId = page.messages[0]?.id;
+      if (beforeId == null) break;
+      page = await loadMessages(threadId, beforeId);
+      if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
+      received = mergeMessages(page.messages, received);
+    }
+    replaceMessages(mergeMessages(previous, received));
+  }, [loadMessages, replaceMessages]);
 
   // 대화방을 바꾸면 그 방의 최신 페이지를 새로 받는다.
   useEffect(() => {
-    setMsgs([]); setHasMore(false);
-    if (selId != null) void loadLatest(selId, true);
-  }, [selId, loadLatest]);
+    const version = ++requestVersionRef.current;
+    replaceMessages([]); setHasMore(false); setSending(false); setText('');
+    if (selId != null) void loadLatest(selId, true, version);
+  }, [selId, loadLatest, replaceMessages]);
 
   // 이 화면이 열려 있는 동안 새 메시지를 확인한다.
   useEffect(() => {
     const id = setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       void refreshThreads();
-      if (selId != null) void loadLatest(selId, false);
+      if (selId != null) void loadLatest(selId, false, requestVersionRef.current);
     }, 4000);
     return () => clearInterval(id);
   }, [refreshThreads, loadLatest, selId]);
@@ -51,10 +76,12 @@ export function MessagesPage() {
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end', behavior: 'smooth' }); }, [msgs.length]);
 
   const loadOlder = async () => {
-    if (selId == null || msgs.length === 0) return;
-    const page = await loadMessages(selId, msgs[0].id);
-    if (!page) return;
-    setMsgs((prev) => mergeMessages(page.messages, prev));
+    if (selId == null || msgsRef.current.length === 0) return;
+    const threadId = selId;
+    const version = requestVersionRef.current;
+    const page = await loadMessages(threadId, msgsRef.current[0].id);
+    if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
+    replaceMessages(mergeMessages(page.messages, msgsRef.current));
     setHasMore(page.hasMore);
   };
 
@@ -63,10 +90,15 @@ export function MessagesPage() {
     if (!sel || sending) return;
     const err = messageError(text);
     if (err) { toast(err); return; }
+    const threadId = sel.id;
+    const version = requestVersionRef.current;
     setSending(true);
-    const sent = await send(sel.id, text);
-    setSending(false);
-    if (sent) { setMsgs((prev) => mergeMessages(prev, [sent])); setText(''); }
+    const sent = await send(threadId, text);
+    if (sent && selectedThreadRef.current === threadId && requestVersionRef.current === version) {
+      setSending(false); replaceMessages(mergeMessages(msgsRef.current, [sent])); setText('');
+    } else if (selectedThreadRef.current === threadId && requestVersionRef.current === version) {
+      setSending(false);
+    }
   };
 
   return (
