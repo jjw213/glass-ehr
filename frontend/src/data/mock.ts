@@ -57,8 +57,6 @@ export const LEAVES: LeaveRequest[] = [
   { id: 'L1', type: '연차', from: '2026-10-17', to: '2026-10-17', days: 1, reason: '개인 일정', status: '승인' },
 ];
 
-export const WEEK_HOURS = [{ d: '월', h: 8.5 }, { d: '화', h: 9.2 }, { d: '수', h: 8.8 }, { d: '목', h: 9.0 }, { d: '금', h: 8.4 }];
-
 function makePayslip(month: string, payMonth: string, payDate: string, overtime: number, bonus = 0): Payslip {
   const earnings: PayLine[] = [
     { label: '기본급', amount: 4_200_000 }, { label: '직책수당', amount: 300_000 },

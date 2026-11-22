@@ -1,4 +1,4 @@
-import type { Approval, Attendance, Bootstrap, Dept, LeaveRequest, NewLeave, Role } from '../../../shared/types';
+import type { Approval, Bootstrap, Dept, LeaveRequest, NewLeave, Role } from '../../../shared/types';
 import type { ChatMessage, MessagePage, MessageThread } from './messages';
 
 export * from '../../../shared/types';
@@ -29,9 +29,10 @@ export interface DashboardSummary {
 
 /**
  * 로그인 직후 화면 데이터(#77). 사용자·부서·홈 요약·메시지 대화방(#80)은 Spring, 나머지는 아직 Node 서버(옮기는 이슈에서 바꾼다).
+ * 출퇴근은 Node attendance 대신 화면이 Spring 출퇴근 API(api/punches.ts)를 직접 부른다(#78).
  * dashboard 는 요약을 볼 권한(EMP_READ_ALL·EMP_READ_DEPT)이 없으면 null — 화면이 인원 카드를 숨긴다.
  */
-export interface AppData extends Omit<Bootstrap, 'me' | 'depts' | 'employees' | 'dashboard' | 'threads'> {
+export interface AppData extends Omit<Bootstrap, 'me' | 'depts' | 'employees' | 'dashboard' | 'attendance' | 'threads'> {
   me: SessionUser;
   depts: Dept[];
   /** Node 에 남은 결재의 기존 부서 ID를 이름으로 표시하기 위한 임시 조회 목록. */
@@ -60,7 +61,6 @@ export interface Api {
   login(loginId: string, password: string): Promise<void>;
   logout(): Promise<void>;
   bootstrap(): Promise<AppData>;
-  toggleClock(): Promise<Attendance>;
   addLeave(input: NewLeave): Promise<{ leaves: LeaveRequest[]; approvals: Approval[] }>;
   decide(id: string, action: 'approve' | 'reject'): Promise<{ approvals: Approval[]; leaves: LeaveRequest[] }>;
   /** 메시지(#80, Spring /api/threads). 참여자가 아닌 대화방은 403. */

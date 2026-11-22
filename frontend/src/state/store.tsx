@@ -27,7 +27,6 @@ interface Store {
   /* actions → server */
   decide: (id: string, action: 'approve' | 'reject') => Promise<void>;
   addLeave: (l: NewLeave) => Promise<boolean>;
-  toggleClock: () => Promise<void>;
   /** 메시지(#80). 보내면 대화방 목록도 다시 받는다. 실패하면 undefined(오류는 토스트). */
   send: (threadId: number, text: string) => Promise<ChatMessage | undefined>;
   loadMessages: (threadId: number, beforeId?: number) => Promise<MessagePage | undefined>;
@@ -120,14 +119,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return !!r;
   }, [guard, toast]);
 
-  const toggleClock = useCallback(async () => {
-    const was = data?.attendance;
-    const r = await guard(() => api.toggleClock());
-    if (!r) return;
-    patch({ attendance: r });
-    toast(!was?.clockIn ? '출근 처리됐어요' : was.clockOut ? '퇴근을 취소했어요' : '퇴근 처리됐어요. 수고하셨어요!');
-  }, [data?.attendance, guard, toast]);
-
   const refreshThreads = useCallback(async () => {
     const r = await guard(() => api.threads());
     if (r) patch({ threads: r });
@@ -155,10 +146,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Store>(() => ({
     data, login, signOut, onSessionLost: (fn) => { lostRef.current = fn; }, dept,
     page, go, night, setNight, scene, setScene, orgDept, setOrgDept, toasts, toast,
-    decide, addLeave, toggleClock, send, loadMessages, markRead, refreshThreads,
+    decide, addLeave, send, loadMessages, markRead, refreshThreads,
     pendingCount: data?.approvals.filter((a) => a.canDecide).length ?? 0,
     unreadCount: data?.threads.reduce((s, t) => s + t.unread, 0) ?? 0,
-  }), [data, login, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, toggleClock, send, loadMessages, markRead, refreshThreads]);
+  }), [data, login, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, send, loadMessages, markRead, refreshThreads]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

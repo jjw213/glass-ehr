@@ -72,7 +72,6 @@ export const httpApi: Api = {
   },
   // 사용자·부서·홈 요약은 Spring, 나머지는 아직 Node /api/bootstrap(#77, api/bootstrap.ts)
   bootstrap: () => loadAppData((path) => call('GET', path)),
-  toggleClock: () => call('POST', '/attendance/toggle'),
   addLeave: (input) => call('POST', '/leaves', input),
   decide: (id, action) => call('POST', `/approvals/${encodeURIComponent(id)}/${action}`),
   // 메시지(#80)는 Spring.

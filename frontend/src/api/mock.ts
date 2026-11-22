@@ -2,13 +2,13 @@
  * In-browser fake backend with the same interface as the real server.
  * Used when VITE_API=mock (the shareable demo). Data resets on reload.
  */
-import { APPROVALS, DASHBOARD, DEMO_THREADS, DEPTS, LEAVES, ME, PAYSLIPS, WEEK_HOURS } from '../data/mock';
+import { APPROVALS, DASHBOARD, DEMO_THREADS, DEPTS, LEAVES, ME, PAYSLIPS } from '../data/mock';
 import { EMP_DEPT_TREE } from '../data/employees';
 import { DEMO_EMPLOYEES } from '../data/org';
 import { toDepts, toSessionUser } from './bootstrap';
 import { messageError } from './messages';
 import {
-  ApiError, type Api, type Approval, type Attendance, type AuthMe, type ChatMessage, type DashboardSummary, type LeaveRequest,
+  ApiError, type Api, type Approval, type AuthMe, type ChatMessage, type DashboardSummary, type LeaveRequest,
   type MessageThread, type ThreadMember,
 } from './types';
 
@@ -58,17 +58,6 @@ const listThreads = (): MessageThread[] => DEMO_THREADS
   })
   .sort((a, b) => (b.lastSentAt ?? '').localeCompare(a.lastSentAt ?? '') || b.id - a.id);
 const PAGE_SIZE = 50;
-let clockIn: Date | null = (() => { const d = new Date(); d.setHours(8, 52, 0, 0); return d; })();
-let clockOut: Date | null = null;
-
-const attendance = (): Attendance => {
-  const idx = new Date().getDay() - 1;
-  return {
-    clockIn: clockIn?.toISOString() ?? null,
-    clockOut: clockOut?.toISOString() ?? null,
-    week: WEEK_HOURS.map((d, i) => ({ ...d, h: i < idx ? d.h : i === idx && clockIn && clockOut ? +((clockOut.getTime() - clockIn.getTime()) / 3.6e6).toFixed(1) : 0 })),
-  };
-};
 
 function businessDays(from: string, to: string) {
   const a = new Date(from), b = new Date(to);
@@ -102,15 +91,8 @@ export const mockApi: Api = {
     };
     return {
       me: toSessionUser(auth, self, ME.annualLeave), depts: toDepts(EMP_DEPT_TREE), legacyDepts: clone(DEPTS), dashboard,
-      approvals: clone(approvals), leaves: clone(leaves), attendance: attendance(), payslips: clone(PAYSLIPS), threads: listThreads(),
+      approvals: clone(approvals), leaves: clone(leaves), payslips: clone(PAYSLIPS), threads: listThreads(),
     };
-  },
-  async toggleClock() {
-    await wait();
-    if (clockIn && !clockOut) clockOut = new Date();
-    else if (clockIn && clockOut) clockOut = null;
-    else clockIn = new Date();
-    return attendance();
   },
   async addLeave(input) {
     await wait();

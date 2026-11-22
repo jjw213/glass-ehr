@@ -15,18 +15,10 @@ export default defineConfig({
       // 권한(#19): 내 권한 조회와 관리자용 개인정보 조회 로그.
       '/api/auth': 'http://localhost:8080',
       '/api/admin': 'http://localhost:8080',
-      // 근무유형·배정(#25)도 Spring. /api/attendance/toggle 등 나머지 근태 경로는 아직 Node 서버다.
-      '/api/attendance/work-patterns': 'http://localhost:8080',
-      '/api/attendance/employees': 'http://localhost:8080',
-      // 휴일 달력(#26)·근로자대표 서면합의서(#27)도 Spring.
-      '/api/attendance/holidays': 'http://localhost:8080',
-      '/api/attendance/agreements': 'http://localhost:8080',
-      // 출퇴근 원시 기록(#28)도 Spring. 대시보드 출퇴근 위젯이 쓴다.
-      '/api/attendance/punches': 'http://localhost:8080',
-      // 주 52시간 모니터링(#31)도 Spring. 대시보드 주간 근로시간 위젯이 쓴다.
-      '/api/attendance/weekly-hours': 'http://localhost:8080',
-      // 유연근무 배정·계획·정산(#38).
-      '/api/attendance/flex-work': 'http://localhost:8080',
+      // 근태는 모두 Spring(#78): 근무유형·배정(#25 work-patterns·employees), 휴일(#26 holidays), 서면합의서(#27 agreements),
+      // 출퇴근 기록(#28 punches, 홈·근태 화면 출퇴근 버튼), 일별 집계(#29 daily-summaries), 주 52시간(#31 weekly-hours),
+      // 유연근무(#38 flex-work). 화면은 Node /api/attendance·/api/attendance/toggle 을 더 부르지 않는다.
+      '/api/attendance': 'http://localhost:8080',
       // 퇴직 처리·사용증명서(#18)도 Spring. /api/employees/{id}/employment-certificates 는 위 /api/employees 규칙을 탄다.
       '/api/retirements': 'http://localhost:8080',
       '/api/employment-certificates': 'http://localhost:8080',
@@ -41,6 +33,8 @@ export default defineConfig({
       '/api/special-overtime-auths': 'http://localhost:8080',
       '^/api/approvals/(inbox|processed|mine|request-types|templates)(/|\\?|$)': 'http://localhost:8080',
       '^/api/approvals/\\d+(/|$)': 'http://localhost:8080',
+      // 사내 메시지(#80): 대화방 목록·메시지 페이지·보내기·읽음. Node /api/threads 는 더 부르지 않는다.
+      '/api/threads': 'http://localhost:8080',
       '/api': 'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/

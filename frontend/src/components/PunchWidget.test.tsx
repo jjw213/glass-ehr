@@ -73,6 +73,32 @@ describe('대시보드 출퇴근 위젯', () => {
     expect(byLabel(host, '근무 경과 시간')).toBe('2시간 5분');
   });
 
+  it('출근 → 퇴근 → 퇴근 취소(다시 퇴근) 흐름을 Spring 응답 상태로 보여 준다 (#78)', async () => {
+    let now = T0;
+    const api = createMockPunchApi(() => now);
+    await act(async () => root.render(<PunchWidget api={api} now={() => now} />));
+    await flush();
+    expect(host.textContent).toContain('출근 전');
+    await act(async () => buttonByText(host, '출근').click());
+    await flush();
+    expect(host.textContent).toContain('근무 중');
+    now += 60 * 60000;
+    await act(async () => buttonByText(host, '퇴근').click());
+    await flush();
+    expect(host.textContent).toContain('퇴근');
+    expect(host.textContent).not.toContain('근무 중');
+    expect(byLabel(host, '퇴근 시각')).toBe('10:00');
+    // 원시 기록은 지우지 않으므로 잘못 누른 퇴근은 다시 퇴근해 마지막 퇴근으로 바꾼다.
+    expect(host.querySelector('[aria-label="퇴근 취소 안내"]')).not.toBeNull();
+    now += 2 * 60 * 60000;
+    await act(async () => buttonByText(host, '퇴근').click());
+    await flush();
+    expect(byLabel(host, '퇴근 시각')).toBe('12:00');
+    expect(byLabel(host, '근무 경과 시간')).toBe('3시간 0분');
+    expect(host.querySelector('[role="status"]')?.textContent).toContain('퇴근 12:00 기록했어요');
+    expect((await api.today()).punches.map((p) => p.type)).toEqual(['IN', 'OUT', 'OUT']);
+  });
+
   it('단말 시계가 틀려도 서버 시각 기준으로 경과 시간을 센다', async () => {
     const server = createMockPunchApi(() => T0);
     await server.punch('IN');

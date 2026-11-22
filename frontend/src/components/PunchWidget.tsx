@@ -87,6 +87,10 @@ export function PunchWidget({ api = defaultApi, now = Date.now, i = 0, onPunched
         </dl>
       )}
       {notice && <p className="sm" role="status">{notice}</p>}
+      {/* 퇴근 취소(#78): 원시 기록은 추가만 하고(#28 결정) 마지막 퇴근이 퇴근 시각이므로, 지우는 대신 다시 퇴근을 누른다. */}
+      {today?.lastOutAt && !today.working && (
+        <p className="muted sm" aria-label="퇴근 취소 안내">퇴근을 잘못 눌렀다면 일을 마칠 때 퇴근을 다시 누르세요. 마지막 퇴근이 퇴근 시각이 돼요.</p>
+      )}
       <div className="punch-widget__actions">
         <button className={cx('btn', today?.working ? 'btn--ghost' : 'btn--primary')} disabled={busy || !today} onClick={() => void punch('IN')}>출근</button>
         <button className={cx('btn', today?.working ? 'btn--primary' : 'btn--ghost')} disabled={busy || !today} onClick={() => void punch('OUT')}>퇴근</button>
