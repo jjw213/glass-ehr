@@ -41,13 +41,14 @@ export async function loadAppData(get: Get): Promise<AppData> {
     canSeeDashboard(auth.permissions) ? get<DashboardSummary>('/dashboard/summary') : Promise.resolve(null),
   ]);
   const self = list.find((e) => e.empId === auth.empId);
-  const { approvals, leaves, attendance, payslips, threads } = node;
+  // Node 의 attendance 는 쓰지 않는다. 출퇴근은 Spring /api/attendance/punches(#78).
+  const { approvals, leaves, payslips, threads } = node;
   return {
     me: toSessionUser(auth, self, node.me.annualLeave),
     depts: toDepts(tree.roots),
     // 결재·메시지는 아직 Node 의 hr·mgmt 같은 ID를 쓰므로 Spring 부서와 별도로 조회에 보존한다.
     legacyDepts: node.depts,
     dashboard,
-    approvals, leaves, attendance, payslips, threads,
+    approvals, leaves, payslips, threads,
   };
 }

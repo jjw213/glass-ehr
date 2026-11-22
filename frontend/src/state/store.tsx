@@ -27,7 +27,6 @@ interface Store {
   /* actions → server */
   decide: (id: string, action: 'approve' | 'reject') => Promise<void>;
   addLeave: (l: NewLeave) => Promise<boolean>;
-  toggleClock: () => Promise<void>;
   send: (threadId: string, text: string) => Promise<void>;
   markRead: (threadId: string) => void;
   refreshThreads: () => Promise<void>;
@@ -118,14 +117,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return !!r;
   }, [guard, toast]);
 
-  const toggleClock = useCallback(async () => {
-    const was = data?.attendance;
-    const r = await guard(() => api.toggleClock());
-    if (!r) return;
-    patch({ attendance: r });
-    toast(!was?.clockIn ? '출근 처리됐어요' : was.clockOut ? '퇴근을 취소했어요' : '퇴근 처리됐어요. 수고하셨어요!');
-  }, [data?.attendance, guard, toast]);
-
   const send = useCallback(async (threadId: string, text: string) => {
     const r = await guard(() => api.send(threadId, text));
     if (r) patch({ threads: r });
@@ -150,10 +141,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Store>(() => ({
     data, login, signOut, onSessionLost: (fn) => { lostRef.current = fn; }, dept,
     page, go, night, setNight, scene, setScene, orgDept, setOrgDept, toasts, toast,
-    decide, addLeave, toggleClock, send, markRead, refreshThreads,
+    decide, addLeave, send, markRead, refreshThreads,
     pendingCount: data?.approvals.filter((a) => a.canDecide).length ?? 0,
     unreadCount: data?.threads.reduce((s, t) => s + t.unread, 0) ?? 0,
-  }), [data, login, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, toggleClock, send, markRead, refreshThreads]);
+  }), [data, login, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, send, markRead, refreshThreads]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
