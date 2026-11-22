@@ -2,11 +2,11 @@
  * In-browser fake backend with the same interface as the real server.
  * Used when VITE_API=mock (the shareable demo). Data resets on reload.
  */
-import { APPROVALS, DASHBOARD, DEPTS, LEAVES, ME, PAYSLIPS, THREADS, WEEK_HOURS } from '../data/mock';
+import { APPROVALS, DASHBOARD, DEPTS, LEAVES, ME, PAYSLIPS, THREADS } from '../data/mock';
 import { EMP_DEPT_TREE } from '../data/employees';
 import { DEMO_EMPLOYEES } from '../data/org';
 import { toDepts, toSessionUser } from './bootstrap';
-import { ApiError, type Api, type Approval, type Attendance, type AuthMe, type DashboardSummary, type LeaveRequest, type Thread } from './types';
+import { ApiError, type Api, type Approval, type AuthMe, type DashboardSummary, type LeaveRequest, type Thread } from './types';
 
 /** 데모 계정이 연결된 사원(인사팀 팀장 예시사원03). */
 const DEMO_SELF_EMP_ID = 3;
@@ -19,18 +19,6 @@ const hhmm = (d: Date) => d.toLocaleTimeString('ko-KR', { hour: '2-digit', minut
 let approvals: Approval[] = clone(APPROVALS);
 let leaves: LeaveRequest[] = clone(LEAVES);
 let threads: Thread[] = clone(THREADS);
-let clockIn: Date | null = (() => { const d = new Date(); d.setHours(8, 52, 0, 0); return d; })();
-let clockOut: Date | null = null;
-
-const attendance = (): Attendance => {
-  const idx = new Date().getDay() - 1;
-  return {
-    clockIn: clockIn?.toISOString() ?? null,
-    clockOut: clockOut?.toISOString() ?? null,
-    week: WEEK_HOURS.map((d, i) => ({ ...d, h: i < idx ? d.h : i === idx && clockIn && clockOut ? +((clockOut.getTime() - clockIn.getTime()) / 3.6e6).toFixed(1) : 0 })),
-  };
-};
-
 function businessDays(from: string, to: string) {
   const a = new Date(from), b = new Date(to);
   if (isNaN(+a) || isNaN(+b) || b < a) return 0;
@@ -63,15 +51,8 @@ export const mockApi: Api = {
     };
     return {
       me: toSessionUser(auth, self, ME.annualLeave), depts: toDepts(EMP_DEPT_TREE), legacyDepts: clone(DEPTS), dashboard,
-      approvals: clone(approvals), leaves: clone(leaves), attendance: attendance(), payslips: clone(PAYSLIPS), threads: clone(threads),
+      approvals: clone(approvals), leaves: clone(leaves), payslips: clone(PAYSLIPS), threads: clone(threads),
     };
-  },
-  async toggleClock() {
-    await wait();
-    if (clockIn && !clockOut) clockOut = new Date();
-    else if (clockIn && clockOut) clockOut = null;
-    else clockIn = new Date();
-    return attendance();
   },
   async addLeave(input) {
     await wait();

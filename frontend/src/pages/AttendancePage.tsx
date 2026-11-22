@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
-import { LuPlus, LuClock, LuCoffee, LuLogOut, LuPlay } from 'react-icons/lu';
-import { Card, CardHead, PageHead, Badge, Modal, Segmented, useNow, hhmm, vars, cx, ymd } from '../components/ui';
+import { LuPlus, LuCoffee } from 'react-icons/lu';
+import { Card, CardHead, PageHead, Badge, Modal, Segmented, cx, ymd } from '../components/ui';
+import { PunchWidget } from '../components/PunchWidget';
+import { WeeklyHoursWidget } from '../components/WeeklyHoursWidget';
 import type { NewLeave } from '../api';
 import { useData, useStore } from '../state/store';
 
@@ -15,28 +17,12 @@ function businessDays(from: string, to: string) {
   return n;
 }
 
-const fmtDur = (ms: number) => {
-  const m = Math.max(0, Math.floor(ms / 60000));
-  return `${Math.floor(m / 60)}시간 ${String(m % 60).padStart(2, '0')}분`;
-};
-
 export function AttendancePage() {
-  const { toggleClock, addLeave } = useStore();
-  const { attendance, leaves, me } = useData();
-  const now = useNow();
+  const { addLeave } = useStore();
+  const { leaves, me } = useData();
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [weeklyRefreshKey, setWeeklyRefreshKey] = useState(0);
   const LEAVE_TOTAL = me.annualLeave;
-  const clockIn = attendance.clockIn ? new Date(attendance.clockIn) : null;
-  const clockOut = attendance.clockOut ? new Date(attendance.clockOut) : null;
-
-  const working = !!clockIn && !clockOut;
-  const workedMs = clockIn ? (clockOut ?? now).getTime() - clockIn.getTime() : 0;
-  const todayHours = workedMs / 3_600_000;
-  const todayIdx = now.getDay() - 1; // 월=0 … 금=4, 주말은 -1/5
-  // server sends finished days; today's bar follows the live clock
-  const week = attendance.week.map((d, i) => (i === todayIdx ? { ...d, h: +todayHours.toFixed(1) } : d));
-  const weekTotal = week.reduce((s, d) => s + d.h, 0);
 
   const annual = leaves.filter((l) => l.type === '연차' || l.type === '반차');
   const used = annual.filter((l) => l.status === '승인').reduce((s, l) => s + l.days, 0);
@@ -53,35 +39,9 @@ export function AttendancePage() {
       />
 
       <div className="grid grid--att">
-        <Card i={1} className="clock-card">
-          <div className="clock-card__top">
-            <Badge tone={working ? 'green' : 'neutral'}>{working ? '● 근무 중' : clockOut ? '퇴근 완료' : '출근 전'}</Badge>
-            <span className="muted sm">{now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}</span>
-          </div>
-          <strong className="clock-card__time">{now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}</strong>
-          <div className="clock-card__meta">
-            <div><span className="muted sm">출근</span><strong>{clockIn ? hhmm(clockIn) : '--:--'}</strong></div>
-            <div><span className="muted sm">퇴근</span><strong>{clockOut ? hhmm(clockOut) : '--:--'}</strong></div>
-            <div><span className="muted sm">근무</span><strong>{fmtDur(workedMs)}</strong></div>
-          </div>
-          <button className={cx('btn btn--block', working ? 'btn--ghost' : 'btn--primary')} disabled={busy} onClick={async () => { setBusy(true); await toggleClock(); setBusy(false); }}>
-            {working ? <><LuLogOut /> 퇴근하기</> : clockOut ? <><LuPlay /> 퇴근 취소</> : <><LuPlay /> 출근하기</>}
-          </button>
-        </Card>
-
-        <Card i={2}>
-          <CardHead title="이번 주 근무시간" sub={`${weekTotal.toFixed(1)}h / 40h`} right={<LuClock className="muted" />} />
-          <div className="progress"><span style={{ width: `${Math.min(100, (weekTotal / 40) * 100)}%` }} /></div>
-          <div className="week">
-            {week.map((d, i) => (
-              <div key={d.d} className={cx('week__col', i === todayIdx && 'now')} style={vars({ i, h: `${Math.min(100, (d.h / 10) * 100)}%` })}>
-                <span className="week__h">{d.h ? d.h.toFixed(1) : '-'}</span>
-                <span className="week__bar"><i /></span>
-                <span className="muted sm">{d.d}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
+        {/* 출퇴근(#78): Node /api/attendance/toggle 대신 Spring 출퇴근 기록(#28)과 주간 근로시간(#31) 위젯을 쓴다. */}
+        <PunchWidget i={1} onPunched={() => setWeeklyRefreshKey((k) => k + 1)} />
+        <WeeklyHoursWidget i={2} refreshKey={weeklyRefreshKey} />
 
         <Card i={3} className="leave-card">
           <CardHead title="연차 현황" sub={`올해 부여 ${LEAVE_TOTAL}일`} right={<LuCoffee className="muted" />} />
