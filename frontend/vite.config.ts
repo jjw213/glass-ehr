@@ -32,6 +32,12 @@ export default defineConfig({
       '/api/employment-certificates': 'http://localhost:8080',
       // 인사발령(#59·#60)도 Spring. /api/employees/{id}/appointments 는 위 /api/employees 규칙을 탄다.
       '/api/appointments': 'http://localhost:8080',
+      // 연장·휴일근로 신청·특별연장근로 인가(#30)와 공통 결재함(Spring /api/approvals). 옛 전자결재 화면의 Node
+      // /api/approvals(목록·'A-…' 문서 처리)와 겹치지 않도록 결재함 경로와 숫자 문서 번호만 Spring으로 보낸다.
+      '/api/overtime-requests': 'http://localhost:8080',
+      '/api/special-overtime-auths': 'http://localhost:8080',
+      '^/api/approvals/(inbox|processed|mine|request-types|templates)(/|\\?|$)': 'http://localhost:8080',
+      '^/api/approvals/\\d+(/|$)': 'http://localhost:8080',
       '/api': 'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/

@@ -16,4 +16,7 @@ public interface LegalRateMapper {
     List<LegalRateRow> findEffective(
             @Param("itemCode") String itemCode,
             @Param("asOfDate") LocalDate asOfDate);
+
+    /** 항목의 가장 이른 적용시작일. 행이 없으면 null. 법 적용 전 날짜와 기준값 누락을 구분할 때 쓴다. */
+    LocalDate findFirstEffectiveFrom(@Param("itemCode") String itemCode);
 }

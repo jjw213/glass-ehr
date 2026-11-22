@@ -39,12 +39,15 @@ public class WorkHoursService {
 
     static final String ISSUE_NO_WORK_PATTERN = "NO_WORK_PATTERN";
     static final String ISSUE_MISSING_OUT = "MISSING_OUT";
+    /** 연장·휴일근로 실적이 있는데 그날 승인된 사전 신청(#30)이 없음. 관리자 확인 대상(계산값은 그대로). */
+    static final String ISSUE_OVERTIME_NOT_APPROVED = "OVERTIME_NOT_APPROVED";
 
     private final DailyWorkSummaryMapper mapper;
     private final EmpWorkPatternRepository assignments;
     private final WorkPatternRepository patterns;
     private final HolidayService holidays;
     private final ApprovedLeaveProvider leaves;
+    private final ApprovedOvertimeProvider overtimes;
     private final WorkHoursLegalRules legalRules;
     private final EmployeeRepository employees;
     private final Clock clock;
@@ -52,18 +55,20 @@ public class WorkHoursService {
     @Autowired
     public WorkHoursService(DailyWorkSummaryMapper mapper, EmpWorkPatternRepository assignments,
             WorkPatternRepository patterns, HolidayService holidays, ApprovedLeaveProvider leaves,
-            WorkHoursLegalRules legalRules, EmployeeRepository employees) {
-        this(mapper, assignments, patterns, holidays, leaves, legalRules, employees, Clock.system(SEOUL));
+            ApprovedOvertimeProvider overtimes, WorkHoursLegalRules legalRules, EmployeeRepository employees) {
+        this(mapper, assignments, patterns, holidays, leaves, overtimes, legalRules, employees, Clock.system(SEOUL));
     }
 
     WorkHoursService(DailyWorkSummaryMapper mapper, EmpWorkPatternRepository assignments,
             WorkPatternRepository patterns, HolidayService holidays, ApprovedLeaveProvider leaves,
-            WorkHoursLegalRules legalRules, EmployeeRepository employees, Clock clock) {
+            ApprovedOvertimeProvider overtimes, WorkHoursLegalRules legalRules, EmployeeRepository employees,
+            Clock clock) {
         this.mapper = mapper;
         this.assignments = assignments;
         this.patterns = patterns;
         this.holidays = holidays;
         this.leaves = leaves;
+        this.overtimes = overtimes;
         this.legalRules = legalRules;
         this.employees = employees;
         this.clock = clock;
@@ -137,6 +142,7 @@ public class WorkHoursService {
                     () -> new IllegalStateException("배정된 근무유형이 없어요: " + id)));
         }
         Map<LocalDate, Leave> leaveByDate = leaves.approvedLeaves(empId, weekStart, weekEnd);
+        Set<LocalDate> approvedOvertime = overtimes.approvedDates(empId, weekStart, weekEnd);
         LocalDateTime now = LocalDateTime.now(clock.withZone(SEOUL)).truncatedTo(ChronoUnit.MICROS);
 
         List<DailyWorkSummaryRow> rows = new ArrayList<>();
@@ -166,7 +172,12 @@ public class WorkHoursService {
             }
             List<DayResult> results = WorkHoursCalculator.calculateWeek(inputs);
             for (int i = 0; i < results.size(); i++) {
-                rows.add(toRow(empId, results.get(i), metas.get(i), actor, now));
+                DayResult r = results.get(i);
+                if (r.overtimeMinutes() + r.holidayMinutes() + r.holidayExcessMinutes() > 0
+                        && !approvedOvertime.contains(r.workDate())) {
+                    metas.get(i).issues().add(ISSUE_OVERTIME_NOT_APPROVED);
+                }
+                rows.add(toRow(empId, r, metas.get(i), actor, now));
             }
         }
         return rows;
