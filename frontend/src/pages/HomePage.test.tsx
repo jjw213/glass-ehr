@@ -24,7 +24,7 @@ const SUMMARY: DashboardSummary = {
 
 const make = (dashboard: DashboardSummary | null): AppData => ({
   me: { loginId: 'emp1', empId: 1, name: '가짜사원', dept: '', role: 'EMPLOYEE', roles: [], permissions: [], annualLeave: 15 },
-  depts: [], dashboard,
+  depts: [], legacyDepts: [], dashboard,
   approvals: [], leaves: [], attendance: { clockIn: null, clockOut: null, week: [] }, payslips: [], threads: [],
 });
 

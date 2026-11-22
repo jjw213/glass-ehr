@@ -45,6 +45,8 @@ export async function loadAppData(get: Get): Promise<AppData> {
   return {
     me: toSessionUser(auth, self, node.me.annualLeave),
     depts: toDepts(tree.roots),
+    // 결재·메시지는 아직 Node 의 hr·mgmt 같은 ID를 쓰므로 Spring 부서와 별도로 조회에 보존한다.
+    legacyDepts: node.depts,
     dashboard,
     approvals, leaves, attendance, payslips, threads,
   };

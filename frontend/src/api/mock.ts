@@ -2,7 +2,7 @@
  * In-browser fake backend with the same interface as the real server.
  * Used when VITE_API=mock (the shareable demo). Data resets on reload.
  */
-import { APPROVALS, DASHBOARD, LEAVES, ME, PAYSLIPS, THREADS, WEEK_HOURS } from '../data/mock';
+import { APPROVALS, DASHBOARD, DEPTS, LEAVES, ME, PAYSLIPS, THREADS, WEEK_HOURS } from '../data/mock';
 import { EMP_DEPT_TREE } from '../data/employees';
 import { DEMO_EMPLOYEES } from '../data/org';
 import { toDepts, toSessionUser } from './bootstrap';
@@ -62,7 +62,7 @@ export const mockApi: Api = {
       }),
     };
     return {
-      me: toSessionUser(auth, self, ME.annualLeave), depts: toDepts(EMP_DEPT_TREE), dashboard,
+      me: toSessionUser(auth, self, ME.annualLeave), depts: toDepts(EMP_DEPT_TREE), legacyDepts: clone(DEPTS), dashboard,
       approvals: clone(approvals), leaves: clone(leaves), attendance: attendance(), payslips: clone(PAYSLIPS), threads: clone(threads),
     };
   },

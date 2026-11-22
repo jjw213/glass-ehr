@@ -41,6 +41,7 @@ describe('loadAppData', () => {
       loginId: 'hr1', empId: 7, name: '가짜사원', dept: '3', role: 'HR', roles: ['HR'], permissions: ['EMP_READ_ALL'], annualLeave: 15,
     });
     expect(d.depts.map((x) => [x.id, x.name])).toEqual([['1', '대표실(예시)'], ['2', '본부(예시)'], ['3', '팀(예시)']]);
+    expect(d.legacyDepts).toEqual([{ id: 'node-dept', name: 'Node부서', color: '#000', desc: '', lead: '' }]);
     expect(d.dashboard).toEqual(SUMMARY);
     expect(d).not.toHaveProperty('employees');
     expect(get.mock.calls.map((c) => c[0])).toContain('/dashboard/summary');
@@ -74,6 +75,8 @@ describe('mockApi.bootstrap (데모)', () => {
     expect(d.me.empId).toBe(3);
     expect(d.me.role).toBe('HR');
     expect(d.depts.some((x) => x.id === d.me.dept)).toBe(true);
+    expect(d.legacyDepts.some((x) => x.id === d.approvals[0].dept)).toBe(true);
+    expect(d.legacyDepts.some((x) => x.id === d.threads[0].dept)).toBe(true);
     expect(d.dashboard?.trend).toHaveLength(12);
     expect(d.dashboard?.trend[11].month).toMatch(/^\d{4}-\d{2}$/);
   });

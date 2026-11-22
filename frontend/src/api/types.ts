@@ -32,6 +32,8 @@ export interface DashboardSummary {
 export interface AppData extends Omit<Bootstrap, 'me' | 'depts' | 'employees' | 'dashboard'> {
   me: SessionUser;
   depts: Dept[];
+  /** Node 에 남은 결재·메시지의 기존 부서 ID를 이름으로 표시하기 위한 임시 조회 목록. */
+  legacyDepts: Dept[];
   dashboard: DashboardSummary | null;
 }
 
