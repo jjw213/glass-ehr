@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, ApiError, type AppData as Bootstrap, type Dept, type NewLeave } from '../api';
+import { api, ApiError, type AppData as Bootstrap, type ChatMessage, type Dept, type MessagePage, type NewLeave } from '../api';
 import { setUnauthorizedHandler } from '../api/http';
 
 export type PageId = 'home' | 'attendance' | 'flexWork' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'workPatterns' | 'holidays' | 'agreements' | 'familyLeaves' | 'retirements' | 'appointments' | 'privacyLogs' | 'overtime' | 'approvalInbox';
@@ -27,8 +27,10 @@ interface Store {
   /* actions → server */
   decide: (id: string, action: 'approve' | 'reject') => Promise<void>;
   addLeave: (l: NewLeave) => Promise<boolean>;
-  send: (threadId: string, text: string) => Promise<void>;
-  markRead: (threadId: string) => void;
+  /** 메시지(#80). 보내면 대화방 목록도 다시 받는다. 실패하면 undefined(오류는 토스트). */
+  send: (threadId: number, text: string) => Promise<ChatMessage | undefined>;
+  loadMessages: (threadId: number, beforeId?: number) => Promise<MessagePage | undefined>;
+  markRead: (threadId: number) => void;
   refreshThreads: () => Promise<void>;
 
   pendingCount: number; unreadCount: number;
@@ -117,19 +119,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return !!r;
   }, [guard, toast]);
 
-  const send = useCallback(async (threadId: string, text: string) => {
-    const r = await guard(() => api.send(threadId, text));
-    if (r) patch({ threads: r });
-  }, [guard]);
-
-  const markRead = useCallback((threadId: string) => {
-    setData((d) => (d ? { ...d, threads: d.threads.map((t) => (t.id === threadId ? { ...t, unread: 0 } : t)) } : d));
-    void guard(() => api.markRead(threadId));
-  }, [guard]);
-
   const refreshThreads = useCallback(async () => {
     const r = await guard(() => api.threads());
     if (r) patch({ threads: r });
+  }, [guard]);
+
+  const send = useCallback(async (threadId: number, text: string) => {
+    const r = await guard(() => api.send(threadId, text));
+    if (r) await refreshThreads();
+    return r;
+  }, [guard, refreshThreads]);
+
+  const loadMessages = useCallback((threadId: number, beforeId?: number) => guard(() => api.messages(threadId, beforeId)), [guard]);
+
+  const markRead = useCallback((threadId: number) => {
+    setData((d) => (d ? { ...d, threads: d.threads.map((t) => (t.id === threadId ? { ...t, unread: 0 } : t)) } : d));
+    void guard(() => api.markRead(threadId));
   }, [guard]);
 
   const deptMap = useMemo(() => new Map([
@@ -141,10 +146,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Store>(() => ({
     data, login, signOut, onSessionLost: (fn) => { lostRef.current = fn; }, dept,
     page, go, night, setNight, scene, setScene, orgDept, setOrgDept, toasts, toast,
-    decide, addLeave, send, markRead, refreshThreads,
+    decide, addLeave, send, loadMessages, markRead, refreshThreads,
     pendingCount: data?.approvals.filter((a) => a.canDecide).length ?? 0,
     unreadCount: data?.threads.reduce((s, t) => s + t.unread, 0) ?? 0,
-  }), [data, login, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, send, markRead, refreshThreads]);
+  }), [data, login, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, send, loadMessages, markRead, refreshThreads]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

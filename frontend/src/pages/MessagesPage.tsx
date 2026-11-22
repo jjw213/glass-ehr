@@ -1,35 +1,137 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { LuArrowLeft, LuSend, LuPlus } from 'react-icons/lu';
 import { Card, PageHead, Avatar, cx } from '../components/ui';
 import { useData, useStore } from '../state/store';
 import { useIsMobile } from '../hooks/useMediaQuery';
+import { seoulToday } from '../api/employees';
+import {
+  formatMessageTime, MAX_MESSAGE_LENGTH, mergeMessages, messageError, threadDept, threadTitle, type ChatMessage,
+} from '../api/messages';
 
+/** 사내 메시지(#80). 대화방 목록은 Spring /api/threads, 본문은 대화방을 열 때 페이지로 받는다. */
 export function MessagesPage() {
-  const { send, markRead, refreshThreads, toast, dept } = useStore();
+  const { send, loadMessages, markRead, refreshThreads, toast, dept } = useStore();
   const { threads } = useData();
   const mobile = useIsMobile();
-  const [selId, setSelId] = useState<string | null>(mobile ? null : threads[0]?.id ?? null);
+  const [selId, setSelId] = useState<number | null>(mobile ? null : threads[0]?.id ?? null);
+  const [msgs, setMsgs] = useState<ChatMessage[]>([]);
+  const [hasMore, setHasMore] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const sel = threads.find((t) => t.id === selId) ?? null;
   const endRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const selectedThreadRef = useRef(selId);
+  const requestVersionRef = useRef(0);
+  const msgsRef = useRef<ChatMessage[]>([]);
+  const loadedThreadIdRef = useRef<number | null>(null);
+  const [loadedThreadId, setLoadedThreadId] = useState<number | null>(null);
+  const scrollRef = useRef<{ mode: 'bottom' | 'preserve'; height?: number; top?: number } | null>(null);
+  selectedThreadRef.current = selId;
+  const today = seoulToday();
 
-  // poll for new messages while this page is open
+  const replaceMessages = useCallback((next: ChatMessage[]) => {
+    msgsRef.current = next;
+    setMsgs(next);
+  }, []);
+
+  /** 최신 페이지부터 기존 마지막 메시지와 만날 때까지 받아 폴링 중 생긴 누락을 메운다. */
+  const loadLatest = useCallback(async (threadId: number, reset: boolean, version: number) => {
+    let page = await loadMessages(threadId);
+    if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
+    // 최초 요청이 실패했다면 다음 폴링 성공을 최초 페이지 조회처럼 반영한다.
+    if (reset || loadedThreadIdRef.current !== threadId) {
+      scrollRef.current = { mode: 'bottom' };
+      replaceMessages(page.messages);
+      setHasMore(page.hasMore);
+      loadedThreadIdRef.current = threadId;
+      setLoadedThreadId(threadId);
+      return;
+    }
+
+    const previous = msgsRef.current;
+    const lastReceivedId = previous.at(-1)?.id;
+    let received = page.messages;
+    while (lastReceivedId != null && page.hasMore && !received.some((message) => message.id === lastReceivedId)) {
+      const beforeId = page.messages[0]?.id;
+      if (beforeId == null) break;
+      page = await loadMessages(threadId, beforeId);
+      if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
+      received = mergeMessages(page.messages, received);
+    }
+    const current = msgsRef.current;
+    const currentIds = new Set(current.map((message) => message.id));
+    const hasNewMessage = received.some((message) => !currentIds.has(message.id));
+    if (hasNewMessage) {
+      const body = bodyRef.current;
+      const isNearBottom = body == null || body.scrollHeight - body.scrollTop - body.clientHeight <= 80;
+      if (isNearBottom) scrollRef.current = { mode: 'bottom' };
+      replaceMessages(mergeMessages(current, received));
+    }
+    setLoadedThreadId(threadId);
+  }, [loadMessages, replaceMessages]);
+
+  // 대화방을 바꾸면 그 방의 최신 페이지를 새로 받는다.
   useEffect(() => {
-    const id = setInterval(() => { if (document.visibilityState === 'visible') void refreshThreads(); }, 4000);
+    const version = ++requestVersionRef.current;
+    loadedThreadIdRef.current = null;
+    replaceMessages([]); setHasMore(false); setSending(false); setText(''); setLoadedThreadId(null);
+    if (selId != null) void loadLatest(selId, true, version);
+  }, [selId, loadLatest, replaceMessages]);
+
+  // 이 화면이 열려 있는 동안 새 메시지를 확인한다.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void refreshThreads();
+      if (selId != null) void loadLatest(selId, false, requestVersionRef.current);
+    }, 4000);
     return () => clearInterval(id);
-  }, [refreshThreads]);
-  // opening a thread (or a new message arriving in it) marks it read
-  useEffect(() => { if (selId && sel?.unread) markRead(selId); }, [selId, sel?.unread, markRead]);
-  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }); }, [sel?.msgs.length]);
+  }, [refreshThreads, loadLatest, selId]);
+
+  // 현재 대화방 본문 조회가 성공한 뒤에만 읽음 처리한다.
+  useEffect(() => {
+    if (selId != null && loadedThreadId === selId && sel?.unread) markRead(selId);
+  }, [selId, loadedThreadId, sel?.unread, markRead]);
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    const body = bodyRef.current;
+    if (!scroll || !body) return;
+    if (scroll.mode === 'preserve') {
+      body.scrollTop = (scroll.top ?? 0) + body.scrollHeight - (scroll.height ?? 0);
+    } else {
+      endRef.current?.scrollIntoView?.({ block: 'end', behavior: 'smooth' });
+    }
+    scrollRef.current = null;
+  }, [msgs]);
+
+  const loadOlder = async () => {
+    if (selId == null || msgsRef.current.length === 0) return;
+    const threadId = selId;
+    const version = requestVersionRef.current;
+    const scroll = { mode: 'preserve' as const, height: bodyRef.current?.scrollHeight, top: bodyRef.current?.scrollTop };
+    const page = await loadMessages(threadId, msgsRef.current[0].id);
+    if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
+    scrollRef.current = scroll;
+    replaceMessages(mergeMessages(page.messages, msgsRef.current));
+    setHasMore(page.hasMore);
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!sel || !text.trim() || sending) return;
+    if (!sel || sending) return;
+    const err = messageError(text);
+    if (err) { toast(err); return; }
+    const threadId = sel.id;
+    const version = requestVersionRef.current;
     setSending(true);
-    await send(sel.id, text.trim());
-    setSending(false);
-    setText('');
+    const sent = await send(threadId, text);
+    if (sent && selectedThreadRef.current === threadId && requestVersionRef.current === version) {
+      scrollRef.current = { mode: 'bottom' };
+      setSending(false); replaceMessages(mergeMessages(msgsRef.current, [sent])); setText('');
+    } else if (selectedThreadRef.current === threadId && requestVersionRef.current === version) {
+      setSending(false);
+    }
   };
 
   return (
@@ -39,14 +141,16 @@ export function MessagesPage() {
         {(!mobile || !sel) && (
           <Card i={1} className="split-view__list">
             <ul className="list">
+              {threads.length === 0 && <li className="list__row muted">대화가 없어요</li>}
               {threads.map((t) => (
                 <li key={t.id} className={cx('list__row', t.id === selId && 'active')} onClick={() => setSelId(t.id)}>
-                  <Avatar name={t.name} dept={t.dept} size={40} />
+                  <Avatar name={threadTitle(t)} dept={threadDept(t)} size={40} />
                   <div className="grow">
-                    <strong>{t.name} <span className="muted sm">· {dept(t.dept)?.name}</span></strong>
+                    <strong>{threadTitle(t)} <span className="muted sm">· {dept(threadDept(t))?.name}</span></strong>
                     <span className="muted sm ellipsis">{t.preview}</span>
                   </div>
-                  {t.unread > 0 && <span className="unread">{t.unread}</span>}
+                  {t.lastSentAt && <span className="muted sm">{formatMessageTime(t.lastSentAt, today)}</span>}
+                  {t.unread > 0 && <span className="unread" aria-label={`안 읽은 메시지 ${t.unread}개`}>{t.unread}</span>}
                 </li>
               ))}
             </ul>
@@ -56,20 +160,22 @@ export function MessagesPage() {
           <Card i={2} className="split-view__detail chat">
             <div className="chat__head">
               {mobile && <button className="iconbtn glass" onClick={() => setSelId(null)} aria-label="목록"><LuArrowLeft /></button>}
-              <Avatar name={sel.name} dept={sel.dept} size={36} />
-              <div><strong>{sel.name}</strong><span className="muted sm">{dept(sel.dept)?.name}</span></div>
+              <Avatar name={threadTitle(sel)} dept={threadDept(sel)} size={36} />
+              <div><strong>{threadTitle(sel)}</strong><span className="muted sm">{dept(threadDept(sel))?.name}</span></div>
             </div>
-            <div className="chat__body">
-              {sel.msgs.map((m, i) => (
-                <div key={i} className={cx('bubble', m.from === 'me' ? 'me' : 'them')}>
+            <div className="chat__body" ref={bodyRef}>
+              {hasMore && <button type="button" className="glass pill" onClick={() => void loadOlder()}>이전 메시지 보기</button>}
+              {msgs.map((m) => (
+                <div key={m.id} className={cx('bubble', m.mine ? 'me' : 'them')}>
+                  {!m.mine && sel.members.length > 1 && <strong className="sm">{sel.members.find((x) => x.empId === m.senderEmpId)?.name}</strong>}
                   <p>{m.text}</p>
-                  <span>{m.time}</span>
+                  <span>{formatMessageTime(m.sentAt, today)}</span>
                 </div>
               ))}
               <div ref={endRef} />
             </div>
             <form className="chat__input" onSubmit={submit}>
-              <input className="input" value={text} onChange={(e) => setText(e.target.value)} placeholder={`${sel.name}님에게 메시지 보내기`} />
+              <input className="input" value={text} aria-label={`메시지(최대 ${MAX_MESSAGE_LENGTH}자)`} onChange={(e) => setText(e.target.value)} placeholder={`${threadTitle(sel)}님에게 메시지 보내기`} />
               <button className="btn btn--primary icon-only" aria-label="보내기" disabled={!text.trim() || sending}><LuSend /></button>
             </form>
           </Card>

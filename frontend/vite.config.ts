@@ -33,6 +33,8 @@ export default defineConfig({
       '/api/special-overtime-auths': 'http://localhost:8080',
       '^/api/approvals/(inbox|processed|mine|request-types|templates)(/|\\?|$)': 'http://localhost:8080',
       '^/api/approvals/\\d+(/|$)': 'http://localhost:8080',
+      // 사내 메시지(#80): 대화방 목록·메시지 페이지·보내기·읽음. Node /api/threads 는 더 부르지 않는다.
+      '/api/threads': 'http://localhost:8080',
       '/api': 'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/
