@@ -29,4 +29,10 @@
        AND (effective_to IS NULL OR #{asOfDate, jdbcType=DATE} &lt; effective_to)
      ORDER BY effective_from
   </select>
+
+  <select id="findFirstEffectiveFrom" resultType="java.time.LocalDate">
+    SELECT MIN(effective_from)
+      FROM legal_rate
+     WHERE item_code = #{itemCode}
+  </select>
 </mapper>

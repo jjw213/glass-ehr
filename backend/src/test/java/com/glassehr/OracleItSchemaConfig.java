@@ -135,6 +135,20 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V023__attendance_daily_summary.sql"))
                     .execute(dataSource);
         }
+        Integer approval = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'APPROVAL_DOC'", Integer.class);
+        if (approval == null || approval == 0) {
+            // #30: 공통 결재(템플릿·문서·스냅샷·처리 이력)
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V024__approval.sql"))
+                    .execute(dataSource);
+        }
+        Integer overtime = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'OVERTIME_REQUEST'", Integer.class);
+        if (overtime == null || overtime == 0) {
+            // #30: 연장·휴일근로 신청, 특별연장근로 인가 정보
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V025__overtime_request.sql"))
+                    .execute(dataSource);
+        }
         Integer familyLeave = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM user_tables WHERE table_name = 'FAMILY_LEAVE_REQUEST'", Integer.class);
         if (familyLeave == null || familyLeave == 0) {

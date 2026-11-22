@@ -35,6 +35,12 @@ export default defineConfig({
       // 홈 대시보드 요약(#77). 로그인 직후 사용자·부서는 위 /api/auth·/api/org·/api/employees 를 쓰고,
       // Node /api/me·/api/depts·/api/dashboard 는 더 부르지 않는다. /api/bootstrap 은 아직 옮기지 않은 결재·휴가 등만 쓴다.
       '/api/dashboard': 'http://localhost:8080',
+      // 연장·휴일근로 신청·특별연장근로 인가(#30)와 공통 결재함(Spring /api/approvals). 옛 전자결재 화면의 Node
+      // /api/approvals(목록·'A-…' 문서 처리)와 겹치지 않도록 결재함 경로와 숫자 문서 번호만 Spring으로 보낸다.
+      '/api/overtime-requests': 'http://localhost:8080',
+      '/api/special-overtime-auths': 'http://localhost:8080',
+      '^/api/approvals/(inbox|processed|mine|request-types|templates)(/|\\?|$)': 'http://localhost:8080',
+      '^/api/approvals/\\d+(/|$)': 'http://localhost:8080',
       '/api': 'http://localhost:4000',
     },
     // ../shared (types shared with server/) lives outside frontend/

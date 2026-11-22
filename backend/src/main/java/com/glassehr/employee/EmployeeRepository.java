@@ -31,6 +31,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     List<Employee> findAllByOrderByEmpNoAsc();
 
+    /** 현재 그 직책을 가진 재직자(결재자 찾기, #30). */
+    @Query("SELECT e.empId FROM Employee e WHERE e.jobTitleCode = :code AND e.empStatus = 'ACTIVE'")
+    List<Long> findActiveEmpIdsWithTitle(@Param("code") String titleCode);
+
     List<Employee> findByRetireDateIsNullOrderByEmpNoAsc();
 
     /** 보존기한(근로기준법 제42조)이 {@code date}보다 앞선 퇴직자. 보존기한 당일까지는 보존 대상이다(#18). */

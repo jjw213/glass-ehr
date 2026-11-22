@@ -27,6 +27,12 @@ class LegalRateServiceTest {
         public List<LegalRateRow> findEffective(String itemCode, LocalDate asOfDate) {
             return rows.stream().filter(r -> r.itemCode().equals(itemCode)).toList();
         }
+
+        @Override
+        public LocalDate findFirstEffectiveFrom(String itemCode) {
+            return rows.stream().filter(r -> r.itemCode().equals(itemCode)).map(LegalRateRow::effectiveFrom)
+                    .min(LocalDate::compareTo).orElse(null);
+        }
     }
 
     private AllRowsMapper mapper;
@@ -186,5 +192,11 @@ class LegalRateServiceTest {
         LocalDate now = d("2026-11-11");
         assertThat(service.getEffective(ITEM, past).rateValue()).isEqualByComparingTo("1");
         assertThat(service.getEffective(ITEM, now).rateValue()).isEqualByComparingTo("2");
+    }
+
+    @Test
+    void 가장_이른_적용시작일을_돌려주고_행이_없으면_비어_있다() {
+        assertThat(service.firstEffectiveFrom(ITEM)).contains(d("2026-01-01"));
+        assertThat(service.firstEffectiveFrom("NO_SUCH_ITEM")).isEmpty();
     }
 }

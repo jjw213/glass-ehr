@@ -52,6 +52,15 @@ public class LegalRateService {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }
 
+    /**
+     * 항목의 가장 이른 적용시작일. 이 날짜보다 앞선 조회일은 '그 기준이 아직 시행되지 않은 날'이고,
+     * 그 뒤인데 행이 없으면 기준값 누락이다. 행이 하나도 없으면 비어 있다.
+     */
+    public Optional<LocalDate> firstEffectiveFrom(String itemCode) {
+        Objects.requireNonNull(itemCode, "itemCode");
+        return Optional.ofNullable(mapper.findFirstEffectiveFrom(itemCode));
+    }
+
     private List<LegalRateRow> fetch(String itemCode, LocalDate asOfDate) {
         Objects.requireNonNull(itemCode, "itemCode");
         Objects.requireNonNull(asOfDate, "asOfDate");
