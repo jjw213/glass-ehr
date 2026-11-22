@@ -3,10 +3,25 @@ import { LuEye, LuEyeOff, LuPrinter, LuInfo } from 'react-icons/lu';
 import { Card, CardHead, PageHead, vars, cx, sum, won } from '../components/ui';
 import { useData } from '../state/store';
 
+/**
+ * 급여명세서. 급여 모듈 전까지는 payslips=null 이라 '준비 중' 안내만 보여 준다(#81).
+ * 데모 모드(api/mock.ts)는 샘플 명세를 그대로 보여 준다. 실제 명세 요구사항은 docs/SPEC.md 3장 메모.
+ */
 export function PayrollPage() {
   const { payslips: PAYSLIPS } = useData();
   const [idx, setIdx] = useState(0);
   const [hidden, setHidden] = useState(false);
+  if (PAYSLIPS == null) {
+    return (
+      <>
+        <PageHead title="급여명세서" sub="급여 기능을 준비하고 있어요" />
+        <Card i={1} className="note-card">
+          <LuInfo />
+          <p className="sm">급여명세서는 준비 중이에요. 급여 모듈이 열리면 이곳에서 월별 지급·공제 내역을 확인할 수 있어요.</p>
+        </Card>
+      </>
+    );
+  }
   if (!PAYSLIPS.length) return <><PageHead title="급여명세서" /><Card i={1} className="empty">아직 발급된 급여명세서가 없어요</Card></>;
   const p = PAYSLIPS[idx];
   const gross = sum(p.earnings), ded = sum(p.deductions), net = gross - ded;
