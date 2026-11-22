@@ -24,6 +24,7 @@ export function MessagesPage() {
   const selectedThreadRef = useRef(selId);
   const requestVersionRef = useRef(0);
   const msgsRef = useRef<ChatMessage[]>([]);
+  const loadedThreadIdRef = useRef<number | null>(null);
   const [loadedThreadId, setLoadedThreadId] = useState<number | null>(null);
   const scrollRef = useRef<{ mode: 'bottom' | 'preserve'; height?: number; top?: number } | null>(null);
   selectedThreadRef.current = selId;
@@ -38,10 +39,12 @@ export function MessagesPage() {
   const loadLatest = useCallback(async (threadId: number, reset: boolean, version: number) => {
     let page = await loadMessages(threadId);
     if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
-    if (reset) {
+    // 최초 요청이 실패했다면 다음 폴링 성공을 최초 페이지 조회처럼 반영한다.
+    if (reset || loadedThreadIdRef.current !== threadId) {
       scrollRef.current = { mode: 'bottom' };
       replaceMessages(page.messages);
       setHasMore(page.hasMore);
+      loadedThreadIdRef.current = threadId;
       setLoadedThreadId(threadId);
       return;
     }
@@ -56,14 +59,22 @@ export function MessagesPage() {
       if (!page || selectedThreadRef.current !== threadId || requestVersionRef.current !== version) return;
       received = mergeMessages(page.messages, received);
     }
-    scrollRef.current = { mode: 'bottom' };
-    replaceMessages(mergeMessages(msgsRef.current, received));
+    const current = msgsRef.current;
+    const currentIds = new Set(current.map((message) => message.id));
+    const hasNewMessage = received.some((message) => !currentIds.has(message.id));
+    if (hasNewMessage) {
+      const body = bodyRef.current;
+      const isNearBottom = body == null || body.scrollHeight - body.scrollTop - body.clientHeight <= 80;
+      if (isNearBottom) scrollRef.current = { mode: 'bottom' };
+      replaceMessages(mergeMessages(current, received));
+    }
     setLoadedThreadId(threadId);
   }, [loadMessages, replaceMessages]);
 
   // 대화방을 바꾸면 그 방의 최신 페이지를 새로 받는다.
   useEffect(() => {
     const version = ++requestVersionRef.current;
+    loadedThreadIdRef.current = null;
     replaceMessages([]); setHasMore(false); setSending(false); setText(''); setLoadedThreadId(null);
     if (selId != null) void loadLatest(selId, true, version);
   }, [selId, loadLatest, replaceMessages]);

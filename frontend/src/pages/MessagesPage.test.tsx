@@ -162,4 +162,50 @@ describe('MessagesPage', () => {
       vi.useRealTimers();
     }
   });
+
+  it('변경 없는 폴링과 과거 메시지를 읽는 중의 새 메시지는 스크롤을 내리지 않는다', async () => {
+    vi.useFakeTimers();
+    try {
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+      act(() => root.render(<MessagesPage />));
+      await flush();
+      scrollIntoView.mockClear();
+
+      const body = host.querySelector<HTMLDivElement>('.chat__body')!;
+      Object.defineProperties(body, {
+        scrollHeight: { configurable: true, value: 1000 },
+        clientHeight: { configurable: true, value: 300 },
+      });
+      body.scrollTop = 100;
+
+      store.loadMessages.mockResolvedValueOnce({ messages: [msg(10, false, '첫 번째'), msg(11, false, '두 번째')], hasMore: true });
+      await act(async () => { vi.advanceTimersByTime(4000); await Promise.resolve(); await Promise.resolve(); });
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      store.loadMessages.mockResolvedValueOnce({ messages: [msg(10, false, '첫 번째'), msg(11, false, '두 번째'), msg(12, false, '새 메시지')], hasMore: true });
+      await act(async () => { vi.advanceTimersByTime(4000); await Promise.resolve(); await Promise.resolve(); });
+      expect(host.textContent).toContain('새 메시지');
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('최초 조회 실패 후 폴링 성공 시 이전 페이지 상태도 복구한다', async () => {
+    vi.useFakeTimers();
+    try {
+      store.loadMessages.mockResolvedValueOnce(undefined);
+      act(() => root.render(<MessagesPage />));
+      await flush();
+      expect(host.textContent).not.toContain('이전 메시지 보기');
+
+      store.loadMessages.mockResolvedValueOnce({ messages: [msg(50, false, '복구된 메시지')], hasMore: true });
+      await act(async () => { vi.advanceTimersByTime(4000); await Promise.resolve(); await Promise.resolve(); });
+      expect(host.textContent).toContain('복구된 메시지');
+      expect(host.textContent).toContain('이전 메시지 보기');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
