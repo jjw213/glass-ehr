@@ -85,4 +85,18 @@ describe('mockApi.bootstrap (데모)', () => {
     expect(d.dashboard?.trend).toHaveLength(12);
     expect(d.dashboard?.trend[11].month).toMatch(/^\d{4}-\d{2}$/);
   });
+
+  it('데모 모드는 급여명세 샘플을 그대로 보여 준다(#81)', async () => {
+    const d = await mockApi.bootstrap();
+    expect(d.payslips?.length).toBeGreaterThan(0);
+  });
+});
+
+describe('급여명세 (#81)', () => {
+  it('급여 모듈 전까지 Node 급여명세를 쓰지 않고 payslips=null, /payslips 도 부르지 않는다', async () => {
+    const get = fakeGet({ loginId: 'emp1', empId: 7, roles: ['EMPLOYEE'], permissions: ['EMP_READ_SELF'], managedDeptIds: [] });
+    const d = await loadAppData(get);
+    expect(d.payslips).toBeNull();
+    expect(get.mock.calls.map((c) => c[0]).some((p) => p.startsWith('/payslips'))).toBe(false);
+  });
 });

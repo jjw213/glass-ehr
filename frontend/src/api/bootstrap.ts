@@ -1,7 +1,8 @@
 /**
  * 로그인 직후 화면 데이터(#77). 사용자(/api/auth/me + 사원 목록의 본인 행)·부서(/api/org/tree)·홈 요약(/api/dashboard/summary)·
  * 메시지 대화방(/api/threads, #80)은 Spring 에서 받고, 아직 옮기지 않은 결재·휴가·근태 토글·급여명세는 Node /api/bootstrap 에서 받는다.
- * Node 응답의 me·depts·employees·dashboard·threads 는 쓰지 않는다(연차 일수만 휴가 모듈을 옮길 때까지 Node 값을 쓴다).
+ * 급여명세는 급여 모듈 전까지 쓰지 않는다(#81: payslips=null → 급여 화면 '준비 중').
+ * Node 응답의 me·depts·employees·dashboard·threads·payslips 는 쓰지 않는다(연차 일수만 휴가 모듈을 옮길 때까지 Node 값을 쓴다).
  */
 import { flattenDepts, seoulToday, type DeptNode, type EmployeeSummary, type OrgTree } from './employees';
 import {
@@ -43,13 +44,14 @@ export async function loadAppData(get: Get): Promise<AppData> {
   ]);
   const self = list.find((e) => e.empId === auth.empId);
   // Node 의 attendance·threads 는 쓰지 않는다. 출퇴근은 Spring /api/attendance/punches(#78), 메시지는 Spring /api/threads(#80).
-  const { approvals, leaves, payslips } = node;
+  // Node 의 payslips 도 쓰지 않는다. 급여명세서는 급여 모듈에서 새로 만든다(#81).
+  const { approvals, leaves } = node;
   return {
     me: toSessionUser(auth, self, node.me.annualLeave),
     depts: toDepts(tree.roots),
     // 결재는 아직 Node 의 hr·mgmt 같은 ID를 쓰므로 Spring 부서와 별도로 조회에 보존한다.
     legacyDepts: node.depts,
     dashboard,
-    approvals, leaves, payslips, threads,
+    approvals, leaves, payslips: null, threads,
   };
 }
