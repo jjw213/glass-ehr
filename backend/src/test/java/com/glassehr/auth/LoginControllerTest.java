@@ -177,6 +177,75 @@ class LoginControllerTest {
                 .isEqualTo(new AuthInterceptor.Principal(A, "emp1"));
     }
 
+    private static MockHttpServletRequestBuilder switchTo(String ent) {
+        return post("/api/auth/switch-enter").header(AuthInterceptor.CSRF_HEADER, AuthInterceptor.CSRF_HEADER_VALUE)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"enterCd\":\"" + ent + "\"}");
+    }
+
+    @Test
+    void 일반_계정이_법인_전환을_부르면_403이고_현재_법인은_그대로다() throws Exception {
+        for (String id : new String[] {"emp1", "hr1", "admin1"}) {
+            MockHttpSession s = loginAs(id);
+            mvc.perform(switchTo("C002").session(s)).andExpect(status().isForbidden());
+            assertThat(s.getAttribute(AuthInterceptor.SESSION_CURRENT_ENTER_CD)).isEqualTo(A);
+        }
+        mvc.perform(switchTo("C002").header(AuthInterceptor.ACTOR_ID_HEADER, "emp1")).andExpect(status().isForbidden());
+        verify(service, never()).switchEnter(any(), any(), any());
+    }
+
+    @Test
+    void 그룹_관리자는_전환하면_다른_법인_데이터를_본다() throws Exception {
+        MockHttpSession s = loginAs("group1");
+        when(service.switchEnter(any(), eq("C002"), any())).thenReturn(true);
+        mvc.perform(switchTo(" C002 ").session(s)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.enterCd").value("C002")).andExpect(jsonPath("$.homeEnterCd").value(A));
+        assertThat(s.getAttribute(AuthInterceptor.SESSION_CURRENT_ENTER_CD)).isEqualTo("C002");
+        // 주체 법인·아이디는 그대로
+        assertThat(s.getAttribute(AuthInterceptor.SESSION_ENTER_CD)).isEqualTo(A);
+        assertThat(s.getAttribute(AuthInterceptor.SESSION_LOGIN_ID)).isEqualTo("group1");
+        verify(service).switchEnter(org.mockito.ArgumentMatchers.argThat(u -> "group1".equals(u.loginId())),
+                eq("C002"), any());
+        mvc.perform(get("/api/auth/me").session(s)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.enterCd").value("C002")).andExpect(jsonPath("$.homeEnterCd").value(A))
+                .andExpect(jsonPath("$.loginId").value("group1"));
+        // 업무 조회는 현재 법인(C002) 조건으로 간다.
+        when(privacyLogs.search(eq("C002"), any(), any(), any(), any()))
+                .thenReturn(new PrivacyLogService.LogPage(null, null, java.util.List.of(), false));
+        mvc.perform(get("/api/admin/privacy-logs").session(s)).andExpect(status().isOk());
+        verify(privacyLogs).search(eq("C002"), any(), any(), any(), any());
+        verify(privacyLogs, never()).search(eq(A), any(), any(), any(), any());
+
+        // 다시 주체 법인으로
+        when(service.switchEnter(any(), eq(A), any())).thenReturn(true);
+        mvc.perform(switchTo(A).session(s)).andExpect(status().isOk());
+        mvc.perform(get("/api/auth/me").session(s)).andExpect(jsonPath("$.enterCd").value(A));
+    }
+
+    @Test
+    void 없는_법인이나_사용안함_법인으로는_전환되지_않고_404() throws Exception {
+        MockHttpSession s = loginAs("group1");
+        when(service.switchEnter(any(), anyString(), any())).thenReturn(false);
+        mvc.perform(switchTo("ZZ99").session(s)).andExpect(status().isNotFound());
+        assertThat(s.getAttribute(AuthInterceptor.SESSION_CURRENT_ENTER_CD)).isEqualTo(A);
+        mvc.perform(post("/api/auth/switch-enter").session(s)
+                .header(AuthInterceptor.CSRF_HEADER, AuthInterceptor.CSRF_HEADER_VALUE)
+                .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest());
+        // CSRF 헤더가 없으면 403
+        mvc.perform(post("/api/auth/switch-enter").session(s).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"enterCd\":\"C002\"}")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 세션의_현재_법인을_조작해도_전환_권한이_없으면_401() throws Exception {
+        MockHttpSession s = loginAs("hr1");
+        s.setAttribute(AuthInterceptor.SESSION_CURRENT_ENTER_CD, "C002");
+        mvc.perform(get("/api/auth/me").session(s)).andExpect(status().isUnauthorized());
+        // 그룹 관리자라도 허용되지 않은 법인이면 401
+        MockHttpSession g = loginAs("group1");
+        g.setAttribute(AuthInterceptor.SESSION_CURRENT_ENTER_CD, "C009");
+        mvc.perform(get("/api/auth/me").session(g)).andExpect(status().isUnauthorized());
+    }
+
     @Test
     void test_프로필_X_Actor_Enter로_다른_법인이면_사용자를_찾지_않는다() throws Exception {
         mvc.perform(get("/api/auth/me").header(AuthInterceptor.ACTOR_ID_HEADER, "hr1")).andExpect(status().isOk())

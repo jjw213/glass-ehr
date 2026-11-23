@@ -70,23 +70,30 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     /**
      * 세션의 주체 법인·로그인 아이디. 로그인 세션이 없고 test 프로필이면 X-Actor-Id·X-Actor-Enter(없으면 C001) 헤더.
-     * 법인 전환 기능이 아직 없으므로 세션의 현재 법인이 주체 법인과 다르거나 법인이 없는 세션(이 변경 전 세션)은
-     * 사용자를 찾지 않는다(401, 다시 로그인).
+     * 법인이 없는 세션(#119 전 세션)은 사용자를 찾지 않는다(401, 다시 로그인).
      */
     Principal principalOf(HttpServletRequest req) {
         String fromSession = sessionLoginId(req);
         if (fromSession != null) {
-            HttpSession s = req.getSession(false);
-            Object home = s.getAttribute(SESSION_ENTER_CD);
-            Object current = s.getAttribute(SESSION_CURRENT_ENTER_CD);
-            boolean ok = home instanceof String h && h.equals(current);
-            return new Principal(ok ? (String) home : null, fromSession);
+            Object home = req.getSession(false).getAttribute(SESSION_ENTER_CD);
+            return new Principal(home instanceof String h ? h : null, fromSession);
         }
         if (!acceptActorHeader) {
             return new Principal(null, null);
         }
         String ent = req.getHeader(ACTOR_ENTER_HEADER);
         return new Principal(ent == null ? EnterCompany.DEFAULT_ENTER_CD : ent, req.getHeader(ACTOR_ID_HEADER));
+    }
+
+    /**
+     * 현재 법인. 로그인 세션이면 세션의 현재 법인(그룹 관리자 전환 때만 주체 법인과 다르다. 다르면 resolver 가 전환 권한을
+     * 다시 확인한다). 세션이 없는 test 프로필 헤더 요청은 전환이 없어 주체 법인과 같다.
+     */
+    static String currentEnterOf(HttpServletRequest req, Principal who) {
+        if (sessionLoginId(req) != null) {
+            return req.getSession(false).getAttribute(SESSION_CURRENT_ENTER_CD) instanceof String c ? c : null;
+        }
+        return who.enterCd();
     }
 
     private static String sessionLoginId(HttpServletRequest req) {
@@ -123,7 +130,8 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         PrivacyAudit audit = hm.getMethodAnnotation(PrivacyAudit.class);
         Principal who = principalOf(req);
-        Optional<AuthUser> found = resolver.resolve(who.enterCd(), who.loginId(), req.getRemoteAddr());
+        Optional<AuthUser> found = resolver.resolve(who.enterCd(), who.loginId(), currentEnterOf(req, who),
+                req.getRemoteAddr());
         if (found.isEmpty()) {
             if (audit != null) {
                 privacyLog.logAnonymousDenied(who.enterCd(), who.loginId(), req.getRemoteAddr(), targetEmpId(req),

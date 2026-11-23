@@ -26,11 +26,13 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "login_access_log")
 public class LoginAccessLog {
 
-    /** V027 ck_login_log_event 와 같아야 함. */
+    /** V033 ck_login_log_event 와 같아야 함. */
     public enum Event {
         LOGIN_SUCCESS,
         LOGIN_FAILURE,
-        LOGOUT
+        LOGOUT,
+        /** 그룹 관리자 법인 전환(V033). enterCd = 주체 법인, targetEnterCd = 전환 대상 법인 */
+        ENTER_SWITCH
     }
 
     /** V027 ck_login_log_reason 과 같아야 함. */
@@ -50,6 +52,10 @@ public class LoginAccessLog {
     /** 로그인 시도 법인(V031·V032, NULL 허용·FK 없음). 형식이 맞지 않는 입력이면 NULL(tenant-design.md 4.4). */
     @Column(name = "enter_cd", updatable = false)
     private String enterCd;
+
+    /** 법인 전환 대상 법인(V033). ENTER_SWITCH 일 때만 있다. */
+    @Column(name = "target_enter_cd", updatable = false)
+    private String targetEnterCd;
 
     @Column(name = "login_id", nullable = false, updatable = false)
     private String loginId;
@@ -78,7 +84,13 @@ public class LoginAccessLog {
 
     LoginAccessLog(String enterCd, String loginId, Event event, FailReason failReason, boolean locked,
             String clientIp, LocalDateTime occurredAt) {
+        this(enterCd, loginId, event, failReason, locked, clientIp, occurredAt, null);
+    }
+
+    LoginAccessLog(String enterCd, String loginId, Event event, FailReason failReason, boolean locked,
+            String clientIp, LocalDateTime occurredAt, String targetEnterCd) {
         this.enterCd = EnterCompany.isValidCode(enterCd) ? enterCd : null;
+        this.targetEnterCd = targetEnterCd;
         this.loginId = cut(loginId, 50);
         this.event = event;
         this.failReason = failReason;
@@ -97,6 +109,10 @@ public class LoginAccessLog {
 
     public String getEnterCd() {
         return enterCd;
+    }
+
+    public String getTargetEnterCd() {
+        return targetEnterCd;
     }
 
     public String getLoginId() {

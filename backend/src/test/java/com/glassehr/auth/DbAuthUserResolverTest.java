@@ -94,6 +94,32 @@ class DbAuthUserResolverTest {
     }
 
     @Test
+    void 그룹_관리자는_다른_법인으로_전환되고_부서장_범위는_비운다() {
+        when(gate.allows("C002")).thenReturn(true);
+        // 사원 8 은 조직도 부서장이지만, 다른 법인에서는 부서장 범위를 쓰지 않는다.
+        when(users.find(A, "grp")).thenReturn(Optional.of(new AppUser(A, "grp", 8L, true, Set.of("GROUP_ADMIN"))));
+        AuthUser u = resolver.resolve(A, "grp", "C002", null).orElseThrow();
+        assertThat(u.enterCd()).isEqualTo("C002");
+        assertThat(u.homeEnterCd()).isEqualTo(A);
+        assertThat(u.managedDeptIds()).isEmpty();
+        assertThat(u.roles()).doesNotContain("DEPT_HEAD").contains("GROUP_ADMIN");
+        assertThat(u.permissions()).contains(Permission.ENTER_SWITCH).doesNotContain(Permission.EMP_READ_DEPT);
+        // 주체 법인으로 돌아오면 부서장 범위가 다시 붙는다.
+        assertThat(resolver.resolve(A, "grp", A, null).orElseThrow().managedDeptIds()).containsExactlyInAnyOrder(2L, 3L);
+    }
+
+    @Test
+    void 전환_권한이_없거나_대상_법인을_쓸_수_없으면_빈값() {
+        when(gate.allows("C002")).thenReturn(true);
+        when(gate.allows("C009")).thenReturn(false);
+        when(users.find(A, "adm")).thenReturn(Optional.of(new AppUser(A, "adm", null, true, Set.of("ADMIN"))));
+        when(users.find(A, "grp")).thenReturn(Optional.of(new AppUser(A, "grp", null, true, Set.of("GROUP_ADMIN"))));
+        assertThat(resolver.resolve(A, "adm", "C002", null)).isEmpty();
+        assertThat(resolver.resolve(A, "grp", "C009", null)).isEmpty();
+        assertThat(resolver.resolve(A, "grp", null, null)).isEmpty();
+    }
+
+    @Test
     void 사용중지_법인이나_법인_없는_요청은_빈값() {
         when(gate.allows("C002")).thenReturn(false);
         when(users.find("C002", "emp")).thenReturn(Optional.of(new AppUser("C002", "emp", 50L, true, Set.of())));

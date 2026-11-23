@@ -198,6 +198,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V032__app_user_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer targetEnter = jdbc.queryForObject("SELECT COUNT(*) FROM user_tab_columns "
+                + "WHERE table_name = 'LOGIN_ACCESS_LOG' AND column_name = 'TARGET_ENTER_CD'", Integer.class);
+        if (targetEnter == null || targetEnter == 0) {
+            // #120: GROUP_ADMIN 역할·ENTER_SWITCH 권한, 법인 전환 접속기록
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V033__group_admin_enter_switch.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
