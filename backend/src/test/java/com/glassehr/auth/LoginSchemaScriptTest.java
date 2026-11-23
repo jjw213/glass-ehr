@@ -12,11 +12,16 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
-/** V027 정적 검사(Oracle 없이). */
+/** 로그인 스키마 정적 검사(Oracle 없이). */
 class LoginSchemaScriptTest {
 
     private static String sql() throws IOException {
         return new ClassPathResource("db/oracle/V027__app_user_login_session.sql").getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    private static String tenantSql() throws IOException {
+        return new ClassPathResource("db/oracle/V032__app_user_enter_cd.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
     }
 
     private static Set<String> names(Class<? extends Enum<?>> e) {
@@ -69,5 +74,14 @@ class LoginSchemaScriptTest {
             }
         }
         assertThat(seed.toLowerCase()).doesNotContain("password");
+    }
+
+    @Test
+    void 사원_미연결_계정은_법인별_사원_유일성_검사에서_제외한다() throws IOException {
+        String sql = tenantSql();
+        assertThat(sql).contains("CREATE UNIQUE INDEX ux_app_user_emp ON app_user (")
+                .contains("CASE WHEN emp_id IS NOT NULL THEN enter_cd END,")
+                .contains("CASE WHEN emp_id IS NOT NULL THEN emp_id END")
+                .doesNotContain("ADD CONSTRAINT uq_app_user_emp UNIQUE (enter_cd, emp_id)");
     }
 }

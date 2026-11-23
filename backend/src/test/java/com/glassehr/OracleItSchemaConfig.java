@@ -191,6 +191,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V031__enter_company_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer accessorEnter = jdbc.queryForObject("SELECT COUNT(*) FROM user_tab_columns "
+                + "WHERE table_name = 'PRIVACY_ACCESS_LOG' AND column_name = 'ACCESSOR_ENTER_CD'", Integer.class);
+        if (accessorEnter == null || accessorEnter == 0) {
+            // #119: app_user·app_user_role 키에 법인, 개인정보 조회 로그 주체 법인
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V032__app_user_enter_cd.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

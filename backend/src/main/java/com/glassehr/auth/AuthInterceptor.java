@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
+import com.glassehr.tenant.EnterCompany;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.method.HandlerMethod;
@@ -36,11 +37,17 @@ import org.springframework.web.servlet.HandlerMapping;
 public class AuthInterceptor implements HandlerInterceptor {
 
     public static final String ACTOR_ID_HEADER = "X-Actor-Id";
+    /** test 프로필에서 X-Actor-Id 와 함께 받는 법인 헤더. 없으면 C001(#119). */
+    public static final String ACTOR_ENTER_HEADER = "X-Actor-Enter";
     /** CSRF 방어용 사용자 지정 헤더와 값. 화면(api/http.ts)이 모든 요청에 붙인다. */
     public static final String CSRF_HEADER = "X-Requested-With";
     public static final String CSRF_HEADER_VALUE = "XMLHttpRequest";
     /** 세션에 넣는 로그인 아이디 속성 이름(LoginController 가 로그인 성공 시 넣는다). */
     public static final String SESSION_LOGIN_ID = "glassehr.auth.loginId";
+    /** 세션의 주체 법인(로그인한 법인, 바뀌지 않음). docs/tenant-design.md 4.2 */
+    public static final String SESSION_ENTER_CD = "glassehr.auth.enterCd";
+    /** 세션의 현재 법인(업무 조회·수정의 법인 조건). 로그인 때 주체 법인으로 넣는다. */
+    public static final String SESSION_CURRENT_ENTER_CD = "glassehr.auth.currentEnterCd";
     static final String ATTR = AuthUser.class.getName();
     private static final String CSRF_REJECT = "요청 출처를 확인할 수 없어요. 화면을 새로 고친 뒤 다시 시도해 주세요";
 
@@ -57,13 +64,29 @@ public class AuthInterceptor implements HandlerInterceptor {
         this.acceptActorHeader = acceptActorHeader;
     }
 
-    /** 세션의 로그인 아이디. 로그인 세션이 없고 test 프로필이면 X-Actor-Id 헤더. */
-    String loginIdOf(HttpServletRequest req) {
+    /** 요청한 주체(법인, 아이디). 둘 중 하나라도 없으면 그 값은 null. */
+    record Principal(String enterCd, String loginId) {
+    }
+
+    /**
+     * 세션의 주체 법인·로그인 아이디. 로그인 세션이 없고 test 프로필이면 X-Actor-Id·X-Actor-Enter(없으면 C001) 헤더.
+     * 법인 전환 기능이 아직 없으므로 세션의 현재 법인이 주체 법인과 다르거나 법인이 없는 세션(이 변경 전 세션)은
+     * 사용자를 찾지 않는다(401, 다시 로그인).
+     */
+    Principal principalOf(HttpServletRequest req) {
         String fromSession = sessionLoginId(req);
         if (fromSession != null) {
-            return fromSession;
+            HttpSession s = req.getSession(false);
+            Object home = s.getAttribute(SESSION_ENTER_CD);
+            Object current = s.getAttribute(SESSION_CURRENT_ENTER_CD);
+            boolean ok = home instanceof String h && h.equals(current);
+            return new Principal(ok ? (String) home : null, fromSession);
         }
-        return acceptActorHeader ? req.getHeader(ACTOR_ID_HEADER) : null;
+        if (!acceptActorHeader) {
+            return new Principal(null, null);
+        }
+        String ent = req.getHeader(ACTOR_ENTER_HEADER);
+        return new Principal(ent == null ? EnterCompany.DEFAULT_ENTER_CD : ent, req.getHeader(ACTOR_ID_HEADER));
     }
 
     private static String sessionLoginId(HttpServletRequest req) {
@@ -99,11 +122,12 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
         PrivacyAudit audit = hm.getMethodAnnotation(PrivacyAudit.class);
-        String loginId = loginIdOf(req);
-        Optional<AuthUser> found = resolver.resolve(loginId, req.getRemoteAddr());
+        Principal who = principalOf(req);
+        Optional<AuthUser> found = resolver.resolve(who.enterCd(), who.loginId(), req.getRemoteAddr());
         if (found.isEmpty()) {
             if (audit != null) {
-                privacyLog.logAnonymousDenied(loginId, req.getRemoteAddr(), targetEmpId(req), audit.item(),
+                privacyLog.logAnonymousDenied(who.enterCd(), who.loginId(), req.getRemoteAddr(), targetEmpId(req),
+                        audit.item(),
                         audit.action(), req.getRequestURI());
             }
             if (sessionLoginId(req) != null) {

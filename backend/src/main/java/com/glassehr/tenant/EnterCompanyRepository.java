@@ -8,4 +8,7 @@ public interface EnterCompanyRepository extends JpaRepository<EnterCompany, Stri
 
     /** 사용 중인 법인만, 정렬 순서·법인 코드 순. */
     List<EnterCompany> findByActiveTrueOrderBySortOrderAscEnterCdAsc();
+
+    /** 있고 사용 중인 법인인가. */
+    boolean existsByEnterCdAndActiveTrue(String enterCd);
 }

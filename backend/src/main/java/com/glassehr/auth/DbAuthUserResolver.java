@@ -1,6 +1,7 @@
 package com.glassehr.auth;
 
 import com.glassehr.org.OrgDeptService;
+import com.glassehr.tenant.EnterCompanyGate;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Optional;
@@ -24,20 +25,27 @@ public class DbAuthUserResolver implements AuthUserResolver {
     private final AppUserRepository users;
     private final AppRolePermissionRepository rolePerms;
     private final OrgDeptService org;
+    private final EnterCompanyGate companies;
 
-    public DbAuthUserResolver(AppUserRepository users, AppRolePermissionRepository rolePerms, OrgDeptService org) {
+    public DbAuthUserResolver(AppUserRepository users, AppRolePermissionRepository rolePerms, OrgDeptService org,
+            EnterCompanyGate companies) {
         this.users = users;
         this.rolePerms = rolePerms;
         this.org = org;
+        this.companies = companies;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<AuthUser> resolve(String loginId, String clientIp) {
-        if (loginId == null || loginId.isBlank()) {
+    public Optional<AuthUser> resolve(String enterCd, String loginId, String clientIp) {
+        if (enterCd == null || loginId == null || loginId.isBlank()) {
             return Optional.empty();
         }
-        Optional<AppUser> found = users.findById(loginId.strip());
+        // 법인이 사용 중지되거나 다법인 배포 잠금에 걸리면 남은 세션도 쓰지 못하게 한다(로그인과 같은 규칙).
+        if (!companies.allows(enterCd)) {
+            return Optional.empty();
+        }
+        Optional<AppUser> found = users.find(enterCd, loginId.strip());
         if (found.isEmpty() || !found.get().isActive()) {
             return Optional.empty();
         }
@@ -61,6 +69,6 @@ public class DbAuthUserResolver implements AuthUserResolver {
                 // 코드에 없는 권한은 주지 않는다.
             }
         }
-        return Optional.of(new AuthUser(u.getLoginId(), u.getEmpId(), roles, perms, managed, clientIp));
+        return Optional.of(new AuthUser(u.getEnterCd(), u.getEnterCd(), u.getLoginId(),u.getEmpId(), roles, perms, managed, clientIp));
     }
 }

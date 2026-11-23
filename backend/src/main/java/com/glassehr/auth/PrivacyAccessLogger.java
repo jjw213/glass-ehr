@@ -1,5 +1,7 @@
 package com.glassehr.auth;
 
+import com.glassehr.tenant.EnterCompany;
+import com.glassehr.tenant.EnterCompanyRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -19,15 +21,17 @@ public class PrivacyAccessLogger {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final PrivacyAccessLogRepository logs;
+    private final EnterCompanyRepository companies;
     private final Clock clock;
 
     @Autowired
-    public PrivacyAccessLogger(PrivacyAccessLogRepository logs) {
-        this(logs, Clock.system(SEOUL));
+    public PrivacyAccessLogger(PrivacyAccessLogRepository logs, EnterCompanyRepository companies) {
+        this(logs, companies, Clock.system(SEOUL));
     }
 
-    PrivacyAccessLogger(PrivacyAccessLogRepository logs, Clock clock) {
+    PrivacyAccessLogger(PrivacyAccessLogRepository logs, EnterCompanyRepository companies, Clock clock) {
         this.logs = logs;
+        this.companies = companies;
         this.clock = clock.withZone(SEOUL);
     }
 
@@ -35,8 +39,8 @@ public class PrivacyAccessLogger {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(AuthUser user, Long targetEmpId, PrivacyAccessLog.Item item, PrivacyAccessLog.Action action,
             PrivacyAccessLog.Result result, String requestPath) {
-        logs.save(new PrivacyAccessLog(user.loginId(), user.rolesText(), targetEmpId, item, action, result,
-                user.clientIp(), requestPath, LocalDateTime.now(clock)));
+        logs.save(new PrivacyAccessLog(user.enterCd(), user.homeEnterCd(), user.loginId(), user.rolesText(),
+                targetEmpId, item, action, result, user.clientIp(), requestPath, LocalDateTime.now(clock)));
     }
 
     /** 다운로드처럼 대상이 여럿이면 대상마다 한 행(같은 시각). */
@@ -45,17 +49,23 @@ public class PrivacyAccessLogger {
             PrivacyAccessLog.Action action, String requestPath) {
         LocalDateTime now = LocalDateTime.now(clock);
         for (Long id : targetEmpIds) {
-            logs.save(new PrivacyAccessLog(user.loginId(), user.rolesText(), id, item, action,
-                    PrivacyAccessLog.Result.SUCCESS, user.clientIp(), requestPath, now));
+            logs.save(new PrivacyAccessLog(user.enterCd(), user.homeEnterCd(), user.loginId(), user.rolesText(), id,
+                    item, action, PrivacyAccessLog.Result.SUCCESS, user.clientIp(), requestPath, now));
         }
     }
 
-    /** 로그인하지 않았거나 등록되지 않은 사용자의 시도(거부). accessorId 는 보낸 값(없으면 anonymous). */
+    /**
+     * 로그인하지 않았거나 등록되지 않은 사용자의 시도(거부). accessorId 는 보낸 값(없으면 anonymous).
+     * 법인은 세션·헤더의 값이 enter_company 에 있을 때만 쓰고, 알 수 없으면 기본 법인(C001) 로그로 남긴다
+     * (enter_cd 는 NOT NULL·FK 라 없는 법인 코드로는 행을 남길 수 없다).
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void logAnonymousDenied(String accessorId, String clientIp, Long targetEmpId, PrivacyAccessLog.Item item,
-            PrivacyAccessLog.Action action, String requestPath) {
+    public void logAnonymousDenied(String enterCd, String accessorId, String clientIp, Long targetEmpId,
+            PrivacyAccessLog.Item item, PrivacyAccessLog.Action action, String requestPath) {
         String id = accessorId == null || accessorId.isBlank() ? "anonymous" : accessorId.strip();
-        logs.save(new PrivacyAccessLog(id, null, targetEmpId, item, action, PrivacyAccessLog.Result.DENIED, clientIp,
-                requestPath, LocalDateTime.now(clock)));
+        String ent = EnterCompany.isValidCode(enterCd) && companies.existsById(enterCd) ? enterCd
+                : EnterCompany.DEFAULT_ENTER_CD;
+        logs.save(new PrivacyAccessLog(ent, ent, id, null, targetEmpId, item, action, PrivacyAccessLog.Result.DENIED,
+                clientIp, requestPath, LocalDateTime.now(clock)));
     }
 }

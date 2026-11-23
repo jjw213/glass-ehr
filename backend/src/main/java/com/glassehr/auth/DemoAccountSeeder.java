@@ -1,5 +1,6 @@
 package com.glassehr.auth;
 
+import com.glassehr.tenant.EnterCompany;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -26,6 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @ConditionalOnProperty(name = "glassehr.auth.demo-password")
 public class DemoAccountSeeder implements ApplicationRunner {
+
+    /** 데모 계정의 법인(#119). 데모 사원 시드가 C001 에 있다. */
+    static final String ENTER_CD = EnterCompany.DEFAULT_ENTER_CD;
 
     /** 데모 비밀번호 최소 길이(운영 정책 아님, 너무 짧은 값을 막는 개발 편의 기준). */
     static final int MIN_PASSWORD = 8;
@@ -83,27 +87,31 @@ public class DemoAccountSeeder implements ApplicationRunner {
             return;
         }
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        String ent = ENTER_CD;
         for (Account a : ACCOUNTS) {
             Long empId = null;
             if (a.empNo() != null) {
-                List<Long> ids = jdbc.queryForList("SELECT emp_id FROM employee WHERE emp_no = ?", Long.class, a.empNo());
+                List<Long> ids = jdbc.queryForList("SELECT emp_id FROM employee WHERE enter_cd = ? AND emp_no = ?",
+                        Long.class, ent, a.empNo());
                 if (ids.isEmpty()) {
                     LOG.warn("데모 사원 {} 이 없어 계정 {} 을 건너뛰었어요(employee_demo_seed.sql 적용 필요)", a.empNo(), a.loginId());
                     continue;
                 }
                 empId = ids.get(0);
             }
-            Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM app_user WHERE login_id = ?", Integer.class,
-                    a.loginId());
+            Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM app_user WHERE enter_cd = ? AND login_id = ?",
+                    Integer.class, ent, a.loginId());
             if (exists == null || exists == 0) {
-                jdbc.update("INSERT INTO app_user (login_id, emp_id, active_yn) VALUES (?, ?, 'Y')", a.loginId(), empId);
+                jdbc.update("INSERT INTO app_user (enter_cd, login_id, emp_id, active_yn) VALUES (?, ?, ?, 'Y')", ent,
+                        a.loginId(), empId);
                 if (a.role() != null) {
-                    jdbc.update("INSERT INTO app_user_role (login_id, role_code) VALUES (?, ?)", a.loginId(), a.role());
+                    jdbc.update("INSERT INTO app_user_role (enter_cd, login_id, role_code) VALUES (?, ?, ?)", ent,
+                            a.loginId(), a.role());
                 }
             }
             int set = jdbc.update("UPDATE app_user SET password_hash = ?, password_changed_at = ? "
-                    + "WHERE login_id = ? AND password_hash IS NULL",
-                    LoginService.hash(password), Timestamp.valueOf(now), a.loginId());
+                    + "WHERE enter_cd = ? AND login_id = ? AND password_hash IS NULL",
+                    LoginService.hash(password), Timestamp.valueOf(now), ent, a.loginId());
             if (set > 0) {
                 LOG.info("데모 계정 {} 비밀번호를 설정했어요", a.loginId());
             }

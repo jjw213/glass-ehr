@@ -41,8 +41,11 @@ public class PrivacyLogService {
     public record LogPage(LocalDate from, LocalDate to, List<LogRow> rows, boolean truncated) {
     }
 
-    /** 기간 [from, to] (둘 다 포함, Asia/Seoul 날짜). */
-    public LogPage search(LocalDate from, LocalDate to, String accessorId, Long targetEmpId) {
+    /**
+     * 기간 [from, to] (둘 다 포함, Asia/Seoul 날짜). enterCd 는 요청자의 현재 법인.
+     * rrn_access_log 는 아직 법인 열을 쓰지 않는다(주민등록번호 법인 이슈). 다법인 배포 잠금 동안은 C001 만 로그인할 수 있다.
+     */
+    public LogPage search(String enterCd, LocalDate from, LocalDate to, String accessorId, Long targetEmpId) {
         if (to.isBefore(from)) {
             throw new IllegalArgumentException("끝 날짜가 시작 날짜보다 빨라요");
         }
@@ -54,7 +57,7 @@ public class PrivacyLogService {
         LocalDateTime end = to.plusDays(1).atStartOfDay();
         PageRequest page = PageRequest.of(0, MAX_ROWS + 1);
         List<LogRow> rows = new ArrayList<>();
-        for (PrivacyAccessLog l : privacyLogs.search(start, end, who, targetEmpId, page)) {
+        for (PrivacyAccessLog l : privacyLogs.search(enterCd, start, end, who, targetEmpId, page)) {
             rows.add(new LogRow("PRIVACY", l.getAccessedAt(), l.getAccessorId(), l.getAccessorRoles(),
                     l.getTargetEmpId(), l.getItem().name(), l.getAction().name(), null, l.getResult().name(),
                     l.getClientIp(), l.getRequestPath()));

@@ -16,6 +16,15 @@ import jakarta.persistence.Table;
 @Table(name = "enter_company")
 public class EnterCompany {
 
+    /** 기존 데이터의 초기 법인(V031). 다법인 배포 잠금 동안 로그인할 수 있는 유일한 법인(tenant-design.md 8.2). */
+    public static final String DEFAULT_ENTER_CD = "C001";
+    /** 법인 코드 형식: 영문 대문자·숫자 2~10자(V031 ck_*_enter, tenant-design.md 2장). */
+    private static final java.util.regex.Pattern CODE = java.util.regex.Pattern.compile("^[A-Z0-9]{2,10}$");
+
+    public static boolean isValidCode(String enterCd) {
+        return enterCd != null && CODE.matcher(enterCd).matches();
+    }
+
     @Id
     @Column(name = "enter_cd", nullable = false, updatable = false)
     private String enterCd;

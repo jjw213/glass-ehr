@@ -1,6 +1,7 @@
 package com.glassehr.auth;
 
 import com.glassehr.code.YnConverter;
+import com.glassehr.tenant.EnterCompany;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -46,6 +47,10 @@ public class LoginAccessLog {
     @Column(name = "log_id", nullable = false, updatable = false)
     private Long logId;
 
+    /** 로그인 시도 법인(V031·V032, NULL 허용·FK 없음). 형식이 맞지 않는 입력이면 NULL(tenant-design.md 4.4). */
+    @Column(name = "enter_cd", updatable = false)
+    private String enterCd;
+
     @Column(name = "login_id", nullable = false, updatable = false)
     private String loginId;
 
@@ -71,8 +76,9 @@ public class LoginAccessLog {
     protected LoginAccessLog() {
     }
 
-    LoginAccessLog(String loginId, Event event, FailReason failReason, boolean locked, String clientIp,
-            LocalDateTime occurredAt) {
+    LoginAccessLog(String enterCd, String loginId, Event event, FailReason failReason, boolean locked,
+            String clientIp, LocalDateTime occurredAt) {
+        this.enterCd = EnterCompany.isValidCode(enterCd) ? enterCd : null;
         this.loginId = cut(loginId, 50);
         this.event = event;
         this.failReason = failReason;
@@ -87,6 +93,10 @@ public class LoginAccessLog {
 
     public Long getLogId() {
         return logId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public String getLoginId() {

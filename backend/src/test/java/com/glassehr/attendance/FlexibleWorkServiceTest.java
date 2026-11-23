@@ -59,11 +59,11 @@ class FlexibleWorkServiceTest {
     private FlexibleWorkService service;
     private final List<FlexWorkAssign> saved = new ArrayList<>();
 
-    private static final AuthUser HR = new AuthUser("hr1", 100L, Set.of("HR"),
+    private static final AuthUser HR = new AuthUser("C001", "C001", "hr1", 100L, Set.of("HR"),
             Set.of(Permission.EMP_WRITE, Permission.EMP_READ_ALL), Set.of(), "127.0.0.1");
-    private static final AuthUser SELF = new AuthUser("emp1", EMP, Set.of("EMPLOYEE"), Set.of(), Set.of(),
+    private static final AuthUser SELF = new AuthUser("C001", "C001", "emp1", EMP, Set.of("EMPLOYEE"), Set.of(), Set.of(),
             "127.0.0.1");
-    private static final AuthUser OTHER = new AuthUser("emp2", 6L, Set.of("EMPLOYEE"), Set.of(), Set.of(),
+    private static final AuthUser OTHER = new AuthUser("C001", "C001", "emp2", 6L, Set.of("EMPLOYEE"), Set.of(), Set.of(),
             "127.0.0.1");
 
     @BeforeEach

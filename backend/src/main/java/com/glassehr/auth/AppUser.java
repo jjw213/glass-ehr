@@ -8,18 +8,32 @@ import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-/** 로그인 사용자와 부여 역할. 테이블: V013 app_user, app_user_role. 관리 화면은 후속 이슈(지금은 SQL로 넣음). */
+/**
+ * 로그인 사용자와 부여 역할. 테이블: V013 app_user, app_user_role. 관리 화면은 후속 이슈(지금은 SQL로 넣음).
+ * V032(#119): 키는 (enter_cd, login_id). 같은 아이디가 법인마다 따로 있을 수 있다(docs/tenant-design.md 4.1).
+ */
 @Entity
 @Table(name = "app_user")
+@IdClass(AppUser.Key.class)
 public class AppUser {
+
+    /** 복합 키(법인, 로그인 아이디). */
+    public record Key(String enterCd, String loginId) implements Serializable {
+    }
+
+    @Id
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
 
     @Id
     @Column(name = "login_id", nullable = false, updatable = false)
@@ -39,7 +53,9 @@ public class AppUser {
     private LocalDateTime createdAt;
 
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "app_user_role", joinColumns = @JoinColumn(name = "login_id"))
+    @CollectionTable(name = "app_user_role", joinColumns = {
+            @JoinColumn(name = "enter_cd", referencedColumnName = "enter_cd"),
+            @JoinColumn(name = "login_id", referencedColumnName = "login_id")})
     @Column(name = "role_code", nullable = false)
     private Set<String> roles = new HashSet<>();
 
@@ -59,7 +75,8 @@ public class AppUser {
     protected AppUser() {
     }
 
-    AppUser(String loginId, Long empId, boolean active, Set<String> roles) {
+    AppUser(String enterCd, String loginId, Long empId, boolean active, Set<String> roles) {
+        this.enterCd = enterCd;
         this.loginId = loginId;
         this.empId = empId;
         this.active = active;
@@ -113,6 +130,10 @@ public class AppUser {
     void recordSuccess() {
         failedLoginCount = 0;
         lockedUntil = null;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public String getLoginId() {

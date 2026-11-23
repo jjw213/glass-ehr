@@ -33,14 +33,15 @@ public class AuthController {
         this.logs = logs;
     }
 
-    public record Me(String loginId, Long empId, List<String> roles, List<String> permissions,
-            List<Long> managedDeptIds) {
+    /** enterCd = 현재 법인, homeEnterCd = 로그인한 법인(docs/tenant-design.md 4.2). */
+    public record Me(String enterCd, String homeEnterCd, String loginId, Long empId, List<String> roles,
+            List<String> permissions, List<Long> managedDeptIds) {
     }
 
     @GetMapping("/api/auth/me")
     @RequiresPermission
     public Me me(AuthUser user) {
-        return new Me(user.loginId(), user.empId(), List.copyOf(user.roles()),
+        return new Me(user.enterCd(), user.homeEnterCd(), user.loginId(), user.empId(), List.copyOf(user.roles()),
                 user.permissions().stream().map(Enum::name).sorted().toList(), List.copyOf(user.managedDeptIds()));
     }
 
@@ -50,11 +51,11 @@ public class AuthController {
             @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(name = "accessorId", required = false) String accessorId,
-            @RequestParam(name = "targetEmpId", required = false) Long targetEmpId) {
+            @RequestParam(name = "targetEmpId", required = false) Long targetEmpId, AuthUser user) {
         LocalDate end = to != null ? to : LocalDate.now(SEOUL);
         LocalDate start = from != null ? from : end.minusDays(DEFAULT_DAYS);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(logs.search(start, end, accessorId, targetEmpId));
+                .body(logs.search(user.enterCd(), start, end, accessorId, targetEmpId));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

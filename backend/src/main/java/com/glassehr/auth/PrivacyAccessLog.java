@@ -49,6 +49,14 @@ public class PrivacyAccessLog {
     @Column(name = "log_id", nullable = false, updatable = false)
     private Long logId;
 
+    /** 대상 법인 = 조회한 데이터의 법인(요청자의 현재 법인). V032(#119), docs/tenant-design.md 4.4 */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
+    /** 주체 법인 = 요청자가 로그인한 법인. accessorId 는 이 법인의 login_id. */
+    @Column(name = "accessor_enter_cd", nullable = false, updatable = false)
+    private String accessorEnterCd;
+
     @Column(name = "accessor_id", nullable = false, updatable = false)
     private String accessorId;
 
@@ -82,8 +90,11 @@ public class PrivacyAccessLog {
     protected PrivacyAccessLog() {
     }
 
-    PrivacyAccessLog(String accessorId, String accessorRoles, Long targetEmpId, Item item, Action action,
-            Result result, String clientIp, String requestPath, LocalDateTime accessedAt) {
+    PrivacyAccessLog(String enterCd, String accessorEnterCd, String accessorId, String accessorRoles,
+            Long targetEmpId, Item item, Action action, Result result, String clientIp, String requestPath,
+            LocalDateTime accessedAt) {
+        this.enterCd = enterCd;
+        this.accessorEnterCd = accessorEnterCd;
         this.accessorId = cut(accessorId, 50);
         this.accessorRoles = cut(accessorRoles, 200);
         this.targetEmpId = targetEmpId;
@@ -101,6 +112,14 @@ public class PrivacyAccessLog {
 
     public Long getLogId() {
         return logId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
+    }
+
+    public String getAccessorEnterCd() {
+        return accessorEnterCd;
     }
 
     public String getAccessorId() {

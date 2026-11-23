@@ -36,7 +36,7 @@ class MessageServiceTest {
             Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL));
 
     private static AuthUser user(Long empId) {
-        return new AuthUser("u", empId, Set.of("EMPLOYEE"), Set.of(), Set.of(), "127.0.0.1");
+        return new AuthUser("C001", "C001", "u", empId, Set.of("EMPLOYEE"), Set.of(), Set.of(), "127.0.0.1");
     }
 
     private void member(long thread) {

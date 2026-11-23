@@ -151,10 +151,10 @@ class AuthBypassTest {
     @Test
     void 개인정보_API를_로그인없이_부르면_거부_로그가_남는다() throws Exception {
         mvc.perform(as(get("/api/employees/22/rrn"), "nobody")).andExpect(status().isUnauthorized());
-        verify(privacyLog).logAnonymousDenied(eq("nobody"), any(), eq(22L), eq(Item.RRN), eq(Action.VIEW),
+        verify(privacyLog).logAnonymousDenied(eq("C001"), eq("nobody"), any(), eq(22L), eq(Item.RRN), eq(Action.VIEW),
                 eq("/api/employees/22/rrn"));
         mvc.perform(get("/api/employees/22")).andExpect(status().isUnauthorized());
-        verify(privacyLog).logAnonymousDenied(isNull(), any(), eq(22L), eq(Item.EMP_PERSONAL), eq(Action.VIEW),
+        verify(privacyLog).logAnonymousDenied(eq("C001"), isNull(), any(), eq(22L), eq(Item.EMP_PERSONAL), eq(Action.VIEW),
                 anyString());
     }
 
@@ -306,7 +306,7 @@ class AuthBypassTest {
 
     @Test
     void 로그_화면은_관리자만() throws Exception {
-        when(logs.search(any(), any(), any(), any()))
+        when(logs.search(any(), any(), any(), any(), any()))
                 .thenReturn(new PrivacyLogService.LogPage(LocalDate.of(2026, 10, 14), LocalDate.of(2026, 11, 13),
                         List.of(), false));
         for (String u : new String[] {"hr1", "pay1", "emp1", "head1"}) {
@@ -316,7 +316,7 @@ class AuthBypassTest {
         mvc.perform(as(get("/api/admin/privacy-logs"), "admin1").param("from", "2026-10-14").param("to", "2026-11-13"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.truncated").value(false));
-        verify(logs).search(LocalDate.of(2026, 10, 14), LocalDate.of(2026, 11, 13), null, null);
+        verify(logs).search("C001", LocalDate.of(2026, 10, 14), LocalDate.of(2026, 11, 13), null, null);
     }
 
     @Test

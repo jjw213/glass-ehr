@@ -15,7 +15,8 @@ describe('httpApi 로그인·로그아웃', () => {
     const calls = fetchMock.mock.calls as unknown as Call[];
     expect(calls.map((c) => c[0])).toEqual(['/api/auth/login', '/api/login']);
     expect(calls[0][1].method).toBe('POST');
-    expect(JSON.parse(String(calls[0][1].body))).toEqual({ loginId: 'hr', password: 'pw-12345678' });
+    expect(JSON.parse(String(calls[0][1].body))).toEqual({ enterCd: 'C001', loginId: 'hr', password: 'pw-12345678' });
+    expect(JSON.parse(String(calls[1][1].body))).toEqual({ loginId: 'hr', password: 'pw-12345678' });
     expect(calls[0][1].headers).toMatchObject({ 'X-Requested-With': 'XMLHttpRequest' });
   });
 
