@@ -84,7 +84,7 @@ class EnterCompanyOracleTest {
                     .isInstanceOf(DataIntegrityViolationException.class);
         }
         assertThatThrownBy(() -> jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no)"
-                + " VALUES ('ZZIT3', '틀린 번호', '000-00-00000')")).isInstanceOf(DataIntegrityViolationException.class);
+                + " VALUES ('ZZIT3', '틀린 번호', '00000A0000')")).isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no)"
                 + " VALUES ('ZZIT4', '중복 번호', '0000000000')")).isInstanceOf(DataIntegrityViolationException.class);
     }
