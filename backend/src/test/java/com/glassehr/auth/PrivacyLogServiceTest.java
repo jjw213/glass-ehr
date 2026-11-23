@@ -26,7 +26,7 @@ class PrivacyLogServiceTest {
     private final PrivacyLogService service = new PrivacyLogService(privacy, rrn);
 
     private static PrivacyAccessLog p(LocalDateTime at, long target) {
-        return new PrivacyAccessLog("hr1", "EMPLOYEE,HR", target, PrivacyAccessLog.Item.EMP_PERSONAL,
+        return new PrivacyAccessLog("C001", "C001", "hr1", "EMPLOYEE,HR", target, PrivacyAccessLog.Item.EMP_PERSONAL,
                 PrivacyAccessLog.Action.VIEW, PrivacyAccessLog.Result.SUCCESS, "127.0.0.1", "/api/employees/" + target, at);
     }
 
@@ -44,10 +44,10 @@ class PrivacyLogServiceTest {
         LocalDateTime t1 = LocalDateTime.of(2026, 11, 1, 9, 0);
         LocalDateTime t2 = LocalDateTime.of(2026, 11, 1, 10, 0);
         LocalDateTime t3 = LocalDateTime.of(2026, 11, 2, 23, 59, 59);
-        when(privacy.search(any(), any(), any(), any(), any())).thenReturn(List.of(p(t3, 5), p(t1, 6)));
+        when(privacy.search(any(), any(), any(), any(), any(), any())).thenReturn(List.of(p(t3, 5), p(t1, 6)));
         when(rrn.search(any(), any(), any(), any(), any())).thenReturn(List.of(r(t2, 7)));
 
-        PrivacyLogService.LogPage page = service.search(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 2), " hr1 ", 5L);
+        PrivacyLogService.LogPage page = service.search("C001", LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 2), " hr1 ", 5L);
 
         assertThat(page.rows()).extracting(PrivacyLogService.LogRow::accessedAt).containsExactly(t3, t2, t1);
         PrivacyLogService.LogRow rrnRow = page.rows().get(1);
@@ -56,15 +56,15 @@ class PrivacyLogServiceTest {
         assertThat(rrnRow.purpose()).isEqualTo("WITHHOLDING");
         assertThat(rrnRow.targetEmpId()).isEqualTo(7L);
         assertThat(page.truncated()).isFalse();
-        verify(privacy).search(eq(LocalDateTime.of(2026, 11, 1, 0, 0)), eq(LocalDateTime.of(2026, 11, 3, 0, 0)),
+        verify(privacy).search(eq("C001"), eq(LocalDateTime.of(2026, 11, 1, 0, 0)), eq(LocalDateTime.of(2026, 11, 3, 0, 0)),
                 eq("hr1"), eq(5L), any());
     }
 
     @Test
     void 빈_조회자는_조건없음() {
-        when(privacy.search(any(), any(), any(), any(), any())).thenReturn(List.of());
+        when(privacy.search(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
         when(rrn.search(any(), any(), any(), any(), any())).thenReturn(List.of());
-        service.search(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1), "  ", null);
+        service.search("C001", LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1), "  ", null);
         verify(rrn).search(any(), any(), isNull(), isNull(), any());
     }
 
@@ -75,18 +75,18 @@ class PrivacyLogServiceTest {
         for (int i = 0; i < PrivacyLogService.MAX_ROWS + 1; i++) {
             many.add(p(base.plusSeconds(i), i));
         }
-        when(privacy.search(any(), any(), any(), any(), any())).thenReturn(many);
+        when(privacy.search(any(), any(), any(), any(), any(), any())).thenReturn(many);
         when(rrn.search(any(), any(), any(), any(), any())).thenReturn(List.of());
-        PrivacyLogService.LogPage page = service.search(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1), null, null);
+        PrivacyLogService.LogPage page = service.search("C001", LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1), null, null);
         assertThat(page.rows()).hasSize(PrivacyLogService.MAX_ROWS);
         assertThat(page.truncated()).isTrue();
     }
 
     @Test
     void 기간_오류() {
-        assertThatThrownBy(() -> service.search(LocalDate.of(2026, 11, 2), LocalDate.of(2026, 11, 1), null, null))
+        assertThatThrownBy(() -> service.search("C001", LocalDate.of(2026, 11, 2), LocalDate.of(2026, 11, 1), null, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.search(LocalDate.of(2025, 1, 1), LocalDate.of(2026, 11, 1), null, null))
+        assertThatThrownBy(() -> service.search("C001", LocalDate.of(2025, 1, 1), LocalDate.of(2026, 11, 1), null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

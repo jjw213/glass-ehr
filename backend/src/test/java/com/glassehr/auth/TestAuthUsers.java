@@ -59,13 +59,20 @@ public class TestAuthUsers {
         return m;
     }
 
+    public static final String C001 = "C001";
+
     public static AuthUser user(String loginId, Long empId, Set<String> roles, Set<Long> managed, String ip) {
         Map<String, Set<Permission>> matrix = v011Matrix();
         Set<Permission> perms = EnumSet.noneOf(Permission.class);
         for (String r : roles) {
             perms.addAll(matrix.getOrDefault(r, Set.of()));
         }
-        return new AuthUser(loginId, empId, roles, perms, managed, ip);
+        return new AuthUser(C001, C001, loginId, empId, roles, perms, managed, ip);
+    }
+
+    /** 테스트 계정은 모두 C001 법인. 다른 법인으로 찾으면 없음(#119). */
+    public static Optional<AuthUser> find(String enterCd, String loginId, String ip) {
+        return C001.equals(enterCd) ? find(loginId, ip) : Optional.empty();
     }
 
     public static Optional<AuthUser> find(String loginId, String ip) {
@@ -85,7 +92,7 @@ public class TestAuthUsers {
 
     @Bean
     AuthUserResolver testAuthUserResolver() {
-        return TestAuthUsers::find;
+        return (ent, id, ip) -> find(ent, id, ip);
     }
 
     @Bean

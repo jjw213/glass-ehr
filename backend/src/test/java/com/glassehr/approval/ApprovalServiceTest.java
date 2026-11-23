@@ -78,7 +78,7 @@ class ApprovalServiceTest {
     ApprovalDoc lastDoc;
 
     static AuthUser user(Long empId) {
-        return new AuthUser("u" + empId, empId, Set.of("EMPLOYEE"), Set.of(Permission.EMP_READ_SELF), Set.of(), "ip");
+        return new AuthUser("C001", "C001", "u" + empId, empId, Set.of("EMPLOYEE"), Set.of(Permission.EMP_READ_SELF), Set.of(), "ip");
     }
 
     @BeforeEach
