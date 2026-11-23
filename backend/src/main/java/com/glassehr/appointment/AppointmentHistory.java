@@ -37,7 +37,7 @@ final class AppointmentHistory {
      * 아니면 종료 예정일. {@code endedByApptId}는 휴직을 끝낸 복직·퇴직 발령(없으면 null).
      */
     record LeavePeriod(long empId, long leaveApptId, LocalDate startDate, LocalDate plannedEndDate, LocalDate endDate,
-            Long endedByApptId, String reason) {
+            Long endedByApptId, String reason, String leaveTypeCode) {
 
         boolean overlaps(LocalDate from, LocalDate to) {
             return !endDate.isBefore(from) && !startDate.isAfter(to);
@@ -140,7 +140,7 @@ final class AppointmentHistory {
                 continue;
             }
             LeavePeriod p = new LeavePeriod(Objects.requireNonNull(leave.getEmpId()), leave.getApptId(),
-                    leave.getLeaveStartDate(), leave.getLeaveEndDate(), end, endedBy, leave.getReason());
+                    leave.getLeaveStartDate(), leave.getLeaveEndDate(), end, endedBy, leave.getReason(), leave.getLeaveTypeCode());
             if (p.overlaps(from, to)) {
                 out.add(p);
             }

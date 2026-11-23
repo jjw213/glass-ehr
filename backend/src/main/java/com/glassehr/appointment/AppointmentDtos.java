@@ -34,7 +34,18 @@ public final class AppointmentDtos {
             @Size(max = 1000, message = "발령 사유는 1000자 이내로 써 주세요")
             String reason,
             LocalDate leaveStartDate,
-            LocalDate leaveEndDate) {
+            LocalDate leaveEndDate,
+            // 휴직 유형 공통코드(LEAVE_TYPE). 휴직 발령에만 필수(#115)
+            @Size(max = 30, message = "휴직 유형 코드는 30자 이내예요")
+            String leaveTypeCode) {
+
+        /** 휴직 유형 없이 만드는 요청(휴직이 아닌 발령). */
+        public AppointmentRequest(String apptTypeCode, LocalDate effectiveDate, Long afterDeptId,
+                String afterJobGradeCode, String afterJobTitleCode, String reason, LocalDate leaveStartDate,
+                LocalDate leaveEndDate) {
+            this(apptTypeCode, effectiveDate, afterDeptId, afterJobGradeCode, afterJobTitleCode, reason,
+                    leaveStartDate, leaveEndDate, null);
+        }
     }
 
     /**
@@ -44,21 +55,30 @@ public final class AppointmentDtos {
     public record AppointmentView(long apptId, String apptNo, String apptTypeCode, long empId,
             LocalDate effectiveDate, Snapshot before, Snapshot after, String reason, LocalDate leaveStartDate,
             LocalDate leaveEndDate, boolean confirmed, LocalDateTime confirmedAt, LocalDateTime createdAt,
-            LocalDateTime updatedAt, Long cancelOfApptId, Long cancelledByApptId) {
+            LocalDateTime updatedAt, Long cancelOfApptId, Long cancelledByApptId, String leaveTypeCode) {
+
+        public AppointmentView(long apptId, String apptNo, String apptTypeCode, long empId,
+                LocalDate effectiveDate, Snapshot before, Snapshot after, String reason, LocalDate leaveStartDate,
+                LocalDate leaveEndDate, boolean confirmed, LocalDateTime confirmedAt, LocalDateTime createdAt,
+                LocalDateTime updatedAt, Long cancelOfApptId, Long cancelledByApptId) {
+            this(apptId, apptNo, apptTypeCode, empId, effectiveDate, before, after, reason, leaveStartDate,
+                    leaveEndDate, confirmed, confirmedAt, createdAt, updatedAt, cancelOfApptId, cancelledByApptId,
+                    null);
+        }
 
         public AppointmentView(long apptId, String apptNo, String apptTypeCode, long empId,
                 LocalDate effectiveDate, Snapshot before, Snapshot after, String reason, LocalDate leaveStartDate,
                 LocalDate leaveEndDate, boolean confirmed, LocalDateTime confirmedAt, LocalDateTime createdAt,
                 LocalDateTime updatedAt) {
             this(apptId, apptNo, apptTypeCode, empId, effectiveDate, before, after, reason, leaveStartDate,
-                    leaveEndDate, confirmed, confirmedAt, createdAt, updatedAt, null, null);
+                    leaveEndDate, confirmed, confirmedAt, createdAt, updatedAt, null, null, null);
         }
 
         static AppointmentView of(HrAppointment a, Long cancelOfApptId, Long cancelledByApptId) {
             return new AppointmentView(a.getApptId(), a.getApptNo(), a.getApptTypeCode(), a.getEmpId(),
                     a.getEffectiveDate(), a.before(), a.after(), a.getReason(), a.getLeaveStartDate(),
                     a.getLeaveEndDate(), a.isConfirmed(), a.getConfirmedAt(), a.getCreatedAt(), a.getUpdatedAt(),
-                    cancelOfApptId, cancelledByApptId);
+                    cancelOfApptId, cancelledByApptId, a.getLeaveTypeCode());
         }
     }
 
@@ -98,14 +118,19 @@ public final class AppointmentDtos {
 
     /**
      * 휴직 기간(양끝 포함). {@code endDate}는 복직·퇴직 발령으로 앞당겨졌으면 그 발령일 전날, 아니면 종료 예정일.
-     * 근태(연차·육아휴직)가 쓴다.
+     * 근태(연차·육아휴직)가 쓴다. {@code leaveTypeCode}는 휴직 유형 공통코드(LEAVE_TYPE, #115).
      */
     public record LeavePeriodView(long empId, long leaveApptId, LocalDate startDate, LocalDate plannedEndDate,
-            LocalDate endDate, Long endedByApptId, String reason) {
+            LocalDate endDate, Long endedByApptId, String reason, String leaveTypeCode) {
+
+        public LeavePeriodView(long empId, long leaveApptId, LocalDate startDate, LocalDate plannedEndDate,
+                LocalDate endDate, Long endedByApptId, String reason) {
+            this(empId, leaveApptId, startDate, plannedEndDate, endDate, endedByApptId, reason, null);
+        }
 
         static LeavePeriodView of(AppointmentHistory.LeavePeriod p) {
             return new LeavePeriodView(p.empId(), p.leaveApptId(), p.startDate(), p.plannedEndDate(), p.endDate(),
-                    p.endedByApptId(), p.reason());
+                    p.endedByApptId(), p.reason(), p.leaveTypeCode());
         }
     }
 }

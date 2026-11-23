@@ -85,7 +85,8 @@ public class AppointmentService {
 
     /** 요청 또는 저장된 발령에서 온, 이전 값을 채우기 전의 내용. */
     private record Draft(String typeCode, LocalDate effectiveDate, Long afterDeptId, String afterJobGradeCode,
-            String afterJobTitleCode, String reason, LocalDate leaveStartDate, LocalDate leaveEndDate) {
+            String afterJobTitleCode, String reason, LocalDate leaveStartDate, LocalDate leaveEndDate,
+            String leaveTypeCode) {
     }
 
     // ---------------------------------------------------------------- 조회
@@ -331,7 +332,7 @@ public class AppointmentService {
             throw AppointmentException.badRequest("발령 사유를 입력해 주세요(근로기준법 제23조)");
         }
         return new Content(type, original.getEffectiveDate(), original.after(), original.before(), reason,
-                original.getLeaveStartDate(), original.getLeaveEndDate());
+                original.getLeaveStartDate(), original.getLeaveEndDate(), original.getLeaveTypeCode());
     }
 
     private Map<Long, Long> linksFor(Collection<HrAppointment> list) {
@@ -445,8 +446,13 @@ public class AppointmentService {
             if (d.leaveEndDate().isBefore(d.leaveStartDate())) {
                 throw AppointmentException.badRequest("휴직 종료 예정일은 휴직 시작일 이후여야 해요");
             }
-        } else if (d.leaveStartDate() != null || d.leaveEndDate() != null) {
-            throw AppointmentException.badRequest("휴직 시작·종료 예정일은 휴직 발령에만 입력해요");
+            // 휴직 유형: 연차 출근율(근로기준법 제60조 제6항)에서 기간을 다르게 다루므로 필수(#115)
+            if (d.leaveTypeCode() == null) {
+                throw AppointmentException.badRequest("휴직 발령은 휴직 유형을 선택해 주세요");
+            }
+            requireCode(CodeGroups.LEAVE_TYPE, d.leaveTypeCode(), "휴직 유형");
+        } else if (d.leaveStartDate() != null || d.leaveEndDate() != null || d.leaveTypeCode() != null) {
+            throw AppointmentException.badRequest("휴직 시작·종료 예정일과 휴직 유형은 휴직 발령에만 입력해요");
         }
 
         String reason = d.reason() == null ? "" : d.reason().strip();
@@ -455,7 +461,7 @@ public class AppointmentService {
             throw AppointmentException.badRequest("발령 사유를 입력해 주세요(근로기준법 제23조)");
         }
         return new Content(type, date, before, new Snapshot(dept, grade, title, afterStatus), reason,
-                d.leaveStartDate(), d.leaveEndDate());
+                d.leaveStartDate(), d.leaveEndDate(), d.leaveTypeCode());
     }
 
     private static EmpStatus afterStatus(AppointmentType type, EmpStatus before) {
@@ -573,7 +579,7 @@ public class AppointmentService {
     private static Draft draftOf(AppointmentRequest r) {
         return new Draft(r.apptTypeCode().strip(), r.effectiveDate(), r.afterDeptId(),
                 blankToNull(r.afterJobGradeCode()), blankToNull(r.afterJobTitleCode()), r.reason(),
-                r.leaveStartDate(), r.leaveEndDate());
+                r.leaveStartDate(), r.leaveEndDate(), blankToNull(r.leaveTypeCode()));
     }
 
     /** 확정용: 저장된 발령에서 유형이 바꾸는 이후 값만 가져온다(나머지는 확정 시점의 이전 값으로 다시 채움). */
@@ -585,7 +591,7 @@ public class AppointmentService {
                 t.changes(Field.DEPT) ? after.deptId() : null,
                 t.changes(Field.GRADE) ? after.jobGradeCode() : null,
                 t.changes(Field.TITLE) ? after.jobTitleCode() : null,
-                a.getReason(), a.getLeaveStartDate(), a.getLeaveEndDate());
+                a.getReason(), a.getLeaveStartDate(), a.getLeaveEndDate(), a.getLeaveTypeCode());
     }
 
     // ---------------------------------------------------------------- 읽기·잠금

@@ -75,6 +75,10 @@ public class HrAppointment {
     @Column(name = "leave_end_date")
     private LocalDate leaveEndDate;
 
+    /** 휴직 유형 공통코드(LEAVE_TYPE). 휴직 발령에만 있다(V031, #115). */
+    @Column(name = "leave_type_code")
+    private String leaveTypeCode;
+
     @Convert(converter = YnConverter.class)
     @Column(name = "confirmed_yn", nullable = false)
     private boolean confirmed;
@@ -99,7 +103,13 @@ public class HrAppointment {
 
     /** 등록·수정 API가 정하는 내용(이전 값은 서비스가 사원 현재 값으로 채운다). */
     public record Content(AppointmentType type, LocalDate effectiveDate, Snapshot before, Snapshot after,
-            String reason, LocalDate leaveStartDate, LocalDate leaveEndDate) {
+            String reason, LocalDate leaveStartDate, LocalDate leaveEndDate, String leaveTypeCode) {
+
+        /** 휴직이 아닌 발령(휴직 유형 없음). */
+        public Content(AppointmentType type, LocalDate effectiveDate, Snapshot before, Snapshot after,
+                String reason, LocalDate leaveStartDate, LocalDate leaveEndDate) {
+            this(type, effectiveDate, before, after, reason, leaveStartDate, leaveEndDate, null);
+        }
     }
 
     HrAppointment(String apptNo, long empId, Content c, LocalDateTime now) {
@@ -143,6 +153,7 @@ public class HrAppointment {
         this.reason = c.reason();
         this.leaveStartDate = c.leaveStartDate();
         this.leaveEndDate = c.leaveEndDate();
+        this.leaveTypeCode = c.leaveTypeCode();
         this.updatedAt = now;
     }
 
@@ -188,6 +199,10 @@ public class HrAppointment {
 
     public LocalDate getLeaveEndDate() {
         return leaveEndDate;
+    }
+
+    public String getLeaveTypeCode() {
+        return leaveTypeCode;
     }
 
     public boolean isConfirmed() {

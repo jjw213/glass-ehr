@@ -24,9 +24,16 @@ public final class CodeGroups {
     /** 인사발령 유형(V014__hr_appointment.sql). 코드값은 com.glassehr.appointment.AppointmentType 과 같다. */
     public static final String APPOINTMENT_TYPE = "APPOINTMENT_TYPE";
 
-    /** 시드 파일 순서(V007 → V014)대로. */
+    /**
+     * 휴직 유형(V031__leave_type.sql, #115). 휴직(LEAVE) 발령에 붙는다. 연차 출근율에서 출근 간주·소정근로일 제외 여부는
+     * 코드가 아니라 legal_rate 항목 {@code LEAVE_ATTENDANCE_<코드>}로 정한다(com.glassehr.appointment.AbsencePeriodService).
+     */
+    public static final String LEAVE_TYPE = "LEAVE_TYPE";
+
+    /** 시드 파일 순서(V007 → V014 → V031)대로. */
     public static final List<String> ALL = List.of(
-            JOB_GRADE, JOB_TITLE, JOB_FAMILY, EMPLOYMENT_TYPE, WORK_LOCATION, RETIREMENT_REASON, APPOINTMENT_TYPE);
+            JOB_GRADE, JOB_TITLE, JOB_FAMILY, EMPLOYMENT_TYPE, WORK_LOCATION, RETIREMENT_REASON, APPOINTMENT_TYPE,
+            LEAVE_TYPE);
 
     /** 그룹코드·코드값 형식. DB CHECK(ck_common_code_code)와 같다. */
     public static final String CODE_PATTERN = "^[A-Z][A-Z0-9_]{0,29}$";

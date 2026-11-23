@@ -30,9 +30,10 @@ class CommonCodeSeedScriptTest {
                 .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
     }
 
-    /** 공통코드 그룹·코드를 넣는 마이그레이션(적용 순서). V014는 발령 유형(#58). */
+    /** 공통코드 그룹·코드를 넣는 마이그레이션(적용 순서). V014는 발령 유형(#58), V031은 휴직 유형(#115). */
     private static final List<String> SEED_FILES = List.of(
-            "db/oracle/V007__common_code_seed.sql", "db/oracle/V014__hr_appointment.sql");
+            "db/oracle/V007__common_code_seed.sql", "db/oracle/V014__hr_appointment.sql",
+            "db/oracle/V031__leave_type.sql");
 
     /** 시드 파일들의 INSERT 문만 이어 붙인다(V014의 CREATE 문은 빼고). */
     private static String seedSql() throws IOException {
