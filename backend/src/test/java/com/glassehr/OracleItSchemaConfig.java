@@ -184,6 +184,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V030__message_thread.sql"))
                     .execute(dataSource);
         }
+        Integer enterCompany = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'ENTER_COMPANY'", Integer.class);
+        if (enterCompany == null || enterCompany == 0) {
+            // #118: 법인 마스터 + 법인별 테이블 enter_cd
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V031__enter_company_enter_cd.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
