@@ -111,20 +111,20 @@ public class LaborAgreementService {
     }
 
     @Transactional
-    public AgreementView create(AgreementRequest req, String actor) {
-        Fields f = checked(req);
+    public AgreementView create(String enterCd, AgreementRequest req, String actor) {
+        Fields f = checked(enterCd, req);
         LaborAgreement saved = agreements.save(new LaborAgreement(req.agreementType(), f, actor, now()));
         return view(saved, today());
     }
 
     @Transactional
-    public AgreementView update(long agreementId, AgreementRequest req, String actor) {
+    public AgreementView update(String enterCd, long agreementId, AgreementRequest req, String actor) {
         LaborAgreement a = agreements.findForUpdate(agreementId)
                 .orElseThrow(() -> AttendanceException.notFound("합의서가 없어요: " + agreementId));
         if (a.getAgreementType() != req.agreementType()) {
             throw AttendanceException.badRequest("합의 유형은 바꿀 수 없어요. 새 합의서로 등록해 주세요");
         }
-        Fields f = checked(req);
+        Fields f = checked(enterCd, req);
         preserveHolidaySubstitutions(agreementId, f);
         a.apply(f, actor, now());
         return view(a, today());
@@ -187,13 +187,14 @@ public class LaborAgreementService {
         files.delete(file(agreementId, fileId));
     }
 
-    private Fields checked(AgreementRequest req) {
+    /** enterCd: 세션의 현재 법인. 사업장은 법인별(#121)이라 현재 법인 사업장만 인정한다. */
+    private Fields checked(String enterCd, AgreementRequest req) {
         Fields f = req.fields();
         List<String> errors = LaborAgreementRules.validate(f);
         if (!errors.isEmpty()) {
             throw AttendanceException.badRequest(errors.get(0));
         }
-        if (f.scopeSiteCode() != null && !sites.existsById(f.scopeSiteCode())) {
+        if (f.scopeSiteCode() != null && !sites.existsByEnterCdAndSiteCode(enterCd, f.scopeSiteCode())) {
             throw AttendanceException.badRequest("없는 사업장이에요: " + f.scopeSiteCode());
         }
         if (f.repEmpId() != null && !employees.existsById(f.repEmpId())) {

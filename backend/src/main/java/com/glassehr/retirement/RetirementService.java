@@ -232,7 +232,7 @@ public class RetirementService {
             if (e.getRetireReasonCode() == null) {
                 throw RetirementException.badRequest("퇴직하지 않은 사원은 퇴직 사유를 적을 수 없어요");
             }
-            retireReason = codeName(CodeGroups.RETIREMENT_REASON, e.getRetireReasonCode());
+            retireReason = codeName(e.getEnterCd(), CodeGroups.RETIREMENT_REASON, e.getRetireReasonCode());
         }
         String itemsText = items.stream().map(Enum::name).collect(Collectors.joining(","));
         String purpose = req.purpose() == null || req.purpose().isBlank() ? null : req.purpose().strip();
@@ -258,10 +258,10 @@ public class RetirementService {
     private String position(Employee e) {
         List<String> parts = new ArrayList<>();
         if (e.getJobGradeCode() != null) {
-            parts.add(codeName(CodeGroups.JOB_GRADE, e.getJobGradeCode()));
+            parts.add(codeName(e.getEnterCd(), CodeGroups.JOB_GRADE, e.getJobGradeCode()));
         }
         if (e.getJobTitleCode() != null) {
-            parts.add(codeName(CodeGroups.JOB_TITLE, e.getJobTitleCode()));
+            parts.add(codeName(e.getEnterCd(), CodeGroups.JOB_TITLE, e.getJobTitleCode()));
         }
         if (parts.isEmpty()) {
             throw RetirementException.conflict("사원에게 직급·직책이 없어 지위를 적을 수 없어요");
@@ -283,8 +283,9 @@ public class RetirementService {
                 .orElseThrow(() -> RetirementException.conflict("임금이 적힌 근로계약이 없어 임금을 적을 수 없어요"));
     }
 
-    private String codeName(String group, String code) {
-        return codes.findById(new CommonCodeId(group, code)).map(CommonCode::getCodeName).orElse(code);
+    /** 공통코드는 법인별(#121)이라 사원의 법인에서 찾는다. */
+    private String codeName(String enterCd, String group, String code) {
+        return codes.findByEnterCdAndGroupCodeAndCode(enterCd, group, code).map(CommonCode::getCodeName).orElse(code);
     }
 
     private static CertificateView view(EmploymentCertificate c, String empNo) {

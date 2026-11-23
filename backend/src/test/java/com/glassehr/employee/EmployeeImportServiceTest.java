@@ -47,8 +47,8 @@ class EmployeeImportServiceTest {
         sites = mock(BizSiteRepository.class);
         BizSite site = mock(BizSite.class);
         when(site.isActive()).thenReturn(true);
-        when(sites.findById("S01")).thenReturn(Optional.of(site));
-        when(sites.findById("S99")).thenReturn(Optional.empty());
+        when(sites.findByEnterCdAndSiteCode("C001", "S01")).thenReturn(Optional.of(site));
+        when(sites.findByEnterCdAndSiteCode("C001", "S99")).thenReturn(Optional.empty());
         svc = new EmployeeImportService(employees, rrns, sites,
                 Validation.buildDefaultValidatorFactory().getValidator(), orgLock);
     }
@@ -79,23 +79,23 @@ class EmployeeImportServiceTest {
 
     @Test
     void 오류가_없으면_확정_가능이고_저장하지_않는다() {
-        Preview p = svc.preview(file(OK1, OK2));
+        Preview p = svc.preview("C001",file(OK1, OK2));
         assertThat(p.fileErrors()).isEmpty();
         assertThat(p.totalRows()).isEqualTo(2);
         assertThat(p.errorRows()).isZero();
         assertThat(p.confirmable()).isTrue();
         assertThat(p.rows()).extracting(EmployeeImportService.RowResult::rowNo).containsExactly(2, 3);
         assertThat(p.rows().get(1).hireDate()).isEqualTo(LocalDate.of(2026, 3, 2));
-        verify(employees, times(2)).checkCreate(any());
-        verify(employees, never()).create(any(), any());
+        verify(employees, times(2)).checkCreate(any(), any());
+        verify(employees, never()).create(any(), any(), any());
     }
 
     @Test
     void 행마다_오류를_보이고_값은_되돌려주지_않는다() {
         when(rrns.isRegistered(Rrn.parse("000000-0000009"))).thenReturn(true);
         doThrow(EmployeeException.badRequest("없는 고용형태 코드예요: NOPE")).when(employees)
-                .checkCreate(org.mockito.ArgumentMatchers.argThat(r -> r != null && "NOPE".equals(r.employmentTypeCode())));
-        Preview p = svc.preview(file(
+                .checkCreate(org.mockito.ArgumentMatchers.eq("C001"), org.mockito.ArgumentMatchers.argThat(r -> r != null && "NOPE".equals(r.employmentTypeCode())));
+        Preview p = svc.preview("C001",file(
                 OK1,
                 row("S01", "", "X", "1999-02-30", "2026-03-02", "REGULAR", "", "abc", "12345-6789012"),
                 row("S99", "예시사원삼", "F", "1999-01-01", "2026-03-02", "REGULAR", "", "", ""),
@@ -118,18 +118,18 @@ class EmployeeImportServiceTest {
 
     @Test
     void 머리글이_틀리면_파일_오류() {
-        Preview p = svc.preview("성명,모르는열\r\n예시,1\r\n".getBytes(StandardCharsets.UTF_8));
+        Preview p = svc.preview("C001","성명,모르는열\r\n예시,1\r\n".getBytes(StandardCharsets.UTF_8));
         assertThat(p.confirmable()).isFalse();
         assertThat(p.fileErrors()).contains("모르는 열이에요: 모르는열", "필수 열이 없어요: 사업장코드", "필수 열이 없어요: 입사일");
-        assertThat(svc.preview(new byte[0]).fileErrors()).containsExactly("파일이 비어 있어요");
-        assertThat(svc.preview(file()).fileErrors()).containsExactly("등록할 행이 없어요");
+        assertThat(svc.preview("C001",new byte[0]).fileErrors()).containsExactly("파일이 비어 있어요");
+        assertThat(svc.preview("C001",file()).fileErrors()).containsExactly("등록할 행이 없어요");
     }
 
     @Test
     void 행_수_상한을_넘으면_거부() {
         String[] rows = new String[EmployeeImportCsv.MAX_ROWS + 1];
         java.util.Arrays.fill(rows, OK2);
-        Preview p = svc.preview(file(rows));
+        Preview p = svc.preview("C001",file(rows));
         assertThat(p.confirmable()).isFalse();
         assertThat(p.fileErrors()).hasSize(1);
         assertThat(p.fileErrors().get(0)).contains("1000행까지");
@@ -139,7 +139,7 @@ class EmployeeImportServiceTest {
     void 열_순서가_달라도_되고_빈_줄은_건너뛴다() {
         String csv = "입사일*,성명*,사업장코드,성별(M/F),생년월일,주소,종사업무,고용형태코드\n"
                 + "2026-03-02,예시사원일,S01,F,1999-01-01,가상시,개발,REGULAR\n\n,,,,,,,\n";
-        Preview p = svc.preview(csv.getBytes(StandardCharsets.UTF_8));
+        Preview p = svc.preview("C001",csv.getBytes(StandardCharsets.UTF_8));
         assertThat(p.fileErrors()).isEmpty();
         assertThat(p.totalRows()).isEqualTo(1);
         assertThat(p.confirmable()).isTrue();
@@ -147,7 +147,7 @@ class EmployeeImportServiceTest {
 
     @Test
     void 머리글이_없는_칸에_값이_있으면_버리지_않고_행_오류로_알린다() {
-        Preview p = svc.preview(file(OK2 + ",나머지 메모", OK2 + ",,", OK1));
+        Preview p = svc.preview("C001",file(OK2 + ",나머지 메모", OK2 + ",,", OK1));
         assertThat(p.confirmable()).isFalse();
         assertThat(p.errorRows()).isEqualTo(1);
         assertThat(p.rows().get(0).errors())
@@ -158,7 +158,7 @@ class EmployeeImportServiceTest {
         // 빈 머리글 열 아래 값도 마찬가지
         String csv = "입사일*,성명*,,사업장코드,성별(M/F),생년월일,주소,종사업무,고용형태코드\n"
                 + "2026-03-02,예시사원일,숨은값,S01,F,1999-01-01,가상시,개발,REGULAR\n";
-        Preview q = svc.preview(csv.getBytes(StandardCharsets.UTF_8));
+        Preview q = svc.preview("C001",csv.getBytes(StandardCharsets.UTF_8));
         assertThat(q.rows().get(0).errors()).containsExactly(
                 "3번째 칸에 값이 있지만 머리글이 없어요. 쉼표가 들어간 값은 따옴표로 감싸 주세요");
     }
@@ -166,7 +166,7 @@ class EmployeeImportServiceTest {
     @Test
     void 한글_윈도우_엑셀의_MS949_CSV도_읽는다() {
         String csv = HEADER + "\r\n" + OK2 + "\r\n";
-        Preview p = svc.preview(csv.getBytes(Charset.forName("MS949")));
+        Preview p = svc.preview("C001",csv.getBytes(Charset.forName("MS949")));
         assertThat(p.fileErrors()).isEmpty();
         assertThat(p.rows().get(0).name()).isEqualTo("예시사원이");
     }
@@ -174,22 +174,22 @@ class EmployeeImportServiceTest {
     @Test
     void 확정은_오류가_있으면_아무것도_저장하지_않는다() {
         byte[] f = file(OK1, row("S99", "예시사원삼", "F", "1999-01-01", "2026-03-02", "REGULAR", "", "", ""));
-        assertThatThrownBy(() -> svc.confirm(f, ACTOR))
+        assertThatThrownBy(() -> svc.confirm("C001",f, ACTOR))
                 .isInstanceOfSatisfying(NotConfirmableException.class, e -> {
                     assertThat(e.preview().errorRows()).isEqualTo(1);
                     assertThat(e.preview().rows().get(1).errors()).containsExactly("사업장이 없어요: S99");
                 });
-        verify(employees, never()).create(any(), any());
+        verify(employees, never()).create(any(), any(), any());
     }
 
     @Test
     void 확정은_오류가_없으면_파일_순서대로_모두_등록한다() {
-        when(employees.create(any(), any())).thenReturn(view("S01-2026-001"), view("S01-2026-002"));
-        EmployeeImportService.Confirmed c = svc.confirm(file(OK1, OK2), ACTOR);
+        when(employees.create(any(), any(), any())).thenReturn(view("S01-2026-001"), view("S01-2026-002"));
+        EmployeeImportService.Confirmed c = svc.confirm("C001",file(OK1, OK2), ACTOR);
         assertThat(c.created()).isEqualTo(2);
         assertThat(c.empNos()).containsExactly("S01-2026-001", "S01-2026-002");
         ArgumentCaptor<EmployeeCreateRequest> req = ArgumentCaptor.forClass(EmployeeCreateRequest.class);
-        verify(employees, times(2)).create(req.capture(), any());
+        verify(employees, times(2)).create(org.mockito.ArgumentMatchers.eq("C001"), req.capture(), any());
         EmployeeCreateRequest first = req.getAllValues().get(0);
         assertThat(first.address()).isEqualTo("가상시 예시구, 샘플로 1");
         assertThat(first.deptId()).isEqualTo(10L);
@@ -201,24 +201,24 @@ class EmployeeImportServiceTest {
     @Test
     void 확정은_부서를_읽는_검사보다_먼저_조직_쓰기_잠금을_잡는다() {
         // 잠금 전에 부서를 영속성 컨텍스트에 올리면, 그 사이 커밋된 부서 폐지를 create() 가 보지 못한다.
-        when(employees.create(any(), any())).thenReturn(view("S01-2026-001"), view("S01-2026-002"));
-        svc.confirm(file(OK1, OK2), ACTOR);
+        when(employees.create(any(), any(), any())).thenReturn(view("S01-2026-001"), view("S01-2026-002"));
+        svc.confirm("C001",file(OK1, OK2), ACTOR);
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(orgLock, employees);
         order.verify(orgLock).acquire();
-        order.verify(employees, times(2)).checkCreate(any());
+        order.verify(employees, times(2)).checkCreate(any(), any());
     }
 
     @Test
     void 미리보기는_조직_쓰기_잠금을_잡지_않는다() {
-        svc.preview(file(OK1, OK2));
+        svc.preview("C001",file(OK1, OK2));
         verify(orgLock, never()).acquire();
     }
 
     @Test
     void 확정_중_한_행이라도_실패하면_행_번호와_함께_예외를_던져_트랜잭션을_되돌린다() {
-        when(employees.create(any(), any())).thenReturn(view("S01-2026-001"))
+        when(employees.create(any(), any(), any())).thenReturn(view("S01-2026-001"))
                 .thenThrow(EmployeeException.conflict("다른 변경과 충돌"));
-        assertThatThrownBy(() -> svc.confirm(file(OK1, OK2), ACTOR))
+        assertThatThrownBy(() -> svc.confirm("C001",file(OK1, OK2), ACTOR))
                 .isInstanceOfSatisfying(EmployeeException.class, e -> {
                     assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(e.getMessage()).startsWith("3행: ").contains("아무 사원도 등록하지 않았어요");
@@ -237,12 +237,12 @@ class EmployeeImportServiceTest {
                 .isInstanceOf(EmployeeImportCsv.MalformedCsvException.class);
         // 종사업무 칸이 따옴표로 열린 채 닫히지 않아 뒤 사원 행이 그 칸에 빨려 들어가는 파일
         String broken = OK1.replace(",개발,", ",\"개발,");
-        Preview p = svc.preview(file(broken, OK2));
+        Preview p = svc.preview("C001",file(broken, OK2));
         assertThat(p.confirmable()).isFalse();
         assertThat(p.fileErrors()).containsExactly("따옴표(\")로 시작한 칸이 닫히지 않았어요. 파일 형식을 확인해 주세요");
         assertThat(p.rows()).isEmpty();
-        assertThatThrownBy(() -> svc.confirm(file(broken, OK2), ACTOR)).isInstanceOf(NotConfirmableException.class);
-        verify(employees, never()).create(any(), any());
+        assertThatThrownBy(() -> svc.confirm("C001",file(broken, OK2), ACTOR)).isInstanceOf(NotConfirmableException.class);
+        verify(employees, never()).create(any(), any(), any());
     }
 
     private static EmployeeView view(String empNo) {

@@ -61,7 +61,7 @@ class EmployeeControllerTest {
 
     @Test
     void 등록은_201이고_주민등록번호는_마스킹_값만_나간다() throws Exception {
-        when(service.create(any(), any())).thenReturn(view("000000-*******"));
+        when(service.create(any(), any(), any())).thenReturn(view("000000-*******"));
         MvcResult r = mvc.perform(post("/api/employees").contentType(MediaType.APPLICATION_JSON)
                         .header("X-Actor-Id", "hr1").header("X-Actor-Role", "hr")
                         .content(CREATE_BODY.formatted(",\"rrn\":\"000000-0000001\"")))
@@ -73,7 +73,7 @@ class EmployeeControllerTest {
 
         ArgumentCaptor<EmployeeCreateRequest> req = ArgumentCaptor.forClass(EmployeeCreateRequest.class);
         ArgumentCaptor<RequestActor> actor = ArgumentCaptor.forClass(RequestActor.class);
-        verify(service).create(req.capture(), actor.capture());
+        verify(service).create(eq("C001"), req.capture(), actor.capture());
         assertThat(req.getValue().rrn()).isEqualTo(Rrn.parse("000000-0000001"));
         assertThat(req.getValue().toString()).doesNotContain("0000001");
         assertThat(actor.getValue().actorId()).isEqualTo("hr1");
@@ -87,7 +87,7 @@ class EmployeeControllerTest {
                 .andExpect(status().isBadRequest())
                 .andReturn();
         assertThat(r.getResponse().getContentAsString()).doesNotContain("6789012");
-        verify(service, never()).create(any(), any());
+        verify(service, never()).create(any(), any(), any());
     }
 
     @Test
@@ -96,7 +96,7 @@ class EmployeeControllerTest {
                         .content("{\"siteCode\":\"S01\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").exists());
-        verify(service, never()).create(any(), any());
+        verify(service, never()).create(any(), any(), any());
     }
 
     @Test

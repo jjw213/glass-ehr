@@ -198,6 +198,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V032__app_user_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer siteKeyCols = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_BIZ_SITE'", Integer.class);
+        if (siteKeyCols == null || siteKeyCols < 2) {
+            // #121: 공통코드·사업장·사번 채번 키에 법인
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V034__code_site_enter_cd.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

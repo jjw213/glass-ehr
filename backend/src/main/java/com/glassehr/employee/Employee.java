@@ -163,7 +163,8 @@ public class Employee {
 
     /** 테스트용: id 를 지정한다. */
     static Employee withId(long empId, String empNo, LocalDate hireDate, BasicInfo info, InitialAssignment first) {
-        Employee e = new Employee(empNo, empNo.substring(0, 3), hireDate, info, first, LocalDateTime.of(2026, 1, 1, 0, 0));
+        Employee e = new Employee("C001", empNo, empNo.substring(0, 3), hireDate, info, first,
+                LocalDateTime.of(2026, 1, 1, 0, 0));
         e.empId = empId;
         return e;
     }

@@ -378,7 +378,7 @@ public class AppointmentService {
 
     /** 유형별 규칙을 검사하고 이전·이후 값을 채운다. selfId 는 수정·확정 중인 발령(자기 자신은 비교에서 뺀다). */
     private Content resolve(Employee e, Draft d, Long selfId) {
-        AppointmentType type = requireType(d.typeCode());
+        AppointmentType type = requireType(e.getEnterCd(), d.typeCode());
         LocalDate date = d.effectiveDate();
         List<HrAppointment> others = appointments.findByEmpIdOrderByEffectiveDateAscApptIdAsc(e.getEmpId()).stream()
                 .filter(a -> !a.getApptId().equals(selfId)).toList();
@@ -429,10 +429,10 @@ public class AppointmentService {
             requireDeptOpenOn(dept, date);
         }
         if (type.changes(Field.GRADE)) {
-            requireCode(CodeGroups.JOB_GRADE, grade, "직급");
+            requireCode(e.getEnterCd(), CodeGroups.JOB_GRADE, grade, "직급");
         }
         if (type.changes(Field.TITLE)) {
-            requireCode(CodeGroups.JOB_TITLE, title, "직책");
+            requireCode(e.getEnterCd(), CodeGroups.JOB_TITLE, title, "직책");
         }
 
         if (type == AppointmentType.LEAVE) {
@@ -521,8 +521,10 @@ public class AppointmentService {
         }
     }
 
-    private AppointmentType requireType(String code) {
-        CommonCode c = codes.findById(new CommonCodeId(CodeGroups.APPOINTMENT_TYPE, code)).orElse(null);
+    /** 공통코드는 법인별(#121)이라 사원의 법인에서 찾는다. */
+    private AppointmentType requireType(String enterCd, String code) {
+        CommonCode c = codes.findByEnterCdAndGroupCodeAndCode(enterCd, CodeGroups.APPOINTMENT_TYPE, code)
+                .orElse(null);
         AppointmentType t = AppointmentType.ofCode(code).orElse(null);
         if (c == null || t == null) {
             throw AppointmentException.badRequest("없는 발령 유형 코드예요: " + code);
@@ -534,11 +536,11 @@ public class AppointmentService {
     }
 
     /** null 은 허용(직책 없음). 값이 있으면 사용 중인 공통코드여야 한다. */
-    private void requireCode(String group, String code, String label) {
+    private void requireCode(String enterCd, String group, String code, String label) {
         if (code == null) {
             return;
         }
-        CommonCode c = codes.findById(new CommonCodeId(group, code)).orElse(null);
+        CommonCode c = codes.findByEnterCdAndGroupCodeAndCode(enterCd, group, code).orElse(null);
         if (c == null) {
             throw AppointmentException.badRequest("없는 " + label + " 코드예요: " + code);
         }

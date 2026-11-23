@@ -63,6 +63,7 @@ class ContractServiceTest {
 
     private Employee emp(long id, LocalDate hire, LocalDate retire) {
         Employee e = mock(Employee.class);
+        when(e.getEnterCd()).thenReturn("C001");
         when(e.getEmpId()).thenReturn(id);
         when(e.getEmpNo()).thenReturn("S01-2024-00" + id);
         when(e.getName()).thenReturn("예시사원" + id);
@@ -75,7 +76,7 @@ class ContractServiceTest {
     private void code(String code, boolean active) {
         CommonCode c = mock(CommonCode.class);
         when(c.isActive()).thenReturn(active);
-        codeStore.put(new CommonCodeId(CodeGroups.EMPLOYMENT_TYPE, code), c);
+        codeStore.put(new CommonCodeId("C001", CodeGroups.EMPLOYMENT_TYPE, code), c);
     }
 
     private List<EmploymentContract> sorted(Comparator<EmploymentContract> cmp) {
@@ -122,7 +123,8 @@ class ContractServiceTest {
         });
 
         CommonCodeRepository codes = mock(CommonCodeRepository.class);
-        when(codes.findById(any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(inv.<CommonCodeId>getArgument(0))));
+        when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(
+                new CommonCodeId(inv.<String>getArgument(0), inv.<String>getArgument(1), inv.<String>getArgument(2)))));
         code("REGULAR", true);
         code("FIXED_TERM", true);
         code("PART_TIME", true);
