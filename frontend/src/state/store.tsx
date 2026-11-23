@@ -14,6 +14,8 @@ interface Store {
   login: (enterCd: string, loginId: string, password: string) => Promise<void>;
   /** 그룹 관리자 법인 전환(#120). 바꾸면 화면 데이터를 모두 다시 받는다. 실패하면 false(오류는 토스트). */
   switchEnter: (enterCd: string) => Promise<boolean>;
+  /** 법인 전환 중에는 기존 법인의 업무 화면을 숨긴다. */
+  enterSwitching: boolean;
   signOut: () => Promise<void>;
   /** called when the server says the session is gone */
   onSessionLost: (fn: () => void) => void;
@@ -52,6 +54,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [scene, setScene] = useState<SceneId>('sunset');
   const [orgDept, setOrgDept] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [enterSwitching, setEnterSwitching] = useState(false);
   const lostRef = useRef<() => void>(() => {});
 
   const go = useCallback((p: PageId) => {
@@ -105,13 +108,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const switchEnter = useCallback(async (enterCd: string) => {
-    // 서버가 세션의 현재 법인을 바꾸면 모든 조회가 그 법인 조건으로 간다. 이전 법인 데이터가 남지 않게 전부 다시 받는다.
-    const boot = await guard(async () => { await api.switchEnter(enterCd); return api.bootstrap(); });
-    if (!boot) return false;
-    setData(boot);
-    toast(`${boot.me.enterName}(으)로 바꿨어요`);
-    return true;
-  }, [guard, toast]);
+    // 요청을 시작하는 순간부터 이전 법인 화면을 숨긴다. 서버 전환 뒤 bootstrap 이 실패하면
+    // 화면과 세션의 법인이 달라지므로 세션을 끝내고 다시 로그인하게 한다.
+    setEnterSwitching(true);
+    let switched = false;
+    try {
+      await api.switchEnter(enterCd);
+      switched = true;
+      setData(null);
+      const boot = await api.bootstrap();
+      setData(boot);
+      toast(`${boot.me.enterName}(으)로 바꿨어요`);
+      return true;
+    } catch (e) {
+      if (!switched) {
+        if (e instanceof ApiError && e.status === 401) sessionLost();
+        else toast(e instanceof Error ? e.message : '알 수 없는 오류가 발생했어요');
+      } else {
+        signedInRef.current = false;
+        try { await api.logout(); } catch { /* 전환된 세션을 폐기하는 최선의 시도 */ }
+        setData(null);
+        lostRef.current();
+        toast('법인 전환 데이터를 불러오지 못해 로그아웃했어요. 다시 로그인해 주세요');
+      }
+      return false;
+    } finally {
+      setEnterSwitching(false);
+    }
+  }, [sessionLost, toast]);
 
   const signOut = useCallback(async () => {
     signedInRef.current = false;
@@ -155,12 +179,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const dept = useCallback((id: string) => deptMap.get(id), [deptMap]);
 
   const value = useMemo<Store>(() => ({
-    data, login, switchEnter, signOut, onSessionLost: (fn) => { lostRef.current = fn; }, dept,
+    data, login, switchEnter, enterSwitching, signOut, onSessionLost: (fn) => { lostRef.current = fn; }, dept,
     page, go, night, setNight, scene, setScene, orgDept, setOrgDept, toasts, toast,
     decide, addLeave, send, loadMessages, markRead, refreshThreads,
     pendingCount: data?.approvals.filter((a) => a.canDecide).length ?? 0,
     unreadCount: data?.threads.reduce((s, t) => s + t.unread, 0) ?? 0,
-  }), [data, login, switchEnter, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, send, loadMessages, markRead, refreshThreads]);
+  }), [data, login, switchEnter, enterSwitching, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, send, loadMessages, markRead, refreshThreads]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
