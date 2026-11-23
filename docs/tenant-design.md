@@ -254,7 +254,7 @@ CREATE TABLE enter_company (
 | 순서 | 이슈 제목(제안) | 바꾸는 테이블 | 그 밖의 범위 |
 |---|---|---|---|
 | 1 | [법인] 법인 마스터와 인사·조직 기반 테이블 | `enter_company`(신규), `biz_site`, `emp_no_seq`, `org_dept`, `org_dept_hist`, `employee`, `emp_rrn`, `common_code_group`, `common_code` (8개 + 신규 1) | 5.2 검사 테스트, 현재 법인 요청 객체(세션 연결 전에는 `C001` 고정), 법인 마스터 조회 API. `employee`·`org_dept`에 임시 UNIQUE |
-| 2 | [법인] 회사 선택 로그인·세션 현재 법인·그룹 관리자 전환 | `app_user`, `app_user_role`, `login_access_log`, `privacy_access_log`, `rrn_access_log` (5개), `app_role`·`app_permission`·`app_role_permission` 행 추가(`GROUP_ADMIN`, `ENTER_SWITCH`, `ENTER_COMPANY_MANAGE`) | 4장 전체, 로그인 화면 회사 선택, 상단 법인 전환, 법인 마스터 관리 화면 |
+| 2 | [법인] 회사 선택 로그인·세션 현재 법인·그룹 관리자 전환 | `app_user`, `app_user_role`, `login_access_log`, `privacy_access_log`, `rrn_access_log` (5개), `app_role`·`app_permission`·`app_role_permission` 행 추가(`GROUP_ADMIN`, `ENTER_SWITCH`, `ENTER_COMPANY_MANAGE`) | 4장 전체, 로그인 화면 회사 선택, 상단 법인 전환, 법인 마스터 관리 화면. 단, 아래 배포 잠금은 유지 |
 | 3 | [법인] 인사 업무 테이블(발령·계약·퇴직) | `hr_appointment`, `hr_appointment_cancel`, `employment_contract`, `retirement_case`, `retirement_checklist_item`, `employment_certificate` (6개) | 매일 00:05 발령 반영 작업을 법인별로 반복 |
 | 4 | [법인] 근태 기준 테이블(근무유형·서면합의·휴일·유연근무) | `work_pattern`, `emp_work_pattern`, `worker_rep_agreement`, `worker_rep_agreement_file`, `holiday`, `flex_work_assign`, `flex_work_plan` (7개) | 휴일 CSV 불러오기는 현재 법인에만 |
 | 5 | [법인] 근태 기록·신청 테이블(출퇴근·집계·연장·가족돌봄) | `attendance_punch`, `attendance_daily_summary`, `overtime_request`, `special_overtime_auth`, `special_overtime_auth_emp`, `family_leave_request` (6개) | MyBatis `DailyWorkSummaryMapper` 법인 파라미터 |
@@ -262,6 +262,7 @@ CREATE TABLE enter_company (
 | 7 | [법인] 새 법인 생성(기준 데이터 복사)·법인별 운영 설정·임시 UNIQUE 정리 | `enter_setting`(신규, 7장 제안), 1~6번의 임시 UNIQUE 제거 | 새 법인 생성 시 기준 데이터 복사(아래) |
 
 - 2번 이슈가 `app_user`를 바꾸기 전까지 로그인은 지금처럼 동작한다. 1번 이슈의 현재 법인은 `C001`로 고정한다. 그래서 1번이 머지되어도 기존 기능이 그대로 돈다.
+- **다법인 배포 잠금:** 2번 이슈에서는 서버 설정 `glassehr.tenant.multi-company-enabled`를 추가하고 기본값을 `false`로 둔다. 이 값이 `false`이면 서버가 `C001` 이외 법인의 로그인과 법인 전환 요청을 모두 거부해야 한다. 화면 숨김만으로 대체하지 않는다. 3~6번의 스키마·저장소 법인 격리가 모두 배포되고 검사 테스트가 통과한 뒤에만 운영 환경에서 이 값을 `true`로 바꾼다. 따라서 법인 마스터 관리 기능으로 다른 법인을 미리 등록하더라도, 6번 완료 전에는 그 법인으로 업무 기능에 진입할 수 없다.
 - 새 법인 생성 때 복사할 기준 데이터(결정 4, 7번 이슈)
   - 복사함: `common_code_group`·`common_code`, `work_pattern`, 지금 유효한 `approval_template`·`approval_template_step`, `holiday` 중 법정공휴일·대체공휴일 행
   - 복사 안 함: `biz_site`(새 법인이 자기 사업장을 등록해야 사원을 등록할 수 있다), `worker_rep_agreement`(근로자대표 합의는 법인마다 따로 해야 한다), 회사휴일
