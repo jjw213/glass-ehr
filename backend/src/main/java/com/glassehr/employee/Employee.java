@@ -33,6 +33,13 @@ public class Employee {
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
+    /**
+     * 법인(#121). 사업장 FK 가 (enter_cd, site_code) 복합이고 공통코드도 법인별이라, 등록할 때 현재 법인을 넣는다.
+     * PK·사번 UNIQUE 와 조회 조건의 법인 전환은 사원 이슈에서 한다(docs/tenant-design.md 3.2).
+     */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "emp_no", nullable = false, updatable = false)
     private String empNo;
 
@@ -141,8 +148,9 @@ public class Employee {
     public record InitialAssignment(Long deptId, String jobGradeCode, String jobTitleCode) {
     }
 
-    Employee(String empNo, String siteCode, LocalDate hireDate, BasicInfo info, InitialAssignment first,
-            LocalDateTime now) {
+    Employee(String enterCd, String empNo, String siteCode, LocalDate hireDate, BasicInfo info,
+            InitialAssignment first, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.empNo = empNo;
         this.siteCode = siteCode;
         this.hireDate = hireDate;
@@ -206,6 +214,10 @@ public class Employee {
 
     public Long getEmpId() {
         return empId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public String getEmpNo() {

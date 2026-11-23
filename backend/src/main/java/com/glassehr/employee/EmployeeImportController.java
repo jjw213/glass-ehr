@@ -52,14 +52,15 @@ public class EmployeeImportController {
 
     @PostMapping(value = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequiresPermission(Permission.EMP_WRITE)
-    public ResponseEntity<Preview> preview(@RequestParam("file") MultipartFile file) throws IOException {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(imports.preview(file.getBytes()));
+    public ResponseEntity<Preview> preview(@RequestParam("file") MultipartFile file, AuthUser user) throws IOException {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(imports.preview(user.enterCd(), file.getBytes()));
     }
 
     @PostMapping(value = "/confirm", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission(Permission.EMP_WRITE)
     public Confirmed confirm(@RequestParam("file") MultipartFile file, AuthUser user) throws IOException {
-        return imports.confirm(file.getBytes(), user.toActor());
+        return imports.confirm(user.enterCd(), file.getBytes(), user.toActor());
     }
 }

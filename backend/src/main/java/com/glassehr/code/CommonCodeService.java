@@ -43,14 +43,19 @@ public class CommonCodeService {
         this.clock = clock.withZone(SEOUL);
     }
 
-    public List<CodeGroupView> listGroups() {
-        return groups.findAllByOrderBySortOrderAscGroupCodeAsc().stream().map(CodeGroupView::of).toList();
+    /*
+     * 모든 메서드의 enterCd 는 로그인 세션의 현재 법인(AuthUser.enterCd)이다. 요청 본문·쿼리로 받지 않는다.
+     * 다른 법인의 그룹·코드는 없는 것과 같게 404 로 답한다(docs/tenant-design.md 5.2).
+     */
+
+    public List<CodeGroupView> listGroups(String enterCd) {
+        return groups.findByEnterCdOrderBySortOrderAscGroupCodeAsc(enterCd).stream().map(CodeGroupView::of).toList();
     }
 
     /** 관리 화면용. includeInactive=false 면 사용 중인 코드만. */
-    public List<CodeView> listCodes(String groupCode, boolean includeInactive) {
-        requireGroup(groupCode);
-        return codes.findByGroupCodeOrderBySortOrderAscCodeAsc(groupCode).stream()
+    public List<CodeView> listCodes(String enterCd, String groupCode, boolean includeInactive) {
+        requireGroup(enterCd, groupCode);
+        return codes.findByEnterCdAndGroupCodeOrderBySortOrderAscCodeAsc(enterCd, groupCode).stream()
                 .filter(c -> includeInactive || c.isActive())
                 .map(CodeView::of)
                 .toList();
@@ -60,7 +65,7 @@ public class CommonCodeService {
      * 화면 공통 훅(useCodes)용. 여러 그룹의 사용 중인 코드를 그룹별로 돌려준다.
      * 요청한 그룹이 모두 있어야 하며, 결과 맵은 요청 순서를 따른다. 사용 중지된 그룹은 빈 목록이다.
      */
-    public Map<String, List<CodeView>> activeCodes(Collection<String> groupCodes) {
+    public Map<String, List<CodeView>> activeCodes(String enterCd, Collection<String> groupCodes) {
         Set<String> wanted = new LinkedHashSet<>(groupCodes);
         if (wanted.isEmpty()) {
             throw CodeException.badRequest("조회할 코드그룹을 하나 이상 지정해 주세요");
@@ -69,7 +74,7 @@ public class CommonCodeService {
             throw CodeException.badRequest("코드그룹은 한 번에 " + MAX_GROUPS_PER_REQUEST + "개까지 조회할 수 있어요");
         }
         Map<String, CodeGroup> found = new LinkedHashMap<>();
-        for (CodeGroup g : groups.findAllById(wanted)) {
+        for (CodeGroup g : groups.findByEnterCdAndGroupCodeIn(enterCd, wanted)) {
             found.put(g.getGroupCode(), g);
         }
         Map<String, List<CodeView>> result = new LinkedHashMap<>();
@@ -79,7 +84,8 @@ public class CommonCodeService {
             }
             result.put(g, new ArrayList<>());
         }
-        for (CommonCode c : codes.findByGroupCodeInAndActiveOrderByGroupCodeAscSortOrderAscCodeAsc(wanted, Boolean.TRUE)) {
+        for (CommonCode c : codes.findByEnterCdAndGroupCodeInAndActiveOrderByGroupCodeAscSortOrderAscCodeAsc(
+                enterCd, wanted, Boolean.TRUE)) {
             if (found.get(c.getGroupCode()).isActive()) {
                 result.get(c.getGroupCode()).add(CodeView.of(c));
             }
@@ -89,27 +95,27 @@ public class CommonCodeService {
     }
 
     @Transactional
-    public CodeView create(String groupCode, CodeCreateRequest req) {
-        requireGroup(groupCode);
-        if (codes.existsById(new CommonCodeId(groupCode, req.code()))) {
+    public CodeView create(String enterCd, String groupCode, CodeCreateRequest req) {
+        requireGroup(enterCd, groupCode);
+        if (codes.existsByEnterCdAndGroupCodeAndCode(enterCd, groupCode, req.code())) {
             throw CodeException.duplicate(groupCode, req.code());
         }
-        CommonCode c = new CommonCode(groupCode, req.code(), req.name().strip(), blankToNull(req.description()),
+        CommonCode c = new CommonCode(enterCd, groupCode, req.code(), req.name().strip(), blankToNull(req.description()),
                 req.sortOrder(), req.active(), now());
         return CodeView.of(codes.saveAndFlush(c));
     }
 
     @Transactional
-    public CodeView update(String groupCode, String code, CodeUpdateRequest req) {
-        requireGroup(groupCode);
-        CommonCode c = codes.findById(new CommonCodeId(groupCode, code))
+    public CodeView update(String enterCd, String groupCode, String code, CodeUpdateRequest req) {
+        requireGroup(enterCd, groupCode);
+        CommonCode c = codes.findByEnterCdAndGroupCodeAndCode(enterCd, groupCode, code)
                 .orElseThrow(() -> CodeException.codeNotFound(groupCode, code));
         c.change(req.name().strip(), blankToNull(req.description()), req.sortOrder(), req.active(), now());
         return CodeView.of(codes.saveAndFlush(c));
     }
 
-    private void requireGroup(String groupCode) {
-        if (!groups.existsById(groupCode)) {
+    private void requireGroup(String enterCd, String groupCode) {
+        if (!groups.existsByEnterCdAndGroupCode(enterCd, groupCode)) {
             throw CodeException.groupNotFound(groupCode);
         }
     }
