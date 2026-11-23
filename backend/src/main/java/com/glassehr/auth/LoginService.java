@@ -2,6 +2,7 @@ package com.glassehr.auth;
 
 import com.glassehr.auth.LoginAccessLog.Event;
 import com.glassehr.auth.LoginAccessLog.FailReason;
+import com.glassehr.tenant.EnterCompanyGate;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -42,28 +43,31 @@ public class LoginService {
     }
 
     /** @param lockedUntil LOCKED 일 때 잠금이 풀리는 시각(서울) */
-    public record Result(Outcome outcome, String loginId, LocalDateTime lockedUntil) {
+    public record Result(Outcome outcome, String enterCd, String loginId, LocalDateTime lockedUntil) {
     }
 
     private final AppUserRepository users;
     private final LoginAccessLogRepository logs;
+    private final EnterCompanyGate companies;
     private final int maxFailures;
     private final Duration lockFor;
     private final Clock clock;
 
     @Autowired
-    public LoginService(AppUserRepository users, LoginAccessLogRepository logs,
+    public LoginService(AppUserRepository users, LoginAccessLogRepository logs, EnterCompanyGate companies,
             @Value("${glassehr.auth.max-failed-attempts:5}") int maxFailures,
             @Value("${glassehr.auth.lock-duration:30m}") Duration lockFor) {
-        this(users, logs, maxFailures, lockFor, Clock.system(SEOUL));
+        this(users, logs, companies, maxFailures, lockFor, Clock.system(SEOUL));
     }
 
-    LoginService(AppUserRepository users, LoginAccessLogRepository logs, int maxFailures, Duration lockFor, Clock clock) {
+    LoginService(AppUserRepository users, LoginAccessLogRepository logs, EnterCompanyGate companies, int maxFailures,
+            Duration lockFor, Clock clock) {
         if (maxFailures < 1 || lockFor.isNegative() || lockFor.isZero()) {
             throw new IllegalArgumentException("glassehr.auth.max-failed-attempts 는 1 이상, lock-duration 은 0보다 커야 해요");
         }
         this.users = users;
         this.logs = logs;
+        this.companies = companies;
         this.maxFailures = maxFailures;
         this.lockFor = lockFor;
         this.clock = clock;
@@ -74,53 +78,64 @@ public class LoginService {
         return ENCODER.encode(rawPassword);
     }
 
+    /**
+     * 회사(법인) + 아이디 + 비밀번호 확인(#119). 실패 횟수·잠금은 (법인, 아이디) 행마다 따로 센다.
+     * 없는 법인·사용 중지 법인·다법인 배포 잠금으로 막힌 법인은 그 법인에 없는 아이디와 같은 결과(UNKNOWN_USER)·같은
+     * 처리 시간으로 거부해 법인 존재 여부를 드러내지 않는다(docs/tenant-design.md 4.1).
+     */
     @Transactional
-    public Result login(String loginId, String rawPassword, String clientIp) {
+    public Result login(String enterCd, String loginId, String rawPassword, String clientIp) {
+        String ent = enterCd.strip();
         String id = loginId.strip();
         LocalDateTime now = LocalDateTime.now(clock);
+        if (!companies.allows(ent)) {
+            ENCODER.matches(rawPassword, DUMMY_HASH);
+            return fail(ent, id, FailReason.UNKNOWN_USER, clientIp, now);
+        }
         // BCrypt 비교가 끝나고 실패 횟수를 저장할 때까지 행 잠금을 유지해 동시 실패 갱신 유실을 막는다.
-        Optional<AppUser> found = users.findByIdForUpdate(id);
+        Optional<AppUser> found = users.findForUpdate(ent, id);
         if (found.isEmpty()) {
             ENCODER.matches(rawPassword, DUMMY_HASH);
-            return fail(id, FailReason.UNKNOWN_USER, false, clientIp, now);
+            return fail(ent, id, FailReason.UNKNOWN_USER, clientIp, now);
         }
         AppUser u = found.get();
         if (!u.isActive()) {
             ENCODER.matches(rawPassword, DUMMY_HASH);
-            return fail(id, FailReason.INACTIVE, false, clientIp, now);
+            return fail(ent, id, FailReason.INACTIVE, clientIp, now);
         }
         if (u.isLockedAt(now)) {
-            log(id, Event.LOGIN_FAILURE, FailReason.LOCKED, false, clientIp, now);
-            return new Result(Outcome.LOCKED, id, u.getLockedUntil());
+            log(ent, id, Event.LOGIN_FAILURE, FailReason.LOCKED, false, clientIp, now);
+            return new Result(Outcome.LOCKED, ent, id, u.getLockedUntil());
         }
         if (u.getPasswordHash() == null) {
             ENCODER.matches(rawPassword, DUMMY_HASH);
-            return fail(id, FailReason.NO_PASSWORD, false, clientIp, now);
+            return fail(ent, id, FailReason.NO_PASSWORD, clientIp, now);
         }
         if (!ENCODER.matches(rawPassword, u.getPasswordHash())) {
             boolean lockedNow = u.recordFailure(now, maxFailures, lockFor);
             users.save(u);
-            log(id, Event.LOGIN_FAILURE, FailReason.BAD_PASSWORD, lockedNow, clientIp, now);
-            return lockedNow ? new Result(Outcome.LOCKED, id, u.getLockedUntil())
-                    : new Result(Outcome.BAD_CREDENTIALS, id, null);
+            log(ent, id, Event.LOGIN_FAILURE, FailReason.BAD_PASSWORD, lockedNow, clientIp, now);
+            return lockedNow ? new Result(Outcome.LOCKED, ent, id, u.getLockedUntil())
+                    : new Result(Outcome.BAD_CREDENTIALS, ent, id, null);
         }
         u.recordSuccess();
         users.save(u);
-        log(id, Event.LOGIN_SUCCESS, null, false, clientIp, now);
-        return new Result(Outcome.SUCCESS, u.getLoginId(), null);
+        log(ent, id, Event.LOGIN_SUCCESS, null, false, clientIp, now);
+        return new Result(Outcome.SUCCESS, u.getEnterCd(), u.getLoginId(), null);
     }
 
     @Transactional
-    public void logout(String loginId, String clientIp) {
-        log(loginId, Event.LOGOUT, null, false, clientIp, LocalDateTime.now(clock));
+    public void logout(String enterCd, String loginId, String clientIp) {
+        log(enterCd, loginId, Event.LOGOUT, null, false, clientIp, LocalDateTime.now(clock));
     }
 
-    private Result fail(String id, FailReason reason, boolean locked, String ip, LocalDateTime now) {
-        log(id, Event.LOGIN_FAILURE, reason, locked, ip, now);
-        return new Result(Outcome.BAD_CREDENTIALS, id, null);
+    private Result fail(String ent, String id, FailReason reason, String ip, LocalDateTime now) {
+        log(ent, id, Event.LOGIN_FAILURE, reason, false, ip, now);
+        return new Result(Outcome.BAD_CREDENTIALS, ent, id, null);
     }
 
-    private void log(String id, Event event, FailReason reason, boolean locked, String ip, LocalDateTime now) {
-        logs.save(new LoginAccessLog(id, event, reason, locked, ip, now));
+    private void log(String ent, String id, Event event, FailReason reason, boolean locked, String ip,
+            LocalDateTime now) {
+        logs.save(new LoginAccessLog(ent, id, event, reason, locked, ip, now));
     }
 }
