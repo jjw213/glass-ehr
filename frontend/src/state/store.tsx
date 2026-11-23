@@ -11,7 +11,9 @@ interface Toast { id: number; text: string }
 interface Store {
   /* session & data (null until signed in) */
   data: Bootstrap | null;
-  login: (loginId: string, password: string) => Promise<void>;
+  login: (enterCd: string, loginId: string, password: string) => Promise<void>;
+  /** 그룹 관리자 법인 전환(#120). 바꾸면 화면 데이터를 모두 다시 받는다. 실패하면 false(오류는 토스트). */
+  switchEnter: (enterCd: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   /** called when the server says the session is gone */
   onSessionLost: (fn: () => void) => void;
@@ -94,13 +96,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const patch = (p: Partial<Bootstrap>) => setData((d) => (d ? { ...d, ...p } : d));
 
-  const login = useCallback(async (loginId: string, password: string) => {
-    await api.login(loginId, password);   // throws ApiError on bad credentials
+  const login = useCallback(async (enterCd: string, loginId: string, password: string) => {
+    await api.login(enterCd, loginId, password);   // throws ApiError on bad credentials
     const boot = await api.bootstrap();
     // 사용자는 서버가 세션 쿠키로 식별한다(#76). 역할·권한은 서버가 DB에서 읽으므로 화면 값은 메뉴 표시에만 쓴다.
     signedInRef.current = true;
     setData(boot);
   }, []);
+
+  const switchEnter = useCallback(async (enterCd: string) => {
+    // 서버가 세션의 현재 법인을 바꾸면 모든 조회가 그 법인 조건으로 간다. 이전 법인 데이터가 남지 않게 전부 다시 받는다.
+    const boot = await guard(async () => { await api.switchEnter(enterCd); return api.bootstrap(); });
+    if (!boot) return false;
+    setData(boot);
+    toast(`${boot.me.enterName}(으)로 바꿨어요`);
+    return true;
+  }, [guard, toast]);
 
   const signOut = useCallback(async () => {
     signedInRef.current = false;
@@ -144,12 +155,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const dept = useCallback((id: string) => deptMap.get(id), [deptMap]);
 
   const value = useMemo<Store>(() => ({
-    data, login, signOut, onSessionLost: (fn) => { lostRef.current = fn; }, dept,
+    data, login, switchEnter, signOut, onSessionLost: (fn) => { lostRef.current = fn; }, dept,
     page, go, night, setNight, scene, setScene, orgDept, setOrgDept, toasts, toast,
     decide, addLeave, send, loadMessages, markRead, refreshThreads,
     pendingCount: data?.approvals.filter((a) => a.canDecide).length ?? 0,
     unreadCount: data?.threads.reduce((s, t) => s + t.unread, 0) ?? 0,
-  }), [data, login, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, send, loadMessages, markRead, refreshThreads]);
+  }), [data, login, switchEnter, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, send, loadMessages, markRead, refreshThreads]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

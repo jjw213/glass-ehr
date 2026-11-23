@@ -213,6 +213,13 @@ button, input, textarea { font-family: inherit; }
 .input-wrap:focus-within { border-color: rgba(255, 255, 255, 0.55); background: rgba(255, 255, 255, 0.16); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.08); }
 .input-wrap input { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; outline: 0; color: #fff; font-size: 15px; padding: 0 46px 0 42px; }
 .input-wrap input::placeholder { color: rgba(255, 255, 255, 0.45); }
+/* 로그인 회사 선택(#120) */
+.input-wrap select { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; outline: 0; color: #fff; font-size: 15px; padding: 0 16px 0 42px; appearance: none; }
+.input-wrap select option { color: #111; }
+/* 상단·사이드바 현재 법인과 그룹 관리자 법인 전환(#120) */
+.enter-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
+.enter-switch select { background: transparent; border: 0; color: inherit; font: inherit; max-width: 160px; }
+.enter-switch select option { color: #111; }
 .input-wrap__icon { position: absolute; left: 14px; font-size: 17px; opacity: 0.7; pointer-events: none; }
 .input-wrap__eye {
   position: absolute; right: 8px; width: 34px; height: 34px; border-radius: 10px; border: 0; background: none;

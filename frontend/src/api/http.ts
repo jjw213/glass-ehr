@@ -52,16 +52,14 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: s
   return res.json() as Promise<T>;
 }
 
-const DEFAULT_ENTER_CD = 'C001';
-
 export const httpApi: Api = {
   mode: 'http',
+  enterCompanies: () => call('GET', '/enter-companies'),
   // 로그인은 Spring(/api/auth/login, 세션 쿠키)이 정한다(#76). 홈 화면 데이터(/api/bootstrap 등)가 아직 Node 서버라
   // 옮기는 동안만 같은 아이디·비밀번호로 Node 에도 로그인한다. Node 경로를 모두 옮기면 두 번째 호출을 지운다.
-  login: async (loginId, password) => {
-    // 로그인 본문에 법인 코드가 필요하다(#119). 회사 선택 화면이 생기기 전까지는 다법인 배포 잠금으로
-    // 서버가 허용하는 유일한 법인 C001 을 보낸다(docs/tenant-design.md 8.2).
-    await call('POST', '/auth/login', { enterCd: DEFAULT_ENTER_CD, loginId, password });
+  login: async (enterCd, loginId, password) => {
+    // 로그인 화면에서 고른 회사(#120). 법인은 로그인 본문과 그룹 관리자 전환 API 에서만 보낸다(docs/tenant-design.md 2장).
+    await call('POST', '/auth/login', { enterCd, loginId, password });
     try {
       await call('POST', '/login', { loginId, password });
     } catch (e) {
@@ -69,6 +67,7 @@ export const httpApi: Api = {
       throw e;
     }
   },
+  switchEnter: async (enterCd) => { await call('POST', '/auth/switch-enter', { enterCd }); },
   logout: async () => {
     const results = await Promise.allSettled([call('POST', '/auth/logout'), call('POST', '/logout')]);
     const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');

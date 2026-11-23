@@ -4,6 +4,7 @@ import { NAV, navFor } from '../../nav';
 import { useData, useStore } from '../../state/store';
 import { useSession } from '../../state/session';
 import { Avatar, cx } from '../ui';
+import { EnterSwitcher } from './EnterSwitcher';
 
 export function DesktopNav() {
   const { page, go, pendingCount, unreadCount, toast, dept } = useStore();
@@ -32,6 +33,7 @@ export function DesktopNav() {
         </nav>
 
         <div className="topbar__group">
+          <EnterSwitcher className="glass pill" />
           <button className="glass iconbtn" aria-label="메시지" onClick={() => go('messages')}>
             <LuMail />{unreadCount > 0 && <span className="dot" />}
           </button>

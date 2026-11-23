@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { LuEye, LuEyeOff, LuLock, LuUser, LuArrowRight, LuLoaderCircle } from 'react-icons/lu';
+import { LuEye, LuEyeOff, LuLock, LuUser, LuArrowRight, LuLoaderCircle, LuBuilding2 } from 'react-icons/lu';
 import { CursorBuilder } from '../../lib/cursorBuilder';
 import { BuildText } from '../intro/BuildText';
 import { cx } from '../ui';
 import { usePrefersReducedMotion } from '../../hooks/useMediaQuery';
 import { useStore } from '../../state/store';
-import { SHOW_DEMO_HINT } from '../../api';
+import { api, SHOW_DEMO_HINT, type EnterCompany } from '../../api';
+import { initialEnter, readLastEnter, saveLastEnter } from '../../lib/lastEnter';
 
 interface Props {
   /** play the cursor-swarm build intro (first visit) */
@@ -23,6 +24,9 @@ export function LoginScreen({ intro, onLogin }: Props) {
   const { login } = useStore();
 
   const [built, setBuilt] = useState(!intro);
+  // 회사 선택(#120). null = 목록을 아직 못 받음
+  const [companies, setCompanies] = useState<EnterCompany[] | null>(null);
+  const [enterCd, setEnterCd] = useState('');
   const [id, setId] = useState('');
   const [pw, setPw] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -51,22 +55,37 @@ export function LoginScreen({ intro, onLogin }: Props) {
     if (built) idRef.current?.focus({ preventScroll: true });
   }, [built]);
 
+  // 사용 중 법인 목록(공개 API). 하나뿐이면 자동 선택하고 선택 칸을 숨긴다. 마지막 선택은 브라우저에 기억한다.
+  useEffect(() => {
+    let alive = true;
+    api.enterCompanies().then((list) => {
+      if (!alive) return;
+      setCompanies(list);
+      setEnterCd(initialEnter(list, readLastEnter()));
+    }).catch(() => { if (alive) setCompanies([]); });
+    return () => { alive = false; };
+  }, []);
+
   const skip = () => builderRef.current?.skip();
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!built) { skip(); return; }
     if (loading) return;
+    if (companies === null) { fail('회사 목록을 불러오고 있어요. 잠시 뒤 다시 눌러 주세요.'); return; }
+    if (companies.length === 0) { fail('회사 목록을 불러올 수 없어요. 잠시 뒤 다시 시도해 주세요.'); return; }
+    if (!enterCd) { fail('회사를 선택해 주세요.'); return; }
     if (!id.trim() || !pw) { fail('아이디와 비밀번호를 입력해 주세요.'); return; }
     setError('');
     setLoading(true);
     try {
-      await login(id.trim(), pw);       // server checks the password and loads the data
+      await login(enterCd, id.trim(), pw);       // server checks the password and loads the data
     } catch (err) {
       setLoading(false);
       fail(err instanceof Error ? err.message : '로그인에 실패했어요');
       return;
     }
+    saveLastEnter(enterCd);
     setLeaving(true);
     setTimeout(onLogin, 620);
   };
@@ -100,6 +119,19 @@ export function LoginScreen({ intro, onLogin }: Props) {
           <h1><BuildText text="다시 오신 걸 환영해요" /></h1>
           <p className="muted"><BuildText text="인사 시스템에 로그인하세요" /></p>
         </div>
+
+        {companies && companies.length > 1 && (
+          <label className="field">
+            <span className="field__label">회사</span>
+            <span className="input-wrap" data-build="block">
+              <LuBuilding2 className="input-wrap__icon" />
+              <select aria-label="회사" value={enterCd} onChange={(e) => setEnterCd(e.target.value)} disabled={!built || loading}>
+                <option value="" disabled>회사를 선택하세요</option>
+                {companies.map((c) => <option key={c.enterCd} value={c.enterCd}>{c.enterName}</option>)}
+              </select>
+            </span>
+          </label>
+        )}
 
         <label className="field">
           <span className="field__label"><BuildText text="아이디" /></span>
