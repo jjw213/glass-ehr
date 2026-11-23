@@ -13,7 +13,7 @@ vi.mock('../api/punches', async (orig) => {
 });
 vi.mock('../components/WeeklyHoursWidget', () => ({ WeeklyHoursWidget: ({ refreshKey }: { refreshKey: number }) => <p data-testid="weekly">{refreshKey}</p> }));
 const data: AppData = {
-  me: { loginId: 'emp1', empId: 1, name: '가짜사원', dept: '', role: 'EMPLOYEE', roles: [], permissions: [], annualLeave: 15 },
+  me: { loginId: 'emp1', empId: 1, name: '가짜사원', dept: '', role: 'EMPLOYEE', roles: [], permissions: [], enterCd: 'C001', enterName: '가짜법인', homeEnterCd: 'C001', annualLeave: 15 }, companies: [],
   depts: [], legacyDepts: [], dashboard: null, approvals: [], leaves: [], payslips: [], threads: [],
 };
 vi.mock('../state/store', () => ({ useStore: () => ({ addLeave: vi.fn() }), useData: () => data }));

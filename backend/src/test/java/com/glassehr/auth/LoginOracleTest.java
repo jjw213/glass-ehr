@@ -199,6 +199,45 @@ class LoginOracleTest {
                 + "AND accessor_id = ?", String.class, b, id)).isEqualTo(b);
     }
 
+    /** #120: 그룹 관리자 법인 전환(V033). 일반 계정은 403, 그룹 관리자는 전환 뒤 다른 법인 데이터를 보고 전환이 접속기록에 남는다. */
+    @Test
+    void 그룹_관리자만_법인을_전환하고_전환하면_다른_법인_데이터가_보인다() throws Exception {
+        AuthUser userB = new AuthUser(b, b, id, null, Set.of("ADMIN"), Set.of(), Set.of(), "127.0.0.1");
+        privacyLogger.log(userB, 1L, PrivacyAccessLog.Item.EMP_PERSONAL, PrivacyAccessLog.Action.VIEW,
+                PrivacyAccessLog.Result.SUCCESS, "/api/employees/1");
+        String today = LocalDate.now(ZoneId.of("Asia/Seoul")).toString();
+        jdbc.update("INSERT INTO app_user_role (enter_cd, login_id, role_code) VALUES (?, ?, 'ADMIN')", A, id);
+
+        // 일반(관리자) 계정: 전환 403, 현재 법인 그대로
+        Cookie admin = login(PW).andExpect(status().isOk()).andReturn().getResponse().getCookie(COOKIE);
+        mvc.perform(switchTo(b).cookie(admin)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/auth/me").cookie(admin)).andExpect(jsonPath("$.enterCd").value(A));
+
+        // 그룹 관리자 역할 부여 → 다시 로그인
+        jdbc.update("INSERT INTO app_user_role (enter_cd, login_id, role_code) VALUES (?, ?, 'GROUP_ADMIN')", A, id);
+        Cookie group = login(PW).andExpect(status().isOk()).andReturn().getResponse().getCookie(COOKIE);
+        mvc.perform(get("/api/admin/privacy-logs").param("from", today).param("to", today).param("accessorId", id)
+                .cookie(group)).andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(0));
+        mvc.perform(switchTo(off).cookie(group)).andExpect(status().isNotFound());
+        mvc.perform(switchTo(b).cookie(group)).andExpect(status().isOk()).andExpect(jsonPath("$.enterCd").value(b))
+                .andExpect(jsonPath("$.homeEnterCd").value(A));
+        mvc.perform(get("/api/auth/me").cookie(group)).andExpect(jsonPath("$.enterCd").value(b))
+                .andExpect(jsonPath("$.homeEnterCd").value(A));
+        mvc.perform(get("/api/admin/privacy-logs").param("from", today).param("to", today).param("accessorId", id)
+                .cookie(group)).andExpect(status().isOk()).andExpect(jsonPath("$.rows.length()").value(1));
+        assertThat(jdbc.queryForList("SELECT target_enter_cd FROM login_access_log WHERE enter_cd = ? AND login_id = ? "
+                + "AND event_code = 'ENTER_SWITCH'", String.class, A, id)).containsExactly(b);
+
+        // 역할을 회수하면 전환한 세션은 쓰지 못한다
+        jdbc.update("DELETE FROM app_user_role WHERE enter_cd = ? AND login_id = ? AND role_code = 'GROUP_ADMIN'", A, id);
+        mvc.perform(get("/api/auth/me").cookie(group)).andExpect(status().isUnauthorized());
+    }
+
+    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder switchTo(String ent) {
+        return post("/api/auth/switch-enter").header(AuthInterceptor.CSRF_HEADER, AuthInterceptor.CSRF_HEADER_VALUE)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"enterCd\":\"" + ent + "\"}");
+    }
+
     @Test
     void 틀리면_401_설정_횟수에서_잠기고_잠긴_동안은_맞는_비밀번호도_423() throws Exception {
         login("wrong-1").andExpect(status().isUnauthorized());
