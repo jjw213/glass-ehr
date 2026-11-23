@@ -144,7 +144,7 @@ class WorkHoursServiceTest {
     @Test
     void 승인된_반차를_입력으로_넣는다() {
         when(leaves.approvedLeaves(anyLong(), any(), any())).thenReturn(
-                Map.of(MON, new WorkHoursCalculator.Leave(WorkHoursCalculator.LeaveKind.HALF_DAY_AM, 240)));
+                Map.of(MON, new WorkHoursCalculator.Leave(WorkHoursCalculator.LeaveKind.HALF_DAY_AM, 240, true)));
         DailyWorkSummaryRow r = service.recalculate(EMP, MON, MON, "hr1").get(0);
         assertThat(r.leaveKind()).isEqualTo("HALF_DAY_AM");
         assertThat(r.leaveMinutes()).isEqualTo(240);

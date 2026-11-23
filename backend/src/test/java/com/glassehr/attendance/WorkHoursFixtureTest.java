@@ -177,7 +177,7 @@ class WorkHoursFixtureTest {
         LocalDateTime end = endTime(workDate, c.get(6));
         int leaveMinutes = Integer.parseInt(c.get(8));
         Leave leave = leaveMinutes == 0 ? null
-                : new Leave(leaveMinutes >= contract ? LeaveKind.FULL_DAY : LeaveKind.HALF_DAY_AM, leaveMinutes);
+                : new Leave(leaveMinutes >= contract ? LeaveKind.FULL_DAY : LeaveKind.HALF_DAY_AM, leaveMinutes, true);
         int priorWeekday = Integer.parseInt(c.get(9));
 
         WorkHoursLegalRules.Applied applied = new WorkHoursLegalRules(seededRates(seedRows())).asOf(workDate);

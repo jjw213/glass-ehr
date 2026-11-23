@@ -68,8 +68,11 @@ public final class WorkHoursCalculator {
         }
     }
 
-    /** 승인된 휴가. minutes 는 휴가로 인정하는 소정근로 분(반차면 반차 분). */
-    public record Leave(LeaveKind kind, int minutes) {
+    /**
+     * 승인된 휴가. minutes 는 휴가로 인정하는 소정근로 분(반차면 반차 분).
+     * paid 는 유급 휴가 여부 — 근로시간 계산에는 쓰지 않고 일별 결근 판정(#114)이 유급·무급 휴가를 나눌 때 쓴다.
+     */
+    public record Leave(LeaveKind kind, int minutes, boolean paid) {
         public Leave {
             Objects.requireNonNull(kind, "kind");
             if (minutes < 0) {

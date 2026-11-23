@@ -160,7 +160,7 @@ class WorkHoursCalculatorTest {
     void 오전_반차일은_실제로_일한_구간만_세고_휴가분을_1일_기준시간에서_뺀다() {
         // 오전 반차(240분) 후 14:00~23:00 근무, 점심 휴게는 근로 밖 → 1일 기준 480−240=240분 초과분이 연장
         DayResult r = WorkHoursCalculator.calculateDay(day(MON, DayKind.WORKDAY,
-                List.of(iv(MON, 14, 0, 0, 23, 0)), List.of(lunch(MON)), new Leave(LeaveKind.HALF_DAY_AM, 240)));
+                List.of(iv(MON, 14, 0, 0, 23, 0)), List.of(lunch(MON)), new Leave(LeaveKind.HALF_DAY_AM, 240, true)));
         assertThat(r.leaveKind()).isEqualTo(LeaveKind.HALF_DAY_AM);
         assertThat(r.leaveMinutes()).isEqualTo(240);
         assertThat(r.breakMinutes()).isZero();
@@ -173,7 +173,7 @@ class WorkHoursCalculatorTest {
     @Test
     void 오후_반차일은_오전_근로만_센다() {
         DayResult r = WorkHoursCalculator.calculateDay(day(MON, DayKind.WORKDAY,
-                List.of(iv(MON, 9, 0, 0, 13, 0)), List.of(lunch(MON)), new Leave(LeaveKind.HALF_DAY_PM, 240)));
+                List.of(iv(MON, 9, 0, 0, 13, 0)), List.of(lunch(MON)), new Leave(LeaveKind.HALF_DAY_PM, 240, true)));
         assertThat(r.workedMinutes()).isEqualTo(180);
         assertThat(r.breakMinutes()).isEqualTo(60);
         assertThat(r.leaveMinutes()).isEqualTo(240);
@@ -183,7 +183,7 @@ class WorkHoursCalculatorTest {
     @Test
     void 기록이_없는_날은_모두_0분() {
         DayResult r = WorkHoursCalculator.calculateDay(day(MON, DayKind.WORKDAY, List.of(),
-                List.of(lunch(MON)), new Leave(LeaveKind.FULL_DAY, 480)));
+                List.of(lunch(MON)), new Leave(LeaveKind.FULL_DAY, 480, true)));
         assertThat(r.workedMinutes()).isZero();
         assertThat(r.breakMinutes()).isZero();
         assertThat(r.leaveMinutes()).isEqualTo(480);
@@ -226,7 +226,7 @@ class WorkHoursCalculatorTest {
     @Test
     void 휴가일은_실근로가_아니라_주_합계에_넣지_않는다() {
         Leave[] leaves = new Leave[7];
-        leaves[0] = new Leave(LeaveKind.FULL_DAY, 480);
+        leaves[0] = new Leave(LeaveKind.FULL_DAY, 480, true);
         List<DayResult> r = WorkHoursCalculator.calculateWeek(
                 week(new int[] {0, 480, 480, 480, 480, 480, 0}, FIVE_DAY, leaves));
         assertThat(r.get(5).extraMinutes()).isEqualTo(480);
