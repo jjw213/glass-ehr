@@ -2,7 +2,8 @@
 --
 -- 이 마이그레이션이 하는 일
 --   1. app_user PK 를 (enter_cd, login_id) 로 바꾼다. 같은 아이디를 법인마다 따로 쓸 수 있다.
---      uq_app_user_emp·fk_app_user_emp 도 (enter_cd, emp_id) 로 바꿔 다른 법인 사원에 계정을 연결할 수 없게 한다.
+--      ux_app_user_emp·fk_app_user_emp 도 (enter_cd, emp_id) 로 바꿔 다른 법인 사원에 계정을 연결할 수 없게 한다.
+--      사원 미연결 계정(emp_id IS NULL)은 여러 개를 허용하도록 함수 기반 UNIQUE 인덱스에서 제외한다.
 --   2. app_user_role PK 를 (enter_cd, login_id, role_code), fk_app_user_role_user 를 (enter_cd, login_id) 로 바꾼다.
 --      fk_app_user_role_role(→ 공통 app_role)은 그대로 둔다.
 --   3. privacy_access_log: enter_cd = 대상 법인(현재 법인), accessor_enter_cd(신규) = 주체 법인(4.4).
@@ -27,7 +28,10 @@ ALTER TABLE app_user MODIFY (enter_cd DEFAULT NULL);
 ALTER TABLE app_user DROP CONSTRAINT uq_app_user_emp DROP INDEX;
 ALTER TABLE app_user DROP CONSTRAINT pk_app_user DROP INDEX;
 ALTER TABLE app_user ADD CONSTRAINT pk_app_user PRIMARY KEY (enter_cd, login_id);
-ALTER TABLE app_user ADD CONSTRAINT uq_app_user_emp UNIQUE (enter_cd, emp_id);
+CREATE UNIQUE INDEX ux_app_user_emp ON app_user (
+    CASE WHEN emp_id IS NOT NULL THEN enter_cd END,
+    CASE WHEN emp_id IS NOT NULL THEN emp_id END
+);
 
 ALTER TABLE employee ADD CONSTRAINT uq_employee_enter_emp UNIQUE (enter_cd, emp_id);
 ALTER TABLE app_user ADD CONSTRAINT fk_app_user_emp FOREIGN KEY (enter_cd, emp_id)
