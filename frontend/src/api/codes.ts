@@ -2,6 +2,7 @@
  * 공통코드 API (#11, #140). 백엔드: backend/ CommonCodeController (Spring).
  * 응답 형식은 backend CodeDtos 와 같다.
  */
+import { ATTENDANCE_CODE_GROUPS, ATTENDANCE_CODES } from '../data/attendanceCodes';
 import { CODE_GROUPS, CODES, DEMO_USAGES } from '../data/codes';
 import { call } from './http';
 import { ApiError } from './types';
@@ -116,14 +117,20 @@ export type MockUsages = Record<string, MockUsage[]>;
  * 브라우저 안의 가짜 백엔드. 새로 고치면 시드로 돌아간다.
  * rowsVisible=false 면 EMP_READ_ALL 이 없는 역할처럼 건수만 준다.
  */
-export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boolean } = {}): CodeApi {
-  let groups = structuredClone(CODE_GROUPS);
-  let codes = structuredClone(CODES);
+export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boolean; groups?: CodeGroup[]; codes?: Code[] } = {}): CodeApi {
+  let groups = structuredClone(opts.groups ?? CODE_GROUPS);
+  let codes = structuredClone(opts.codes ?? CODES);
   const usageData = structuredClone(opts.usages ?? DEMO_USAGES);
   const rowsVisible = opts.rowsVisible ?? true;
   const requireGroup = (g: string) => {
     const found = groups.find((x) => x.groupCode === g);
     if (!found) throw new ApiError(404, `코드그룹이 없어요: ${g}`);
+    return found;
+  };
+  /** 다른 화면에서 편집하는 그룹(editPage)은 공통코드 API 로 고치지 않는다(백엔드 CommonCodeService, #143). */
+  const requireEditable = (g: string) => {
+    const found = requireGroup(g);
+    if (found.editPage) throw new ApiError(409, '이 코드그룹은 공통코드 화면에서 고칠 수 없어요. 전용 화면에서 편집해 주세요');
     return found;
   };
   const requireCode = (g: string, code: string) => {
@@ -154,7 +161,7 @@ export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boo
       return { ...created };
     },
     async updateGroup(g, input) {
-      const cur = requireGroup(g);
+      const cur = requireEditable(g);
       check(validateGroup(input));
       if (cur.system && cur.active !== input.active) throw new ApiError(409, '시스템 그룹은 사용 여부를 바꿀 수 없어요. 이름·설명·순서만 고칠 수 있어요');
       const next: CodeGroup = { ...cur, name: input.name.trim(), description: clean(input.description), sortOrder: input.sortOrder, active: input.active };
@@ -180,7 +187,7 @@ export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boo
       });
     },
     async create(g, input) {
-      requireGroup(g);
+      requireEditable(g);
       check(validateCode(input));
       if (codes.some((c) => c.groupCode === g && c.code === input.code)) throw new ApiError(409, `이미 있는 코드값이에요: ${g}/${input.code}`);
       const created: Code = { groupCode: g, code: input.code, name: input.name.trim(), description: clean(input.description), sortOrder: input.sortOrder, active: input.active, system: false };
@@ -188,6 +195,7 @@ export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boo
       return { ...created };
     },
     async update(g, code, input) {
+      requireEditable(g);
       const cur = requireCode(g, code);
       check(validateCode(input));
       const next: Code = { ...cur, name: input.name.trim(), description: clean(input.description), sortOrder: input.sortOrder, active: input.active };
@@ -195,6 +203,7 @@ export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boo
       return { ...next };
     },
     async deleteCode(g, code) {
+      requireEditable(g);
       const cur = requireCode(g, code);
       if (cur.system) throw new ApiError(409, '기본 코드라 삭제할 수 없어요. 사용 안 함으로 바꿔 주세요');
       const used = tablesOf(g, code);
@@ -217,4 +226,10 @@ export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boo
   };
 }
 
-export const codeApi: CodeApi = import.meta.env.VITE_API === 'mock' ? createMockCodeApi() : httpCodeApi;
+/** 데모는 근태코드 그룹(V038)도 보기 전용으로 보인다. 근태코드 관리 화면의 데모 수정은 여기 반영되지 않는다(따로 시드). */
+export const codeApi: CodeApi = import.meta.env.VITE_API === 'mock'
+  ? createMockCodeApi({
+    groups: [...CODE_GROUPS, ...ATTENDANCE_CODE_GROUPS],
+    codes: [...CODES, ...ATTENDANCE_CODES.map(({ groupCode, code, name, description, sortOrder, active, system }) => ({ groupCode, code, name, description, sortOrder, active, system }))],
+  })
+  : httpCodeApi;
