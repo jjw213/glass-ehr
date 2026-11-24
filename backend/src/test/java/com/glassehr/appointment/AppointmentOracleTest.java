@@ -65,14 +65,14 @@ class AppointmentOracleTest {
     @Test
     void 미래_전입이_확정된_빈_부서는_폐지할_수_없다() {
         long emp = employee();
-        long dept = orgs.create(new com.glassehr.org.OrgDtos.DeptCreateRequest(
+        long dept = orgs.create("C001", new com.glassehr.org.OrgDtos.DeptCreateRequest(
                 "IT_FUTURE_APPT", "예시 미래 전입 부서", null, null, 0, D0, "IT 가상 부서")).deptId();
         LocalDate future = LocalDate.of(2199, 1, 1);
         long appt = service.create(emp, new AppointmentRequest("TRANSFER", future, dept, null, null,
                 "IT 미래 전입", null, null)).apptId();
         service.confirm(appt);
         assertThat(service.countDeptMembersOnOrAfter(dept, future.minusDays(1))).isEqualTo(1);
-        assertThatThrownBy(() -> orgs.close(dept, new com.glassehr.org.OrgDtos.DeptCloseRequest(
+        assertThatThrownBy(() -> orgs.close("C001", dept,new com.glassehr.org.OrgDtos.DeptCloseRequest(
                 future.minusDays(1), "IT 폐지 시도")))
                 .isInstanceOfSatisfying(com.glassehr.org.OrgException.class, e -> {
                     assertThat(e.status()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);

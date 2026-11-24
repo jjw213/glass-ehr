@@ -205,6 +205,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V034__code_site_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer deptKeyCols = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_ORG_DEPT'", Integer.class);
+        if (deptKeyCols == null || deptKeyCols < 2) {
+            // #122: 부서·조직 이력 키와 부서 참조 FK 에 법인
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V035__org_dept_enter_cd.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
