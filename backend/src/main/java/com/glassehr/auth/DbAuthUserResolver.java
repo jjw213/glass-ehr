@@ -56,7 +56,8 @@ public class DbAuthUserResolver implements AuthUserResolver {
         roles.add(AuthUser.ROLE_EMPLOYEE);
         Set<Long> managed = Set.of();
         if (u.getEmpId() != null) {
-            managed = DeptScope.managedBy(org.tree(org.today()), u.getEmpId());
+            // 부서장 범위는 계정(주체) 법인의 오늘 조직도에서만 계산한다(#122, docs/tenant-design.md 4장).
+            managed = DeptScope.managedBy(org.tree(u.getEnterCd(), org.today()), u.getEmpId());
             if (!managed.isEmpty()) {
                 roles.add(AuthUser.ROLE_DEPT_HEAD);
             }

@@ -36,6 +36,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 class OrgDeptServiceTest {
 
     private static final LocalDate D0 = LocalDate.of(2026, 1, 1);
+    private static final String E = "C001";
+    private static final String OTHER = "C002";
 
     private final Map<Long, OrgDept> deptStore = new LinkedHashMap<>();
     private final List<OrgDeptHist> histStore = new ArrayList<>();
@@ -63,18 +65,22 @@ class OrgDeptServiceTest {
             deptStore.put(d.getDeptId(), d);
             return d;
         });
-        when(depts.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(deptStore.get((Long) inv.getArgument(0))));
-        when(depts.findAllById(any())).thenAnswer(inv -> {
+        when(depts.findByEnterCdAndDeptId(anyString(), anyLong())).thenAnswer(inv -> Optional
+                .ofNullable(deptStore.get((Long) inv.getArgument(1)))
+                .filter(d -> d.getEnterCd().equals(inv.getArgument(0))));
+        when(depts.findByEnterCdAndDeptIdIn(anyString(), any())).thenAnswer(inv -> {
             List<OrgDept> out = new ArrayList<>();
-            ((Iterable<Long>) inv.getArgument(0)).forEach(id -> {
-                if (deptStore.containsKey(id)) {
-                    out.add(deptStore.get(id));
+            ((Iterable<Long>) inv.getArgument(1)).forEach(id -> {
+                OrgDept d = deptStore.get(id);
+                if (d != null && d.getEnterCd().equals(inv.getArgument(0))) {
+                    out.add(d);
                 }
             });
             return out;
         });
-        when(depts.existsByDeptCode(anyString()))
-                .thenAnswer(inv -> deptStore.values().stream().anyMatch(d -> d.getDeptCode().equals(inv.getArgument(0))));
+        when(depts.existsByEnterCdAndDeptCode(anyString(), anyString()))
+                .thenAnswer(inv -> deptStore.values().stream().anyMatch(d -> d.getEnterCd().equals(inv.getArgument(0))
+                        && d.getDeptCode().equals(inv.getArgument(1))));
 
         when(hists.saveAndFlush(any())).thenAnswer(inv -> {
             OrgDeptHist h = inv.getArgument(0);
@@ -83,16 +89,19 @@ class OrgDeptServiceTest {
             }
             return h;
         });
-        when(hists.findEffectiveOn(any())).thenAnswer(inv -> {
-            LocalDate d = inv.getArgument(0);
-            return histStore.stream().filter(h -> h.isEffectiveOn(d)).toList();
+        when(hists.findEffectiveOn(anyString(), any())).thenAnswer(inv -> {
+            LocalDate d = inv.getArgument(1);
+            return histStore.stream().filter(h -> h.getEnterCd().equals(inv.getArgument(0)))
+                    .filter(h -> h.isEffectiveOn(d)).toList();
         });
-        when(hists.findEffectiveOnOrAfter(any())).thenAnswer(inv -> {
-            LocalDate d = inv.getArgument(0);
-            return histStore.stream().filter(h -> h.getValidTo() == null || h.getValidTo().isAfter(d)).toList();
+        when(hists.findEffectiveOnOrAfter(anyString(), any())).thenAnswer(inv -> {
+            LocalDate d = inv.getArgument(1);
+            return histStore.stream().filter(h -> h.getEnterCd().equals(inv.getArgument(0)))
+                    .filter(h -> h.getValidTo() == null || h.getValidTo().isAfter(d)).toList();
         });
-        when(hists.findFirstByDeptIdOrderByValidFromDesc(anyLong())).thenAnswer(inv -> histStore.stream()
-                .filter(h -> h.getDeptId().equals(inv.getArgument(0)))
+        when(hists.findFirstByEnterCdAndDeptIdOrderByValidFromDesc(anyString(), anyLong())).thenAnswer(inv -> histStore
+                .stream()
+                .filter(h -> h.getEnterCd().equals(inv.getArgument(0)) && h.getDeptId().equals(inv.getArgument(1)))
                 .max(Comparator.comparing(OrgDeptHist::getValidFrom)));
 
         Clock clock = Clock.fixed(Instant.parse("2026-11-11T15:30:00Z"), ZoneId.of("UTC")); // 서울 2026-11-12 00:30
@@ -102,11 +111,11 @@ class OrgDeptServiceTest {
     // ---------------------------------------------------------------- 도우미
 
     private long create(String code, String name, Long parent, int sort, LocalDate from) {
-        return service.create(new DeptCreateRequest(code, name, parent, null, sort, from, null)).deptId();
+        return service.create(E, new DeptCreateRequest(code, name, parent, null, sort, from, null)).deptId();
     }
 
     private DeptView change(long id, String name, Long parent, Long head, int sort, LocalDate d) {
-        return service.change(id, new DeptChangeRequest(name, parent, head, sort, d, "개편"));
+        return service.change(E, id, new DeptChangeRequest(name, parent, head, sort, d, "개편"));
     }
 
     private DeptView move(long id, Long parent, LocalDate d) {
@@ -115,7 +124,7 @@ class OrgDeptServiceTest {
     }
 
     private OrgDeptHist latest(long id) {
-        return hists.findFirstByDeptIdOrderByValidFromDesc(id).orElseThrow();
+        return hists.findFirstByEnterCdAndDeptIdOrderByValidFromDesc(E, id).orElseThrow();
     }
 
     private static void expectStatus(Runnable r, HttpStatus status, Consumer<String> msg) {
@@ -157,7 +166,7 @@ class OrgDeptServiceTest {
         create("D310", "구매팀", d300, 0, D0);
         create("LAB", "연구소", null, 0, D0);
 
-        OrgTree t = service.tree(D0);
+        OrgTree t = service.tree(E,D0);
 
         assertThat(t.baseDate()).isEqualTo(D0);
         assertThat(codes(t.roots())).containsExactly("HQ", "LAB");
@@ -169,8 +178,8 @@ class OrgDeptServiceTest {
     @Test
     void 신설일_당일부터_보이고_전날에는_없다() {
         create("HQ", "본사", null, 0, D0);
-        assertThat(service.tree(D0.minusDays(1)).roots()).isEmpty();
-        assertThat(codes(service.tree(D0).roots())).containsExactly("HQ");
+        assertThat(service.tree(E,D0.minusDays(1)).roots()).isEmpty();
+        assertThat(codes(service.tree(E,D0).roots())).containsExactly("HQ");
     }
 
     @Test
@@ -183,9 +192,9 @@ class OrgDeptServiceTest {
         assertThat(v.changeType()).isEqualTo(DeptChangeType.RENAME);
         assertThat(v.validFrom()).isEqualTo(d);
         assertThat(v.validTo()).isNull();
-        assertThat(service.tree(d.minusDays(1)).roots().get(0).name()).isEqualTo("인사부");
-        assertThat(service.tree(d.minusDays(1)).roots().get(0).validTo()).isEqualTo(d);
-        assertThat(service.tree(d).roots().get(0).name()).isEqualTo("인사팀");
+        assertThat(service.tree(E,d.minusDays(1)).roots().get(0).name()).isEqualTo("인사부");
+        assertThat(service.tree(E,d.minusDays(1)).roots().get(0).validTo()).isEqualTo(d);
+        assertThat(service.tree(E,d).roots().get(0).name()).isEqualTo("인사팀");
         // 이력은 추가만: 행 2개, 기간이 맞닿음
         assertThat(histStore).hasSize(2);
         assertThat(histStore.get(0).getValidTo()).isEqualTo(histStore.get(1).getValidFrom());
@@ -201,9 +210,9 @@ class OrgDeptServiceTest {
         DeptView v = move(c, b, d);
 
         assertThat(v.changeType()).isEqualTo(DeptChangeType.MOVE);
-        assertThat(find(service.tree(d.minusDays(1)), "C").parentDeptId()).isEqualTo(a);
-        assertThat(codes(find(service.tree(d), "B").children())).containsExactly("C");
-        assertThat(find(service.tree(d), "A").children()).isEmpty();
+        assertThat(find(service.tree(E,d.minusDays(1)), "C").parentDeptId()).isEqualTo(a);
+        assertThat(codes(find(service.tree(E,d), "B").children())).containsExactly("C");
+        assertThat(find(service.tree(E,d), "A").children()).isEmpty();
     }
 
     @Test
@@ -213,7 +222,7 @@ class OrgDeptServiceTest {
         assertThat(change(b, "나2", a, 9L, 5, LocalDate.of(2026, 2, 1)).changeType()).isEqualTo(DeptChangeType.MOVE);
         assertThat(change(b, "나3", a, 8L, 5, LocalDate.of(2026, 3, 1)).changeType()).isEqualTo(DeptChangeType.RENAME);
         assertThat(change(b, "나3", a, 7L, 6, LocalDate.of(2026, 4, 1)).changeType()).isEqualTo(DeptChangeType.UPDATE);
-        assertThat(find(service.tree(LocalDate.of(2026, 4, 1)), "B").headEmpId()).isEqualTo(7L);
+        assertThat(find(service.tree(E,LocalDate.of(2026, 4, 1)), "B").headEmpId()).isEqualTo(7L);
     }
 
     // ---------------------------------------------------------------- 신설 검사
@@ -222,7 +231,7 @@ class OrgDeptServiceTest {
     void 쓰기는_모두_조직_잠금을_건다() {
         long id = create("A", "가", null, 0, D0);
         change(id, "가2", null, null, 0, D0.plusDays(1));
-        service.close(id, new DeptCloseRequest(D0.plusDays(2), null));
+        service.close(E,id, new DeptCloseRequest(D0.plusDays(2), null));
         verify(lock, times(3)).acquire();
     }
 
@@ -248,7 +257,7 @@ class OrgDeptServiceTest {
     @Test
     void 폐지되었거나_폐지_예정인_부서는_상위로_지정할_수_없다() {
         long p = create("P", "상위", null, 0, D0);
-        service.close(p, new DeptCloseRequest(LocalDate.of(2026, 12, 31), null));
+        service.close(E,p, new DeptCloseRequest(LocalDate.of(2026, 12, 31), null));
         long x = create("X", "다른", null, 0, D0);
 
         expectStatus(() -> create("C", "하위", p, 0, LocalDate.of(2026, 6, 1)), HttpStatus.BAD_REQUEST,
@@ -297,8 +306,8 @@ class OrgDeptServiceTest {
 
         move(a, b, LocalDate.of(2026, 4, 1));
 
-        assertThat(codes(find(service.tree(LocalDate.of(2026, 4, 1)), "B").children())).containsExactly("A");
-        assertThat(codes(find(service.tree(LocalDate.of(2026, 2, 1)), "A").children())).containsExactly("B");
+        assertThat(codes(find(service.tree(E,LocalDate.of(2026, 4, 1)), "B").children())).containsExactly("A");
+        assertThat(codes(find(service.tree(E,LocalDate.of(2026, 2, 1)), "A").children())).containsExactly("B");
     }
 
     @Test
@@ -309,7 +318,7 @@ class OrgDeptServiceTest {
         expectStatus(() -> change(a, "가3", null, null, 0, LocalDate.of(2026, 6, 1)), HttpStatus.CONFLICT,
                 m -> assertThat(m).contains("2026-06-01"));
         expectStatus(() -> change(a, "가3", null, null, 0, LocalDate.of(2026, 3, 1)), HttpStatus.CONFLICT, m -> { });
-        expectStatus(() -> service.close(a, new DeptCloseRequest(LocalDate.of(2026, 6, 1), null)), HttpStatus.CONFLICT, m -> { });
+        expectStatus(() -> service.close(E,a, new DeptCloseRequest(LocalDate.of(2026, 6, 1), null)), HttpStatus.CONFLICT, m -> { });
     }
 
     @Test
@@ -322,7 +331,7 @@ class OrgDeptServiceTest {
     @Test
     void 없는_부서_변경과_폐지는_404() {
         expectStatus(() -> change(42, "가", null, null, 0, D0), HttpStatus.NOT_FOUND, m -> assertThat(m).contains("42"));
-        expectStatus(() -> service.close(42, new DeptCloseRequest(D0, null)), HttpStatus.NOT_FOUND, m -> { });
+        expectStatus(() -> service.close(E,42, new DeptCloseRequest(D0, null)), HttpStatus.NOT_FOUND, m -> { });
     }
 
     // ---------------------------------------------------------------- 폐지
@@ -332,13 +341,13 @@ class OrgDeptServiceTest {
         long a = create("A", "가", null, 0, D0);
         LocalDate d = LocalDate.of(2026, 9, 1);
 
-        DeptView v = service.close(a, new DeptCloseRequest(d, " 통폐합 "));
+        DeptView v = service.close(E,a, new DeptCloseRequest(d, " 통폐합 "));
 
         assertThat(v.deptValidTo()).isEqualTo(d);
         assertThat(v.validTo()).isEqualTo(d);
         assertThat(deptStore.get(a).getCloseReason()).isEqualTo("통폐합");
-        assertThat(codes(service.tree(d.minusDays(1)).roots())).containsExactly("A");
-        assertThat(service.tree(d).roots()).isEmpty();
+        assertThat(codes(service.tree(E,d.minusDays(1)).roots())).containsExactly("A");
+        assertThat(service.tree(E,d).roots()).isEmpty();
         verify(members).countMembersOnOrAfter(a, d);
     }
 
@@ -348,7 +357,7 @@ class OrgDeptServiceTest {
         LocalDate d = LocalDate.of(2026, 9, 1);
         when(members.countMembersOnOrAfter(a, d)).thenReturn(3L);
 
-        expectStatus(() -> service.close(a, new DeptCloseRequest(d, null)), HttpStatus.CONFLICT,
+        expectStatus(() -> service.close(E,a, new DeptCloseRequest(d, null)), HttpStatus.CONFLICT,
                 m -> assertThat(m).contains("재직자").contains("3명"));
         assertThat(deptStore.get(a).getValidTo()).isNull();
         assertThat(latest(a).getValidTo()).isNull();
@@ -358,7 +367,7 @@ class OrgDeptServiceTest {
     void 하위부서가_남아_있으면_폐지를_거부한다() {
         long a = create("A", "가", null, 0, D0);
         create("B", "나", a, 0, D0);
-        expectStatus(() -> service.close(a, new DeptCloseRequest(LocalDate.of(2026, 9, 1), null)), HttpStatus.CONFLICT,
+        expectStatus(() -> service.close(E,a, new DeptCloseRequest(LocalDate.of(2026, 9, 1), null)), HttpStatus.CONFLICT,
                 m -> assertThat(m).contains("하위 부서").contains("B"));
         assertThat(deptStore.get(a).getValidTo()).isNull();
     }
@@ -371,24 +380,52 @@ class OrgDeptServiceTest {
         move(b, null, LocalDate.of(2026, 8, 1));
         move(c, a, LocalDate.of(2026, 10, 1)); // 폐지일(9/1) 뒤에 A 아래로 들어올 예약
 
-        expectStatus(() -> service.close(a, new DeptCloseRequest(LocalDate.of(2026, 9, 1), null)), HttpStatus.CONFLICT,
+        expectStatus(() -> service.close(E,a, new DeptCloseRequest(LocalDate.of(2026, 9, 1), null)), HttpStatus.CONFLICT,
                 m -> assertThat(m).contains("C").doesNotContain("B"));
 
         move(c, null, LocalDate.of(2026, 10, 2));
         // 10/1~10/2 하루 동안 C가 A 아래이므로 여전히 거부
-        expectStatus(() -> service.close(a, new DeptCloseRequest(LocalDate.of(2026, 9, 1), null)), HttpStatus.CONFLICT, m -> { });
+        expectStatus(() -> service.close(E,a, new DeptCloseRequest(LocalDate.of(2026, 9, 1), null)), HttpStatus.CONFLICT, m -> { });
         // 10/2부터는 하위가 없으므로 폐지 가능
-        assertThat(service.close(a, new DeptCloseRequest(LocalDate.of(2026, 10, 2), null)).deptValidTo())
+        assertThat(service.close(E,a, new DeptCloseRequest(LocalDate.of(2026, 10, 2), null)).deptValidTo())
                 .isEqualTo(LocalDate.of(2026, 10, 2));
     }
 
     @Test
     void 이미_폐지된_부서는_다시_폐지하거나_바꿀_수_없다() {
         long a = create("A", "가", null, 0, D0);
-        service.close(a, new DeptCloseRequest(LocalDate.of(2026, 9, 1), null));
-        expectStatus(() -> service.close(a, new DeptCloseRequest(LocalDate.of(2026, 10, 1), null)), HttpStatus.CONFLICT,
+        service.close(E,a, new DeptCloseRequest(LocalDate.of(2026, 9, 1), null));
+        expectStatus(() -> service.close(E,a, new DeptCloseRequest(LocalDate.of(2026, 10, 1), null)), HttpStatus.CONFLICT,
                 m -> assertThat(m).contains("2026-09-01"));
         expectStatus(() -> change(a, "가2", null, null, 0, LocalDate.of(2026, 10, 1)), HttpStatus.CONFLICT, m -> { });
+    }
+
+    // ---------------------------------------------------------------- 법인 (#122)
+
+    @Test
+    void 다른_법인의_부서는_트리에_없고_변경_폐지는_404_상위부서로는_400() {
+        long a = create("A", "가", null, 0, D0);
+
+        assertThat(service.tree(OTHER, D0).roots()).isEmpty();
+        expectStatus(() -> service.change(OTHER, a, new DeptChangeRequest("나", null, null, 0, D0.plusDays(1), null)),
+                HttpStatus.NOT_FOUND, m -> { });
+        expectStatus(() -> service.close(OTHER, a, new DeptCloseRequest(D0.plusDays(1), null)), HttpStatus.NOT_FOUND,
+                m -> { });
+        expectStatus(() -> service.create(OTHER, new DeptCreateRequest("B", "나", a, null, 0, D0, null)),
+                HttpStatus.BAD_REQUEST, m -> assertThat(m).contains("상위부서"));
+        // 아무것도 바뀌지 않았다
+        assertThat(histStore).hasSize(1).allMatch(h -> h.getValidTo() == null);
+        assertThat(deptStore.get(a).getValidTo()).isNull();
+    }
+
+    @Test
+    void 부서코드는_법인마다_따로_쓸_수_있다() {
+        create("A", "가", null, 0, D0);
+        long other = service.create(OTHER, new DeptCreateRequest("A", "가", null, null, 0, D0, null)).deptId();
+
+        assertThat(deptStore.get(other).getEnterCd()).isEqualTo(OTHER);
+        assertThat(codes(service.tree(OTHER, D0).roots())).containsExactly("A");
+        assertThat(service.tree(E, D0).roots()).hasSize(1);
     }
 
     @Test

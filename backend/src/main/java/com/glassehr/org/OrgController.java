@@ -5,6 +5,7 @@ import com.glassehr.org.OrgDtos.DeptCloseRequest;
 import com.glassehr.org.OrgDtos.DeptCreateRequest;
 import com.glassehr.org.OrgDtos.DeptView;
 import com.glassehr.org.OrgDtos.OrgTree;
+import com.glassehr.auth.AuthUser;
 import com.glassehr.auth.Permission;
 import com.glassehr.auth.RequiresPermission;
 import jakarta.validation.Valid;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>POST /api/org/depts/{deptId}/close — 부서 폐지(폐지일부터)</li>
  * </ul>
  * 이력을 지우는 API는 두지 않는다(이력은 추가로만 쌓음). 조회는 로그인 사용자 모두, 쓰기는 ORG_WRITE 권한(인사담당·관리자, #19).
+ * 모두 세션의 현재 법인 조직만 다룬다(#122). 다른 법인의 부서 ID 는 404, 다른 법인 부서를 상위부서로 지정하면 400.
  */
 @RestController
 @RequestMapping("/api/org")
@@ -44,26 +46,26 @@ public class OrgController {
     @GetMapping("/tree")
     @RequiresPermission
     public OrgTree tree(@RequestParam(name = "date", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return service.tree(date != null ? date : service.today());
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date, AuthUser user) {
+        return service.tree(user.enterCd(), date != null ? date : service.today());
     }
 
     @PostMapping("/depts")
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission(Permission.ORG_WRITE)
-    public DeptView create(@Valid @RequestBody DeptCreateRequest req) {
-        return service.create(req);
+    public DeptView create(@Valid @RequestBody DeptCreateRequest req, AuthUser user) {
+        return service.create(user.enterCd(), req);
     }
 
     @PutMapping("/depts/{deptId}")
     @RequiresPermission(Permission.ORG_WRITE)
-    public DeptView change(@PathVariable long deptId, @Valid @RequestBody DeptChangeRequest req) {
-        return service.change(deptId, req);
+    public DeptView change(@PathVariable long deptId, @Valid @RequestBody DeptChangeRequest req, AuthUser user) {
+        return service.change(user.enterCd(), deptId, req);
     }
 
     @PostMapping("/depts/{deptId}/close")
     @RequiresPermission(Permission.ORG_WRITE)
-    public DeptView close(@PathVariable long deptId, @Valid @RequestBody DeptCloseRequest req) {
-        return service.close(deptId, req);
+    public DeptView close(@PathVariable long deptId, @Valid @RequestBody DeptCloseRequest req, AuthUser user) {
+        return service.close(user.enterCd(), deptId, req);
     }
 }

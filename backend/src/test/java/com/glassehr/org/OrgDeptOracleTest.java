@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 class OrgDeptOracleTest {
 
     private static final LocalDate D0 = LocalDate.of(1901, 1, 1);
+    private static final String E = "C001";
 
     @Autowired
     private OrgDeptService service;
@@ -45,42 +46,47 @@ class OrgDeptOracleTest {
 
     @Test
     void 신설_이름변경_이동_폐지가_기준일_트리에_반영된다() {
-        long a = service.create(new DeptCreateRequest("ZZIT_A", "가", null, null, 0, D0, null)).deptId();
-        long b = service.create(new DeptCreateRequest("ZZIT_B", "나", a, null, 0, D0, null)).deptId();
+        long a = service.create(E, new DeptCreateRequest("ZZIT_A", "가", null, null, 0, D0, null)).deptId();
+        long b = service.create(E, new DeptCreateRequest("ZZIT_B", "나", a, null, 0, D0, null)).deptId();
         LocalDate d1 = LocalDate.of(1901, 6, 1);
-        service.change(b, new DeptChangeRequest("나2", null, null, 0, d1, "독립"));
+        service.change(E, b, new DeptChangeRequest("나2", null, null, 0, d1, "독립"));
 
-        OrgTree before = service.tree(d1.minusDays(1));
+        OrgTree before = service.tree(E, d1.minusDays(1));
         assertThat(find(before, "ZZIT_A").children()).extracting(DeptNode::name).containsExactly("나");
-        OrgTree after = service.tree(d1);
+        OrgTree after = service.tree(E, d1);
         assertThat(find(after, "ZZIT_B").name()).isEqualTo("나2");
         assertThat(find(after, "ZZIT_A").children()).isEmpty();
 
         LocalDate d2 = LocalDate.of(1901, 9, 1);
-        service.close(a, new DeptCloseRequest(d2, "폐지"));
-        assertThat(find(service.tree(d2.minusDays(1)), "ZZIT_A")).isNotNull();
-        assertThat(find(service.tree(d2), "ZZIT_A")).isNull();
+        service.close(E, a, new DeptCloseRequest(d2, "폐지"));
+        assertThat(find(service.tree(E, d2.minusDays(1)), "ZZIT_A")).isNotNull();
+        assertThat(find(service.tree(E, d2), "ZZIT_A")).isNull();
     }
 
     @Test
     void 자기_하위로_옮기면_거부한다() {
-        long a = service.create(new DeptCreateRequest("ZZIT_C", "가", null, null, 0, D0, null)).deptId();
-        long b = service.create(new DeptCreateRequest("ZZIT_D", "나", a, null, 0, D0, null)).deptId();
-        assertThatThrownBy(() -> service.change(a, new DeptChangeRequest("가", b, null, 0, D0.plusDays(1), null)))
+        long a = service.create(E, new DeptCreateRequest("ZZIT_C", "가", null, null, 0, D0, null)).deptId();
+        long b = service.create(E, new DeptCreateRequest("ZZIT_D", "나", a, null, 0, D0, null)).deptId();
+        assertThatThrownBy(() -> service.change(E, a, new DeptChangeRequest("가", b, null, 0, D0.plusDays(1), null)))
                 .isInstanceOfSatisfying(OrgException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST));
     }
 
     @Test
     void DB는_같은_시작일_중복과_자기참조와_역전된_기간을_거부한다() {
-        long a = service.create(new DeptCreateRequest("ZZIT_E", "가", null, null, 0, D0, null)).deptId();
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO org_dept_hist (dept_id, valid_from, dept_name, change_type)"
-                + " VALUES (?, DATE '1901-01-01', '중복', 'UPDATE')", a)).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO org_dept_hist (dept_id, valid_from, dept_name, parent_dept_id, change_type)"
-                + " VALUES (?, DATE '1901-02-01', '자기', ?, 'MOVE')", a, a)).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO org_dept_hist (dept_id, valid_from, valid_to, dept_name, change_type)"
-                + " VALUES (?, DATE '1901-03-01', DATE '1901-03-01', '역전', 'UPDATE')", a))
+        long a = service.create(E, new DeptCreateRequest("ZZIT_E", "가", null, null, 0, D0, null)).deptId();
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO org_dept_hist (enter_cd, dept_id, valid_from, dept_name, change_type)"
+                + " VALUES (?, ?, DATE '1901-01-01', '중복', 'UPDATE')", E, a))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO org_dept (dept_code, valid_from) VALUES ('zzit_low', DATE '1901-01-01')"))
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO org_dept_hist"
+                + " (enter_cd, dept_id, valid_from, dept_name, parent_dept_id, change_type)"
+                + " VALUES (?, ?, DATE '1901-02-01', '자기', ?, 'MOVE')", E, a, a))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO org_dept_hist"
+                + " (enter_cd, dept_id, valid_from, valid_to, dept_name, change_type)"
+                + " VALUES (?, ?, DATE '1901-03-01', DATE '1901-03-01', '역전', 'UPDATE')", E, a))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO org_dept (enter_cd, dept_code, valid_from)"
+                + " VALUES (?, 'zzit_low', DATE '1901-01-01')", E))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }
