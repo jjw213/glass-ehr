@@ -10,8 +10,10 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 공통코드 그룹. 테이블: V006__common_code.sql. 그룹은 마이그레이션으로만 추가하므로 읽기 전용으로 쓴다.
+ * 공통코드 그룹. 테이블: V006__common_code.sql.
  * V034(#121): 키는 (enter_cd, group_code). 법인마다 따로 둔다(docs/tenant-design.md 3.2).
+ * V037(#140): 시스템 그룹(system_yn='Y')은 로직이 그룹코드를 참조하므로 삭제·사용 여부 변경을 막는다.
+ * 사용자 그룹은 화면에서 추가·수정·삭제한다. 그룹코드(PK)는 바꾸지 않는다.
  */
 @Entity
 @Table(name = "common_code_group")
@@ -43,6 +45,14 @@ public class CodeGroup {
     @Column(name = "use_yn", nullable = false)
     private Boolean active;
 
+    @Convert(converter = YnConverter.class)
+    @Column(name = "system_yn", nullable = false, updatable = false)
+    private Boolean system;
+
+    /** 다른 모듈 화면에서 편집하는 그룹의 화면 키. null 이면 공통코드 화면에서 편집. 마이그레이션으로만 정한다. */
+    @Column(name = "edit_page", updatable = false)
+    private String editPage;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -52,14 +62,31 @@ public class CodeGroup {
     protected CodeGroup() {
     }
 
-    /** 테스트용. 운영 데이터는 마이그레이션으로 넣는다. */
-    CodeGroup(String enterCd, String groupCode, String groupName, String description, int sortOrder, boolean active) {
+    CodeGroup(String enterCd, String groupCode, String groupName, String description, int sortOrder, boolean active,
+            boolean system, LocalDateTime now) {
         this.enterCd = enterCd;
         this.groupCode = groupCode;
         this.groupName = groupName;
         this.description = description;
         this.sortOrder = sortOrder;
         this.active = active;
+        this.system = system;
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    void change(String groupName, String description, int sortOrder, boolean active, LocalDateTime now) {
+        this.groupName = groupName;
+        this.description = description;
+        this.sortOrder = sortOrder;
+        this.active = active;
+        this.updatedAt = now;
+    }
+
+    /** 테스트용. 다른 화면 편집 그룹은 마이그레이션으로만 정한다. */
+    CodeGroup withEditPage(String editPage) {
+        this.editPage = editPage;
+        return this;
     }
 
     public String getEnterCd() {
@@ -84,5 +111,13 @@ public class CodeGroup {
 
     public boolean isActive() {
         return active;
+    }
+
+    public boolean isSystem() {
+        return system;
+    }
+
+    public String getEditPage() {
+        return editPage;
     }
 }
