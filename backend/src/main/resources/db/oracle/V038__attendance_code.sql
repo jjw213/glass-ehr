@@ -3,13 +3,13 @@
 -- 1. common_code.process_type: 근태코드의 처리방식. 로직은 코드값이 아니라 처리방식을 본다.
 --    LEAVE_TYPE      ANNUAL(연차)·STATUTORY(법정휴가)·COMPANY(회사 약정휴가)·UNPAID(무급휴가)
 --    ATTENDANCE_TYPE BUSINESS_TRIP(출장)·OUTSIDE_WORK(외근)·REMOTE(재택)·EDUCATION(교육) — 근무로 인정되는 구분
---    다른 그룹은 NULL. 목록은 com.glassehr.code.AttendanceCodeGroups 와 같아야 한다.
+--    다른 그룹은 NULL. 목록은 com.glassehr.code.AttendanceCodeService.PROCESS_TYPES 와 같아야 한다.
 -- 2. 두 그룹은 시스템 그룹(system_yn='Y'), edit_page='attendanceCodes'(근태관리 > 근태코드 관리에서 편집).
 --    이미 있는 모든 법인에 넣는다(공통코드는 법인별, #121).
 -- 3. 연차·법정휴가 6개는 기본 코드(system_yn='Y', 삭제 불가). 일수·유급 기간은 legal_rate 에서 읽고 화면에서 고치지 않는다.
 --    회사 약정휴가 예시(경조사·병가·창립기념일)와 근태 구분 4개는 삭제할 수 있다.
 -- 4. attendance_leave_type: 휴가 종류별 상세 설정(사용 단위·유급·증빙·연간 한도·성별 제한·법정 근거 문구).
--- 5. legal_rate_item: 법정휴가 유급 일수·난임치료휴가 일수 항목코드만 등록한다. 값은 법령 데이터 작업으로 넣는다
+-- 5. 법정휴가 유급 일수·난임치료휴가 일수 legal_rate_item 은 V039 에서 등록한다. 값은 법령 데이터 작업으로 넣는다
 --    (AGENTS.md 법령 규칙). 코드 목록은 com.glassehr.legalrate.LegalRateItem 과 같아야 한다.
 
 ALTER TABLE common_code ADD (
@@ -113,17 +113,3 @@ INSERT INTO attendance_leave_type (enter_cd, code, unit_day_yn, unit_half_day_yn
     SELECT enter_cd, 'SICK', 'Y', 'N', 'N', 'N', 'Y', NULL, NULL, NULL FROM enter_company;
 INSERT INTO attendance_leave_type (enter_cd, code, unit_day_yn, unit_half_day_yn, unit_hour_yn, paid_yn, proof_required_yn, annual_limit_days, gender_limit, legal_basis)
     SELECT enter_cd, 'FOUNDATION_DAY', 'Y', 'N', 'N', 'Y', 'N', NULL, NULL, NULL FROM enter_company;
-
--- 법정휴가 유급 일수·난임치료휴가 일수(값 없음, 법령 데이터 작업으로 입력)
-INSERT INTO legal_rate_item (item_code, item_name, unit, legal_basis) VALUES
-    ('MATERNITY_LEAVE_PAID_DAYS', '출산전후휴가 중 유급 일수', 'DAYS', '근로기준법 제74조');
-INSERT INTO legal_rate_item (item_code, item_name, unit, legal_basis) VALUES
-    ('MATERNITY_LEAVE_MULTIPLE_PAID_DAYS', '출산전후휴가 중 유급 일수(다태아)', 'DAYS', '근로기준법 제74조');
-INSERT INTO legal_rate_item (item_code, item_name, unit, legal_basis) VALUES
-    ('SPOUSE_MATERNITY_LEAVE_PAID_DAYS', '배우자 출산휴가 중 유급 일수', 'DAYS', '남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률 제18조의2');
-INSERT INTO legal_rate_item (item_code, item_name, unit, legal_basis) VALUES
-    ('FAMILY_CARE_LEAVE_PAID_DAYS', '가족돌봄휴가 중 유급 일수', 'DAYS', '남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률 제22조의2');
-INSERT INTO legal_rate_item (item_code, item_name, unit, legal_basis) VALUES
-    ('INFERTILITY_TREATMENT_LEAVE_DAYS_PER_YEAR', '난임치료휴가 연간 일수', 'DAYS', '남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률 제18조의3');
-INSERT INTO legal_rate_item (item_code, item_name, unit, legal_basis) VALUES
-    ('INFERTILITY_TREATMENT_LEAVE_PAID_DAYS', '난임치료휴가 중 유급 일수', 'DAYS', '남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률 제18조의3');

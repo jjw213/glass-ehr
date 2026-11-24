@@ -48,6 +48,10 @@ public class CommonCode {
     @Column(name = "system_yn", nullable = false, updatable = false)
     private Boolean system = Boolean.FALSE;
 
+    /** 근태코드 그룹(LEAVE_TYPE·ATTENDANCE_TYPE)의 처리방식(V038, #143). 다른 그룹은 null. */
+    @Column(name = "process_type")
+    private String processType;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -68,6 +72,17 @@ public class CommonCode {
         this.active = active;
         this.createdAt = now;
         this.updatedAt = now;
+    }
+
+    /** 근태코드 추가(#143). 처리방식은 {@link AttendanceCodeService#PROCESS_TYPES} 안의 값이다. */
+    CommonCode(String enterCd, String groupCode, String code, String codeName, String description, int sortOrder,
+            boolean active, String processType, LocalDateTime now) {
+        this(enterCd, groupCode, code, codeName, description, sortOrder, active, now);
+        this.processType = processType;
+    }
+
+    void changeProcessType(String processType) {
+        this.processType = processType;
     }
 
     void change(String codeName, String description, int sortOrder, boolean active, LocalDateTime now) {
@@ -104,6 +119,10 @@ public class CommonCode {
 
     public boolean isActive() {
         return active;
+    }
+
+    public String getProcessType() {
+        return processType;
     }
 
     public boolean isSystem() {

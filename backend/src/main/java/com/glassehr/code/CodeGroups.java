@@ -24,6 +24,14 @@ public final class CodeGroups {
     /** 인사발령 유형(V014__hr_appointment.sql). 코드값은 com.glassehr.appointment.AppointmentType 과 같다. */
     public static final String APPOINTMENT_TYPE = "APPOINTMENT_TYPE";
 
+    /** 휴가 종류(V038, #143). 근태관리 > 근태코드 관리에서 편집한다(edit_page='attendanceCodes'). */
+    public static final String LEAVE_TYPE = "LEAVE_TYPE";
+    /** 근태 구분(V038, #143). 근무로 인정되는(근로시간에 넣는) 구분. 근태관리 > 근태코드 관리에서 편집한다. */
+    public static final String ATTENDANCE_TYPE = "ATTENDANCE_TYPE";
+
+    /** 근태코드 그룹(V038). ALL 과 따로 둔다(ALL 은 V007·V014 시드 비교용). */
+    public static final List<String> ATTENDANCE = List.of(LEAVE_TYPE, ATTENDANCE_TYPE);
+
     /** 시드 파일 순서(V007 → V014)대로. */
     public static final List<String> ALL = List.of(
             JOB_GRADE, JOB_TITLE, JOB_FAMILY, EMPLOYMENT_TYPE, WORK_LOCATION, RETIREMENT_REASON, APPOINTMENT_TYPE);

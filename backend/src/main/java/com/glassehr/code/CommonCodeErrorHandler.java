@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** 공통코드 API 오류를 {"error": "..."} 형식으로 돌려준다(프론트 http.ts가 error 필드를 읽는다). */
-@RestControllerAdvice(assignableTypes = CommonCodeController.class)
+@RestControllerAdvice(assignableTypes = {CommonCodeController.class, AttendanceCodeController.class})
 public class CommonCodeErrorHandler {
 
     @ExceptionHandler(CodeException.class)

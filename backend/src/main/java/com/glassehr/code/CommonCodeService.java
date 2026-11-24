@@ -75,14 +75,20 @@ public class CommonCodeService {
     /** 관리 화면용. includeInactive=false 면 사용 중인 코드만. 코드마다 참조 건수를 붙인다. */
     public List<CodeListItem> listCodes(String enterCd, String groupCode, boolean includeInactive) {
         requireGroup(enterCd, groupCode);
-        Map<String, Long> counts = new HashMap<>();
-        for (Ref ref : CodeReferences.of(groupCode)) {
-            usages.countsByCode(enterCd, ref).forEach((code, n) -> counts.merge(code, n, Long::sum));
-        }
+        Map<String, Long> counts = usageCounts(enterCd, groupCode);
         return codes.findByEnterCdAndGroupCodeOrderBySortOrderAscCodeAsc(enterCd, groupCode).stream()
                 .filter(c -> includeInactive || c.isActive())
                 .map(c -> CodeListItem.of(c, counts.getOrDefault(c.getCode(), 0L)))
                 .toList();
+    }
+
+    /** 코드별 참조 건수 합(참조 목록의 모든 테이블). 근태코드 목록도 쓴다(#143). */
+    Map<String, Long> usageCounts(String enterCd, String groupCode) {
+        Map<String, Long> counts = new HashMap<>();
+        for (Ref ref : CodeReferences.of(groupCode)) {
+            usages.countsByCode(enterCd, ref).forEach((code, n) -> counts.merge(code, n, Long::sum));
+        }
+        return counts;
     }
 
     /**
@@ -133,6 +139,7 @@ public class CommonCodeService {
     @Transactional
     public CodeGroupView updateGroup(String enterCd, String groupCode, GroupUpdateRequest req) {
         CodeGroup g = findGroup(enterCd, groupCode);
+        requireEditableHere(g);
         if (g.isSystem() && g.isActive() != req.active()) {
             throw CodeException.conflict("시스템 그룹은 사용 여부를 바꿀 수 없어요. 이름·설명·순서만 고칠 수 있어요");
         }
@@ -166,7 +173,7 @@ public class CommonCodeService {
 
     @Transactional
     public CodeView create(String enterCd, String groupCode, CodeCreateRequest req) {
-        requireGroup(enterCd, groupCode);
+        requireCodesEditableHere(enterCd, groupCode);
         if (codes.existsByEnterCdAndGroupCodeAndCode(enterCd, groupCode, req.code())) {
             throw CodeException.duplicate(groupCode, req.code());
         }
@@ -177,6 +184,7 @@ public class CommonCodeService {
 
     @Transactional
     public CodeView update(String enterCd, String groupCode, String code, CodeUpdateRequest req) {
+        requireCodesEditableHere(enterCd, groupCode);
         CommonCode c = findCode(enterCd, groupCode, code);
         c.change(req.name().strip(), blankToNull(req.description()), req.sortOrder(), req.active(), now());
         return CodeView.of(codes.saveAndFlush(c));
@@ -188,16 +196,32 @@ public class CommonCodeService {
      */
     @Transactional
     public void deleteCode(String enterCd, String groupCode, String code) {
+        requireCodesEditableHere(enterCd, groupCode);
         CommonCode c = findCode(enterCd, groupCode, code);
+        requireDeletable(enterCd, c);
+        codes.delete(c);
+        codes.flush();
+    }
+
+    /** 코드 삭제 규칙: 기본 코드·참조 중이면 409. 근태코드 삭제도 같은 규칙을 쓴다(#143). */
+    void requireDeletable(String enterCd, CommonCode c) {
         if (c.isSystem()) {
             throw CodeException.conflict("기본 코드라 삭제할 수 없어요. 사용 안 함으로 바꿔 주세요");
         }
-        List<UsageTable> used = usageTables(enterCd, groupCode, code);
+        List<UsageTable> used = usageTables(enterCd, c.getGroupCode(), c.getCode());
         if (!used.isEmpty()) {
             throw CodeException.conflict(IN_USE_MESSAGE + " (" + describe(used) + ")");
         }
-        codes.delete(c);
-        codes.flush();
+    }
+
+    /**
+     * 다른 화면에서 편집하는 그룹(edit_page, 예: 근태코드)은 공통코드 API 로 고치지 않는다(#143).
+     * 그 화면이 처리방식·상세 설정을 함께 저장하기 때문이다. 조회·사용처 보기는 된다.
+     */
+    private static void requireEditableHere(CodeGroup g) {
+        if (g.getEditPage() != null) {
+            throw CodeException.conflict("이 코드그룹은 공통코드 화면에서 고칠 수 없어요. 전용 화면에서 편집해 주세요");
+        }
     }
 
     /** 사용처 요약(테이블별 건수). 건수가 0인 테이블은 뺀다. */
@@ -238,12 +262,12 @@ public class CommonCodeService {
         return used.stream().map(u -> u.label() + " " + u.count() + "건").collect(Collectors.joining(", "));
     }
 
-    private CodeGroup findGroup(String enterCd, String groupCode) {
+    CodeGroup findGroup(String enterCd, String groupCode) {
         return groups.findByEnterCdAndGroupCode(enterCd, groupCode)
                 .orElseThrow(() -> CodeException.groupNotFound(groupCode));
     }
 
-    private CommonCode findCode(String enterCd, String groupCode, String code) {
+    CommonCode findCode(String enterCd, String groupCode, String code) {
         requireGroup(enterCd, groupCode);
         return codes.findByEnterCdAndGroupCodeAndCode(enterCd, groupCode, code)
                 .orElseThrow(() -> CodeException.codeNotFound(groupCode, code));

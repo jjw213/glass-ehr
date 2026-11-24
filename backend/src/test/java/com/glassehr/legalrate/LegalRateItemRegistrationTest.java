@@ -45,7 +45,7 @@ class LegalRateItemRegistrationTest {
             "db/oracle/V022__retirement_process.sql",
             "db/oracle/V026__family_leave_request.sql",
             "db/oracle/V028__legal_rate_items_flexible_work.sql",
-            "db/oracle/V038__attendance_code.sql");
+            "db/oracle/V039__legal_rate_items_statutory_leave.sql");
 
     /** #7 에서 등록한 인사·근태 항목 마이그레이션(V003·V005). */
     private static final List<String> HR_ATTENDANCE_ITEM_MIGRATIONS = ITEM_MIGRATIONS.subList(0, 2);
@@ -126,8 +126,8 @@ class LegalRateItemRegistrationTest {
 
     @Test
     void 근태코드_법정휴가_항목이_일_단위로_등록돼_있다() throws IOException {
-        // #143: 법정휴가 유급 일수·난임치료휴가 일수. 값은 법령 데이터 작업으로 넣는다(V038 에는 값 행 없음).
-        Map<String, String[]> items = registeredItems(List.of("db/oracle/V038__attendance_code.sql"));
+        // #143: 법정휴가 유급 일수·난임치료휴가 일수. 값은 법령 데이터 작업으로 넣는다(V039 에는 값 행 없음).
+        Map<String, String[]> items = registeredItems(List.of("db/oracle/V039__legal_rate_items_statutory_leave.sql"));
         assertThat(items).containsOnlyKeys("MATERNITY_LEAVE_PAID_DAYS", "MATERNITY_LEAVE_MULTIPLE_PAID_DAYS",
                 "SPOUSE_MATERNITY_LEAVE_PAID_DAYS", "FAMILY_CARE_LEAVE_PAID_DAYS",
                 "INFERTILITY_TREATMENT_LEAVE_DAYS_PER_YEAR", "INFERTILITY_TREATMENT_LEAVE_PAID_DAYS");
