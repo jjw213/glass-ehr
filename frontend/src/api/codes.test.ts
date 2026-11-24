@@ -4,14 +4,27 @@ import { CODE_GROUPS, CODES } from '../data/codes';
 import { CODE_GROUP, createMockCodeApi, validateCode } from './codes';
 import { ApiError } from './types';
 
+import systemSql from '../../../backend/src/main/resources/db/oracle/V037__common_code_system_edit_page.sql?raw';
+
 const sql = seedSql.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
+const sysSql = systemSql.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
+const quoted = (s: string) => [...s.matchAll(/'([^']*)'/g)].map((m) => m[1]);
+/** V037 이 system_yn='Y' 로 바꾸는 그룹·코드 */
+const systemGroups = new Set(quoted(/UPDATE common_code_group SET system_yn = 'Y'\s+WHERE group_code IN \(([^)]*)\)/.exec(sysSql)![1]));
+const codeUpdate = /UPDATE common_code SET system_yn = 'Y'([^;]*);/.exec(sysSql)![1];
+const wholeSystemGroups = new Set([...codeUpdate.matchAll(/group_code = '(\w+)'(?!\s+AND)/g)].map((m) => m[1]));
+const systemCodes = new Set([...codeUpdate.matchAll(/group_code = '(\w+)'\s+AND code IN \(([^)]*)\)/g)]
+  .flatMap((m) => quoted(m[2]).map((code) => `${m[1]}/${code}`)));
 const groupRows = [...sql.matchAll(/INSERT INTO common_code_group \([^)]*\) VALUES\s*\('([^']*)',\s*'([^']*)',\s*'([^']*)',\s*(\d+)\)/g)]
   .map((m) => ({ groupCode: m[1], name: m[2], description: m[3], sortOrder: Number(m[4]) }));
 const codeRows = [...sql.matchAll(/INSERT INTO common_code \(([^)]*)\) VALUES\s*\(([^;]*)\);/g)].map((m) => {
   const cols = m[1].split(',').map((s) => s.trim());
   const vals = [...m[2].matchAll(/'([^']*)'|(\d+)/g)].map((v) => (v[1] !== undefined ? v[1] : Number(v[2])));
   const row = Object.fromEntries(cols.map((c, i) => [c, vals[i]]));
-  return { groupCode: row.group_code, code: row.code, name: row.code_name, description: row.description ?? null, sortOrder: row.sort_order, active: true };
+  return {
+    groupCode: row.group_code, code: row.code, name: row.code_name, description: row.description ?? null, sortOrder: row.sort_order, active: true,
+    system: wholeSystemGroups.has(String(row.group_code)) || systemCodes.has(`${row.group_code}/${row.code}`),
+  };
 });
 
 describe('데모 시드는 백엔드 시드(V007)와 같다', () => {
@@ -19,6 +32,7 @@ describe('데모 시드는 백엔드 시드(V007)와 같다', () => {
     expect(groupRows.length).toBeGreaterThan(0);
     expect(CODE_GROUPS.map(({ groupCode, name, description, sortOrder }) => ({ groupCode, name, description, sortOrder }))).toEqual(groupRows);
     expect(Object.values(CODE_GROUP)).toEqual(groupRows.map((g) => g.groupCode));
+    expect(CODE_GROUPS.map((g) => g.system)).toEqual(groupRows.map((g) => systemGroups.has(g.groupCode)));
   });
 
   it('코드', () => {

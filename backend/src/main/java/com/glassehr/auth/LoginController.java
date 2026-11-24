@@ -92,6 +92,39 @@ public class LoginController {
                 .body(new LoginResponse(r.enterCd(), r.loginId()));
     }
 
+    /** 전환할 법인. 법인 코드를 본문으로 받는 유일한 업무 API(docs/tenant-design.md 2장 예외). */
+    public record SwitchRequest(String enterCd) {
+    }
+
+    public record SwitchResponse(String enterCd, String homeEnterCd) {
+    }
+
+    /**
+     * 그룹 관리자 법인 전환(#120, docs/tenant-design.md 4.3). ENTER_SWITCH 권한이 없으면 403(AuthInterceptor).
+     * 없거나 사용 안 함·다법인 배포 잠금 밖 법인이면 404. 성공하면 세션의 현재 법인만 바꾸고 주체 법인·아이디와
+     * 세션 ID 는 그대로 둔다(로그인 주체가 바뀌지 않음). 전환은 접속기록에 남긴다(LoginService.switchEnter).
+     */
+    @PostMapping("/api/auth/switch-enter")
+    @RequiresPermission(Permission.ENTER_SWITCH)
+    public ResponseEntity<?> switchEnter(@RequestBody(required = false) SwitchRequest body, AuthUser user,
+            HttpServletRequest req) {
+        if (body == null || body.enterCd() == null || body.enterCd().isBlank()) {
+            return error(HttpStatus.BAD_REQUEST, "바꿀 회사를 선택해 주세요");
+        }
+        HttpSession session = req.getSession(false);
+        if (session == null || session.getAttribute(AuthInterceptor.SESSION_LOGIN_ID) == null) {
+            // test 프로필 헤더 요청(세션 없음)은 바꾼 법인을 둘 곳이 없다.
+            return error(HttpStatus.BAD_REQUEST, "로그인한 뒤에 회사를 바꿀 수 있어요");
+        }
+        String target = body.enterCd().strip();
+        if (!service.switchEnter(user, target, req.getRemoteAddr())) {
+            return error(HttpStatus.NOT_FOUND, "회사를 찾을 수 없어요");
+        }
+        session.setAttribute(AuthInterceptor.SESSION_CURRENT_ENTER_CD, target);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new SwitchResponse(target, user.homeEnterCd()));
+    }
+
     @PostMapping("/api/auth/logout")
     @PublicApi
     public ResponseEntity<Void> logout(HttpServletRequest req) {

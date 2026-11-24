@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError, type AppData as Bootstrap, type ChatMessage, type Dept, type MessagePage, type NewLeave } from '../api';
-import { setUnauthorizedHandler } from '../api/http';
+import { setExpectedEnter, setUnauthorizedHandler } from '../api/http';
+
+const ENTER_SWITCH_CHANNEL = 'glass-ehr-enter-switch';
 
 export type PageId = 'home' | 'attendance' | 'flexWork' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'workPatterns' | 'holidays' | 'agreements' | 'familyLeaves' | 'retirements' | 'appointments' | 'privacyLogs' | 'overtime' | 'approvalInbox';
 export const PAGE_IDS: PageId[] = ['home', 'attendance', 'flexWork', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings', 'codes', 'workPatterns', 'holidays', 'agreements', 'familyLeaves', 'retirements', 'appointments', 'privacyLogs', 'overtime', 'approvalInbox'];
@@ -11,7 +13,11 @@ interface Toast { id: number; text: string }
 interface Store {
   /* session & data (null until signed in) */
   data: Bootstrap | null;
-  login: (loginId: string, password: string) => Promise<void>;
+  login: (enterCd: string, loginId: string, password: string) => Promise<void>;
+  /** 그룹 관리자 법인 전환(#120). 바꾸면 화면 데이터를 모두 다시 받는다. 실패하면 false(오류는 토스트). */
+  switchEnter: (enterCd: string) => Promise<boolean>;
+  /** 법인 전환 중에는 기존 법인의 업무 화면을 숨긴다. */
+  enterSwitching: boolean;
   signOut: () => Promise<void>;
   /** called when the server says the session is gone */
   onSessionLost: (fn: () => void) => void;
@@ -48,7 +54,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [night, setNight] = useState(false);
   const [scene, setScene] = useState<SceneId>('sunset');
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [enterSwitching, setEnterSwitching] = useState(false);
   const lostRef = useRef<() => void>(() => {});
+  const tabIdRef = useRef(`${Date.now()}-${Math.random()}`);
 
   const go = useCallback((p: PageId) => {
     setPage(p);
@@ -73,6 +81,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const sessionLost = useCallback(() => {
     if (!signedInRef.current) return;
     signedInRef.current = false;
+    setExpectedEnter(null);
     setData(null); lostRef.current(); toast('세션이 만료됐어요. 다시 로그인해 주세요');
   }, [toast]);
   useEffect(() => {
@@ -92,16 +101,82 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const patch = (p: Partial<Bootstrap>) => setData((d) => (d ? { ...d, ...p } : d));
 
-  const login = useCallback(async (loginId: string, password: string) => {
-    await api.login(loginId, password);   // throws ApiError on bad credentials
+  const login = useCallback(async (enterCd: string, loginId: string, password: string) => {
+    await api.login(enterCd, loginId, password);   // throws ApiError on bad credentials
     const boot = await api.bootstrap();
     // 사용자는 서버가 세션 쿠키로 식별한다(#76). 역할·권한은 서버가 DB에서 읽으므로 화면 값은 메뉴 표시에만 쓴다.
     signedInRef.current = true;
+    setExpectedEnter(boot.me.enterCd);
     setData(boot);
   }, []);
 
+  const reloadSwitchedEnter = useCallback(async () => {
+    setEnterSwitching(true);
+    setData(null);
+    try {
+      const boot = await api.bootstrap();
+      setExpectedEnter(boot.me.enterCd);
+      setData(boot);
+    } catch {
+      signedInRef.current = false;
+      setExpectedEnter(null);
+      try { await api.logout(); } catch { /* 전환된 세션을 폐기하는 최선의 시도 */ }
+      lostRef.current();
+      toast('다른 탭의 법인 전환을 반영하지 못해 로그아웃했어요. 다시 로그인해 주세요');
+    } finally {
+      setEnterSwitching(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(ENTER_SWITCH_CHANNEL);
+    channel.onmessage = (event: MessageEvent<{ source?: string }>) => {
+      if (event.data?.source !== tabIdRef.current) void reloadSwitchedEnter();
+    };
+    return () => channel.close();
+  }, [reloadSwitchedEnter]);
+
+  const switchEnter = useCallback(async (enterCd: string) => {
+    // 요청을 시작하는 순간부터 이전 법인 화면을 숨긴다. 서버 전환 뒤 bootstrap 이 실패하면
+    // 화면과 세션의 법인이 달라지므로 세션을 끝내고 다시 로그인하게 한다.
+    setEnterSwitching(true);
+    let switched = false;
+    try {
+      await api.switchEnter(enterCd);
+      switched = true;
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel(ENTER_SWITCH_CHANNEL);
+        channel.postMessage({ enterCd, source: tabIdRef.current });
+        channel.close();
+      }
+      setData(null);
+      const boot = await api.bootstrap();
+      setExpectedEnter(boot.me.enterCd);
+      setData(boot);
+      toast(`${boot.me.enterName}(으)로 바꿨어요`);
+      return true;
+    } catch (e) {
+      if (!switched) {
+        if (e instanceof ApiError && e.status === 401) sessionLost();
+        else toast(e instanceof Error ? e.message : '알 수 없는 오류가 발생했어요');
+      } else {
+        signedInRef.current = false;
+        setExpectedEnter(null);
+        try { await api.logout(); } catch { /* 전환된 세션을 폐기하는 최선의 시도 */ }
+        setData(null);
+        lostRef.current();
+        toast('법인 전환 데이터를 불러오지 못해 로그아웃했어요. 다시 로그인해 주세요');
+      }
+      return false;
+    } finally {
+      setEnterSwitching(false);
+    }
+  }, [sessionLost, toast]);
+
   const signOut = useCallback(async () => {
     signedInRef.current = false;
+    setExpectedEnter(null);
     try { await api.logout(); } catch { /* already gone */ }
     setData(null);
   }, []);
@@ -142,12 +217,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const dept = useCallback((id: string) => deptMap.get(id), [deptMap]);
 
   const value = useMemo<Store>(() => ({
-    data, login, signOut, onSessionLost: (fn) => { lostRef.current = fn; }, dept,
+    data, login, switchEnter, enterSwitching, signOut, onSessionLost: (fn) => { lostRef.current = fn; }, dept,
     page, go, night, setNight, scene, setScene, toasts, toast,
     decide, addLeave, send, loadMessages, markRead, refreshThreads,
     pendingCount: data?.approvals.filter((a) => a.canDecide).length ?? 0,
     unreadCount: data?.threads.reduce((s, t) => s + t.unread, 0) ?? 0,
-  }), [data, login, signOut, dept, page, go, night, scene, toasts, toast, decide, addLeave, send, loadMessages, markRead, refreshThreads]);
+  }), [data, login, switchEnter, enterSwitching, signOut, dept, page, go, night, scene, toasts, toast, decide, addLeave, send, loadMessages, markRead, refreshThreads]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

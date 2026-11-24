@@ -35,8 +35,8 @@ describe('CodeManager', () => {
   beforeEach(() => { host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); });
   afterEach(() => { act(() => root.unmount()); host.remove(); });
 
-  async function mount() {
-    const api = createMockCodeApi();
+  async function mount(opts: Parameters<typeof createMockCodeApi>[0] = {}) {
+    const api = createMockCodeApi(opts);
     const toast = vi.fn();
     await act(async () => { root.render(<CodeManager api={api} toast={toast} />); });
     await flush();
@@ -44,11 +44,84 @@ describe('CodeManager', () => {
     return { api, toast };
   }
 
+  const submitModal = async () => {
+    await act(async () => { host.querySelector<HTMLFormElement>('.modal form')!.requestSubmit(); });
+    await flush();
+    await flush();
+  };
+  const button = (label: string) => host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!;
+
   it('코드그룹과 첫 그룹의 코드를 보인다', async () => {
     await mount();
     const tabs = [...host.querySelectorAll('[role="tab"]')].map((t) => t.textContent);
-    expect(tabs).toEqual(['직급JOB_GRADE', '직책JOB_TITLE', '직군JOB_FAMILY', '고용형태EMPLOYMENT_TYPE', '근무지WORK_LOCATION', '퇴직사유RETIREMENT_REASON']);
+    // 기존 6개 그룹은 모두 시스템 그룹(V037)이라 '시스템' 표시가 붙는다
+    expect(tabs).toEqual(['직급 시스템JOB_GRADE', '직책 시스템JOB_TITLE', '직군 시스템JOB_FAMILY', '고용형태 시스템EMPLOYMENT_TYPE', '근무지 시스템WORK_LOCATION', '퇴직사유 시스템RETIREMENT_REASON']);
     expect([...host.querySelectorAll('tbody code')].map((c) => c.textContent)).toContain('STAFF');
+    expect(button('직급 그룹 삭제').disabled).toBe(true);
+    expect(button('직급 그룹 삭제').parentElement!.title).toBe('시스템 그룹이라 삭제할 수 없어요');
+  });
+
+  it('사용자 그룹 추가 → 코드 추가 → 코드 삭제 → 그룹 삭제', async () => {
+    const { api, toast } = await mount();
+    await act(async () => { buttonByText(host, '그룹 추가').click(); });
+    let inputs = host.querySelectorAll<HTMLInputElement>('.modal input.input');
+    await act(async () => { type(inputs[0], 'skill_level'); type(inputs[1], '기술등급'); });
+    await submitModal();
+    expect(toast).toHaveBeenCalledWith('코드그룹 SKILL_LEVEL를 추가했어요');
+    expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('기술등급SKILL_LEVEL');
+
+    await act(async () => { buttonByText(host, '코드 추가').click(); });
+    inputs = host.querySelectorAll<HTMLInputElement>('.modal input.input');
+    await act(async () => { type(inputs[0], 'BASIC'); type(inputs[1], '초급'); });
+    await submitModal();
+    expect([...host.querySelectorAll('tbody code')].map((c) => c.textContent)).toEqual(['BASIC']);
+    expect(button('기술등급 그룹 삭제').disabled).toBe(false);
+
+    await act(async () => { button('초급 삭제').click(); });
+    await act(async () => { buttonByText(host.querySelector('.modal')!, '삭제').click(); });
+    await flush();
+    expect(toast).toHaveBeenCalledWith('코드 BASIC를 삭제했어요');
+    expect(await api.codes('SKILL_LEVEL', true)).toEqual([]);
+
+    await act(async () => { button('기술등급 그룹 삭제').click(); });
+    await act(async () => { buttonByText(host.querySelector('.modal')!, '삭제').click(); });
+    await flush();
+    await flush();
+    expect(toast).toHaveBeenCalledWith('코드그룹 SKILL_LEVEL를 삭제했어요');
+    expect((await api.groups()).map((g) => g.groupCode)).not.toContain('SKILL_LEVEL');
+    expect([...host.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).not.toContain('기술등급SKILL_LEVEL');
+  });
+
+  it('사용 중·기본 코드는 삭제 버튼이 막히고 이유를 보인다', async () => {
+    await mount();
+    expect(button('사원 삭제').disabled).toBe(true);
+    expect(button('사원 삭제').parentElement!.title).toBe('사용 중(3건)이라 삭제할 수 없어요. 사용 안 함으로 바꿔 주세요');
+    expect(button('주임 삭제').disabled).toBe(false);
+    await act(async () => { buttonByText(host, '퇴직사유').click(); });
+    await flush();
+    expect(button('해고 삭제').disabled).toBe(true);
+    expect(button('해고 삭제').parentElement!.title).toBe('기본 코드라 삭제할 수 없어요. 사용 안 함으로 바꿔 주세요');
+  });
+
+  it('사용처: 테이블별 건수 → 행 목록, 권한이 없으면 건수만', async () => {
+    await mount();
+    await act(async () => { button('사원 사용처').click(); });
+    await flush();
+    const modal = () => host.querySelector('.modal')!;
+    expect(button('사원 목록').textContent).toBe('2건');
+    expect(button('발령 이력 목록').textContent).toBe('1건');
+    await act(async () => { button('사원 목록').click(); });
+    await flush();
+    expect([...modal().querySelectorAll('tbody code')].map((c) => c.textContent)).toEqual(['S01-2026-001', 'S01-2026-002']);
+
+    act(() => root.unmount());
+    root = createRoot(host);
+    await mount({ rowsVisible: false });
+    await act(async () => { button('사원 사용처').click(); });
+    await flush();
+    expect(host.querySelector('[aria-label="사원 목록"]')).toBeNull();
+    expect(modal().textContent).toContain('사원2건');
+    expect(modal().textContent).toContain('건수만 보여 드려요');
   });
 
   it('코드를 추가하면 목록에 나오고 알림을 띄운다', async () => {

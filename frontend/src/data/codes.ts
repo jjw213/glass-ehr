@@ -1,20 +1,43 @@
 /**
  * 데모(VITE_API=mock)용 공통코드 시드. 백엔드 시드 backend/src/main/resources/db/oracle/V007__common_code_seed.sql 과 같게 유지한다
- * (src/api/codes.test.ts 가 SQL 파일과 비교한다).
+ * (src/api/codes.test.ts 가 SQL 파일과 비교한다). 시스템 그룹·기본 코드 표시는 V037 과 같다(같은 테스트가 비교한다).
  */
-import type { Code, CodeGroup } from '../api/codes';
+import type { Code, CodeGroup, MockUsages } from '../api/codes';
+
+const g = (groupCode: string, name: string, description: string, sortOrder: number): CodeGroup =>
+  ({ groupCode, name, description, sortOrder, active: true, system: true, editPage: null });
 
 export const CODE_GROUPS: CodeGroup[] = [
-  { groupCode: 'JOB_GRADE', name: '직급', description: '사원~이사 등 직위 등급', sortOrder: 10, active: true },
-  { groupCode: 'JOB_TITLE', name: '직책', description: '팀장·본부장 등 맡은 보직', sortOrder: 20, active: true },
-  { groupCode: 'JOB_FAMILY', name: '직군', description: '경영지원·개발·영업 등 직무 묶음', sortOrder: 30, active: true },
-  { groupCode: 'EMPLOYMENT_TYPE', name: '고용형태', description: '기간제 및 단시간근로자 보호 등에 관한 법률 제2조의 구분(기간제·단시간)과 기간의 정함이 없는 정규직', sortOrder: 40, active: true },
-  { groupCode: 'WORK_LOCATION', name: '근무지', description: '근로자가 실제로 근무하는 장소', sortOrder: 50, active: true },
-  { groupCode: 'RETIREMENT_REASON', name: '퇴직사유', description: '회사 내부 퇴직사유 구분. 4대보험 자격상실 사유코드와의 대응은 급여·4대보험 이슈에서 정한다', sortOrder: 60, active: true },
+  g('JOB_GRADE', '직급', '사원~이사 등 직위 등급', 10),
+  g('JOB_TITLE', '직책', '팀장·본부장 등 맡은 보직', 20),
+  g('JOB_FAMILY', '직군', '경영지원·개발·영업 등 직무 묶음', 30),
+  g('EMPLOYMENT_TYPE', '고용형태', '기간제 및 단시간근로자 보호 등에 관한 법률 제2조의 구분(기간제·단시간)과 기간의 정함이 없는 정규직', 40),
+  g('WORK_LOCATION', '근무지', '근로자가 실제로 근무하는 장소', 50),
+  g('RETIREMENT_REASON', '퇴직사유', '회사 내부 퇴직사유 구분. 4대보험 자격상실 사유코드와의 대응은 급여·4대보험 이슈에서 정한다', 60),
 ];
 
+/** 로직이 코드값을 직접 참조하는 기본 코드(V037). */
+const SYSTEM_CODES = new Set([
+  'EMPLOYMENT_TYPE/FIXED_TERM', 'EMPLOYMENT_TYPE/PART_TIME',
+  'RETIREMENT_REASON/VOLUNTARY', 'RETIREMENT_REASON/RECOMMENDED_RESIGNATION', 'RETIREMENT_REASON/CONTRACT_EXPIRED',
+  'RETIREMENT_REASON/RETIREMENT_AGE', 'RETIREMENT_REASON/DISMISSAL', 'RETIREMENT_REASON/TRANSFER_AFFILIATE', 'RETIREMENT_REASON/DEATH',
+]);
+
 const c = (groupCode: string, code: string, name: string, sortOrder: number, description: string | null = null): Code =>
-  ({ groupCode, code, name, description, sortOrder, active: true });
+  ({ groupCode, code, name, description, sortOrder, active: true, system: SYSTEM_CODES.has(`${groupCode}/${code}`) });
+
+/** 데모 사용처. 이름은 명백한 가짜 값이다. */
+export const DEMO_USAGES: MockUsages = {
+  'JOB_GRADE/STAFF': [
+    { table: 'employee', label: '사원', dateLabel: '입사일', rows: [
+      { empNo: 'S01-2026-001', name: '가상사원1', date: '2026-03-02' },
+      { empNo: 'S01-2026-002', name: '가상사원2', date: '2026-03-02' },
+    ] },
+    { table: 'hr_appointment', label: '발령 이력', dateLabel: '발령일', rows: [
+      { empNo: 'S01-2026-001', name: '가상사원1', date: '2026-03-02' },
+    ] },
+  ],
+};
 
 export const CODES: Code[] = [
   c('JOB_GRADE', 'STAFF', '사원', 10),

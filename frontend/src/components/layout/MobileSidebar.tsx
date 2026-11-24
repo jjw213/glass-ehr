@@ -6,6 +6,7 @@ const SettingsIcon = navById('settings').icon;
 import { useData, useStore } from '../../state/store';
 import { useSession } from '../../state/session';
 import { Avatar, Toggle, cx } from '../ui';
+import { EnterSwitcher } from './EnterSwitcher';
 
 /**
  * Glass sidebar for phones (video 3):
@@ -261,6 +262,7 @@ export function MobileSidebar() {
         </div>
 
         <div className="sheet__foot">
+          <EnterSwitcher className="s-night" />
           <div className="s-night">
             {night ? <LuMoon /> : <LuSun />}
             <span>야간 모드</span>

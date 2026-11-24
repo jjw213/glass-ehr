@@ -4,8 +4,20 @@ import type { ChatMessage, MessagePage, MessageThread } from './messages';
 export * from '../../../shared/types';
 export type { ChatMessage, MessagePage, MessageThread, ThreadMember } from './messages';
 
-/** Spring GET /api/auth/me (#19·#76). */
-export interface AuthMe { loginId: string; empId: number | null; roles: string[]; permissions: string[]; managedDeptIds: number[] }
+/**
+ * Spring GET /api/auth/me (#19·#76). enterCd = 현재 법인, homeEnterCd = 로그인한(주체) 법인(#119).
+ * 그룹 관리자가 법인을 전환했을 때만 둘이 다르다(#120).
+ */
+export interface AuthMe {
+  enterCd: string; homeEnterCd: string;
+  loginId: string; empId: number | null; roles: string[]; permissions: string[]; managedDeptIds: number[];
+}
+
+/** Spring GET /api/enter-companies (#118). 로그인 전에도 부를 수 있는 사용 중 법인 목록. */
+export interface EnterCompany { enterCd: string; enterName: string }
+
+/** 법인 전환 권한(서버 Permission.ENTER_SWITCH, GROUP_ADMIN 역할). */
+export const canSwitchEnter = (permissions: string[]) => permissions.includes('ENTER_SWITCH');
 
 /**
  * 로그인한 사용자(#77). Spring /api/auth/me + 사원 목록의 본인 행. 사원과 연결되지 않은 계정은 이름 대신 로그인 아이디.
@@ -16,6 +28,10 @@ export interface SessionUser {
   /** Spring 부서 ID(문자열). 없으면 '' */
   dept: string;
   role: Role; roles: string[]; permissions: string[];
+  /** 현재 법인 코드·이름(#120). 이름을 모르면 코드 */
+  enterCd: string; enterName: string;
+  /** 로그인한(주체) 법인 코드 */
+  homeEnterCd: string;
   /** 연차 일수. 휴가 모듈을 Spring 으로 옮길 때까지 Node /api/bootstrap 값 */
   annualLeave: number;
 }
@@ -42,6 +58,8 @@ export interface AppData extends Omit<Bootstrap, 'me' | 'depts' | 'employees' | 
   /** Spring GET /api/threads. 메시지 본문은 화면이 대화방을 열 때 페이지로 받는다. */
   threads: MessageThread[];
   payslips: Payslip[] | null;
+  /** 사용 중 법인 목록(#120). 상단 법인 이름과 그룹 관리자 법인 전환 메뉴에 쓴다. */
+  companies: EnterCompany[];
 }
 
 /** 요약 API 를 볼 수 있는 권한(서버 DashboardController 와 같게). */
@@ -60,7 +78,11 @@ export const DEPT_COLORS = ['#f59e0b', '#60a5fa', '#4ade80', '#f472b6', '#a78bfa
 /** Everything the UI can ask of the backend. Two implementations: http.ts (real server) and mock.ts (in-browser demo). */
 export interface Api {
   readonly mode: 'http' | 'mock';
-  login(loginId: string, password: string): Promise<void>;
+  /** 로그인 화면 회사 선택(#120, 로그인 전 공개 API). */
+  enterCompanies(): Promise<EnterCompany[]>;
+  login(enterCd: string, loginId: string, password: string): Promise<void>;
+  /** 그룹 관리자 법인 전환(#120). 권한이 없으면 403, 없는·사용 안 함 법인이면 404. */
+  switchEnter(enterCd: string): Promise<void>;
   logout(): Promise<void>;
   bootstrap(): Promise<AppData>;
   addLeave(input: NewLeave): Promise<{ leaves: LeaveRequest[]; approvals: Approval[] }>;

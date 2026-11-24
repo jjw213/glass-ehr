@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 
 /**
  * 공통코드. 테이블: V006__common_code.sql.
- * 사원·발령 이력이 코드를 참조하므로 지우지 않고 사용 여부를 끈다. 코드값(PK)은 바꾸지 않는다.
+ * 어떤 테이블도 참조하지 않는 코드만 지운다(참조 목록 {@link CodeReferences}). 참조 중이거나 기본 코드면 사용 여부를 끈다.
+ * 코드값(PK)은 바꾸지 않는다. V037(#140): 기본 코드(system_yn='Y')는 로직이 코드값을 직접 참조하며 마이그레이션으로만 정한다.
  * V034(#121): 키는 (enter_cd, group_code, code). 법인마다 따로 둔다(docs/tenant-design.md 3.2).
  */
 @Entity
@@ -42,6 +43,10 @@ public class CommonCode {
     @Convert(converter = YnConverter.class)
     @Column(name = "use_yn", nullable = false)
     private Boolean active;
+
+    @Convert(converter = YnConverter.class)
+    @Column(name = "system_yn", nullable = false, updatable = false)
+    private Boolean system = Boolean.FALSE;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -99,6 +104,16 @@ public class CommonCode {
 
     public boolean isActive() {
         return active;
+    }
+
+    public boolean isSystem() {
+        return system;
+    }
+
+    /** 테스트용. 기본 코드는 마이그레이션으로만 정한다. */
+    CommonCode markSystem() {
+        this.system = Boolean.TRUE;
+        return this;
     }
 
     public LocalDateTime getUpdatedAt() {

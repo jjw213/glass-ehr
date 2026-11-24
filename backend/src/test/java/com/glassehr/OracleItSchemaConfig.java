@@ -198,6 +198,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V032__app_user_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer targetEnter = jdbc.queryForObject("SELECT COUNT(*) FROM user_tab_columns "
+                + "WHERE table_name = 'LOGIN_ACCESS_LOG' AND column_name = 'TARGET_ENTER_CD'", Integer.class);
+        if (targetEnter == null || targetEnter == 0) {
+            // #120: GROUP_ADMIN 역할·ENTER_SWITCH 권한, 법인 전환 접속기록
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V033__group_admin_enter_switch.sql"))
+                    .execute(dataSource);
+        }
         Integer siteKeyCols = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_BIZ_SITE'", Integer.class);
         if (siteKeyCols == null || siteKeyCols < 2) {
@@ -217,6 +224,13 @@ public class OracleItSchemaConfig {
         if (rrnLogAccessorEnter == null || rrnLogAccessorEnter == 0) {
             // #123: 사원·주민등록번호 키와 사원 참조 FK 에 법인
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V036__employee_enter_cd.sql"))
+                    .execute(dataSource);
+        }
+        Integer codeSystemCols = jdbc.queryForObject("SELECT COUNT(*) FROM user_tab_columns"
+                + " WHERE table_name = 'COMMON_CODE_GROUP' AND column_name = 'SYSTEM_YN'", Integer.class);
+        if (codeSystemCols == null || codeSystemCols == 0) {
+            // #140: 시스템 그룹·기본 코드 표시, 다른 화면 편집 그룹
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V037__common_code_system_edit_page.sql"))
                     .execute(dataSource);
         }
         return new Applied();
