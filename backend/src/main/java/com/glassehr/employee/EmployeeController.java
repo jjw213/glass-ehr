@@ -48,6 +48,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>GET  /api/employees/{empId}/rrn?purpose=VIEW — 원문 조회(인사·급여 담당만, 매번 조회 로그)</li>
  * </ul>
  * 사원을 지우는 API는 두지 않는다(근로기준법 제42조 보존).
+ * 모든 API는 세션의 현재 법인 사원만 다룬다. 다른 법인 사원 ID 는 404(#123, docs/tenant-design.md 5.2).
  */
 @RestController
 @RequestMapping("/api/employees")
@@ -64,7 +65,7 @@ public class EmployeeController {
     }
 
     private List<EmployeeSummary> visible(AuthUser user, boolean includeRetired) {
-        return service.list(includeRetired).stream()
+        return service.list(user.enterCd(), includeRetired).stream()
                 .filter(e -> user.canSeeEmployee(e.empId(), e.currentDeptId()))
                 .toList();
     }
@@ -104,7 +105,7 @@ public class EmployeeController {
         String path = http.getRequestURI();
         EmployeeView v;
         try {
-            v = service.get(empId);
+            v = service.get(user.enterCd(), empId);
         } catch (EmployeeException e) {
             if (e.status() == HttpStatus.NOT_FOUND) {
                 privacyLog.log(user, empId, PrivacyAccessLog.Item.EMP_PERSONAL, PrivacyAccessLog.Action.VIEW,
@@ -134,21 +135,23 @@ public class EmployeeController {
 
     @PutMapping("/{empId}")
     @RequiresPermission(Permission.EMP_WRITE)
-    public EmployeeView update(@PathVariable long empId, @Valid @RequestBody EmployeeUpdateRequest req) {
-        return service.update(empId, req);
+    public EmployeeView update(@PathVariable long empId, @Valid @RequestBody EmployeeUpdateRequest req,
+            AuthUser user) {
+        return service.update(user.enterCd(), empId, req);
     }
 
     @PostMapping("/{empId}/retire")
     @RequiresPermission(Permission.EMP_WRITE)
-    public EmployeeView retire(@PathVariable long empId, @Valid @RequestBody RetirementRequest req) {
-        return service.retire(empId, req);
+    public EmployeeView retire(@PathVariable long empId, @Valid @RequestBody RetirementRequest req,
+            AuthUser user) {
+        return service.retire(user.enterCd(), empId, req);
     }
 
     @PutMapping("/{empId}/rrn")
     @RequiresPermission(Permission.EMP_WRITE)
     public Map<String, String> saveRrn(@PathVariable long empId, @Valid @RequestBody RrnRequest req, AuthUser user) {
-        service.load(empId);
-        return Map.of("rrnMasked", rrns.save(empId, req.rrn(), user.toActor()));
+        service.load(user.enterCd(), empId);
+        return Map.of("rrnMasked", rrns.save(user.enterCd(), empId, req.rrn(), user.toActor()));
     }
 
     /**
@@ -160,7 +163,7 @@ public class EmployeeController {
     @PrivacyAudit(item = PrivacyAccessLog.Item.RRN, action = PrivacyAccessLog.Action.VIEW)
     public ResponseEntity<RrnReveal> revealRrn(@PathVariable long empId,
             @RequestParam(name = "purpose", defaultValue = "VIEW") RrnAccessLog.Purpose purpose, AuthUser user) {
-        Rrn rrn = rrns.reveal(empId, user.toActor(), purpose);
+        Rrn rrn = rrns.reveal(user.enterCd(), empId, user.toActor(), purpose);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .header("Pragma", "no-cache")

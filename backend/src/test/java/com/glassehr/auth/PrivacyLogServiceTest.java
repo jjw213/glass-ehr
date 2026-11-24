@@ -32,10 +32,10 @@ class PrivacyLogServiceTest {
 
     /** RrnAccessLog 생성자는 employee 패키지 전용이라 리플렉션으로 만든다(테스트 데이터). */
     private static RrnAccessLog r(LocalDateTime at, long empId) throws Exception {
-        Constructor<RrnAccessLog> c = RrnAccessLog.class.getDeclaredConstructor(RequestActor.class, long.class,
-                RrnAccessLog.Purpose.class, RrnAccessLog.Result.class, LocalDateTime.class);
+        Constructor<RrnAccessLog> c = RrnAccessLog.class.getDeclaredConstructor(String.class, RequestActor.class,
+                long.class, RrnAccessLog.Purpose.class, RrnAccessLog.Result.class, LocalDateTime.class);
         c.setAccessible(true);
-        return c.newInstance(new RequestActor("pay1", RequestActor.Role.PAYROLL, "10.0.0.2"), empId,
+        return c.newInstance("C001", new RequestActor("pay1", RequestActor.Role.PAYROLL, "10.0.0.2", "C001"), empId,
                 RrnAccessLog.Purpose.WITHHOLDING, RrnAccessLog.Result.SUCCESS, at);
     }
 
@@ -45,7 +45,7 @@ class PrivacyLogServiceTest {
         LocalDateTime t2 = LocalDateTime.of(2026, 11, 1, 10, 0);
         LocalDateTime t3 = LocalDateTime.of(2026, 11, 2, 23, 59, 59);
         when(privacy.search(any(), any(), any(), any(), any(), any())).thenReturn(List.of(p(t3, 5), p(t1, 6)));
-        when(rrn.search(any(), any(), any(), any(), any())).thenReturn(List.of(r(t2, 7)));
+        when(rrn.search(any(), any(), any(), any(), any(), any())).thenReturn(List.of(r(t2, 7)));
 
         PrivacyLogService.LogPage page = service.search("C001", LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 2), " hr1 ", 5L);
 
@@ -63,9 +63,10 @@ class PrivacyLogServiceTest {
     @Test
     void 빈_조회자는_조건없음() {
         when(privacy.search(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
-        when(rrn.search(any(), any(), any(), any(), any())).thenReturn(List.of());
+        when(rrn.search(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
         service.search("C001", LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1), "  ", null);
-        verify(rrn).search(any(), any(), isNull(), isNull(), any());
+        // 주민등록번호 조회 로그도 대상 법인(요청자의 현재 법인)으로만 찾는다(#123)
+        verify(rrn).search(eq("C001"), any(), any(), isNull(), isNull(), any());
     }
 
     @Test
@@ -76,7 +77,7 @@ class PrivacyLogServiceTest {
             many.add(p(base.plusSeconds(i), i));
         }
         when(privacy.search(any(), any(), any(), any(), any(), any())).thenReturn(many);
-        when(rrn.search(any(), any(), any(), any(), any())).thenReturn(List.of());
+        when(rrn.search(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
         PrivacyLogService.LogPage page = service.search("C001", LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1), null, null);
         assertThat(page.rows()).hasSize(PrivacyLogService.MAX_ROWS);
         assertThat(page.truncated()).isTrue();

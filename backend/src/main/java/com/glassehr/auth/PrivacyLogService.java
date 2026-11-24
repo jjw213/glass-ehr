@@ -42,8 +42,7 @@ public class PrivacyLogService {
     }
 
     /**
-     * 기간 [from, to] (둘 다 포함, Asia/Seoul 날짜). enterCd 는 요청자의 현재 법인.
-     * rrn_access_log 는 아직 법인 열을 쓰지 않는다(주민등록번호 법인 이슈). 다법인 배포 잠금 동안은 C001 만 로그인할 수 있다.
+     * 기간 [from, to] (둘 다 포함, Asia/Seoul 날짜). enterCd 는 요청자의 현재 법인. 두 로그 모두 대상 법인이 enterCd 인 것만 본다.
      */
     public LogPage search(String enterCd, LocalDate from, LocalDate to, String accessorId, Long targetEmpId) {
         if (to.isBefore(from)) {
@@ -62,7 +61,7 @@ public class PrivacyLogService {
                     l.getTargetEmpId(), l.getItem().name(), l.getAction().name(), null, l.getResult().name(),
                     l.getClientIp(), l.getRequestPath()));
         }
-        for (RrnAccessLog l : rrnLogs.search(start, end, who, targetEmpId, page)) {
+        for (RrnAccessLog l : rrnLogs.search(enterCd, start, end, who, targetEmpId, page)) {
             rows.add(new LogRow("RRN", l.getAccessedAt(), l.getAccessorId(), l.getAccessorRole(), l.getEmpId(),
                     PrivacyAccessLog.Item.RRN.name(), PrivacyAccessLog.Action.VIEW.name(), l.getPurpose().name(),
                     l.getResult().name(), l.getClientIp(), null));

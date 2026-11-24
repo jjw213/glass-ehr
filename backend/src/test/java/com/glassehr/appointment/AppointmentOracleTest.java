@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 class AppointmentOracleTest {
 
     private static final LocalDate D0 = LocalDate.of(1903, 1, 1);
-    private static final RequestActor HR = new RequestActor("it-hr", RequestActor.Role.HR, "127.0.0.1");
+    private static final RequestActor HR = new RequestActor("it-hr", RequestActor.Role.HR, "127.0.0.1", "C001");
 
     @Autowired
     private AppointmentService service;

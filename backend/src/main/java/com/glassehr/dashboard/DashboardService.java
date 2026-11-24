@@ -57,7 +57,7 @@ public class DashboardService {
     public Summary summary(AuthUser user) {
         LocalDate today = LocalDate.now(clock.withZone(SEOUL));
         YearMonth thisMonth = YearMonth.from(today);
-        List<EmployeeSummary> visible = employees.list(true).stream()
+        List<EmployeeSummary> visible = employees.list(user.enterCd(), true).stream()
                 .filter(e -> user.canSeeEmployee(e.empId(), e.currentDeptId()))
                 .toList();
         List<EmployeeSummary> active = visible.stream().filter(e -> e.retireDate() == null).toList();

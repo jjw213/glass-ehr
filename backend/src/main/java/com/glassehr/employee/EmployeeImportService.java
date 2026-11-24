@@ -211,7 +211,7 @@ public class EmployeeImportService {
                 Integer first = rrnRows.putIfAbsent(req.rrn(), rowNo);
                 if (first != null) {
                     errors.add("주민등록번호가 " + first + "행과 같아요");
-                } else if (rrns.isRegistered(req.rrn())) {
+                } else if (rrns.isRegistered(enterCd, req.rrn())) {
                     errors.add("이미 다른 사원에게 등록된 주민등록번호예요");
                 }
             }
