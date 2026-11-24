@@ -32,9 +32,11 @@ describe('데모 근태코드는 백엔드 V038 과 같다', () => {
     const details = new Map(rows('attendance_leave_type').map((d) => [d.code, d]));
     const codes = rows('common_code');
     expect(codes.length).toBe(13);
-    expect(ATTENDANCE_CODES.map(({ inUse: _i, usageCount: _u, leave, ...c }) => ({
-      ...c, leave: leave && { ...leave, legalValues: undefined },
-    }))).toEqual(codes.map((c) => {
+    expect(ATTENDANCE_CODES.map((x) => {
+      const c: Partial<typeof x> = { ...x };
+      delete c.inUse; delete c.usageCount;   // 화면 계산값(시드에 없음)
+      return { ...c, leave: x.leave && { ...x.leave, legalValues: undefined } };
+    })).toEqual(codes.map((c) => {
       const d = details.get(c.code);
       return {
         groupCode: c.group_code, code: c.code, name: c.code_name, description: c.description, sortOrder: c.sort_order,

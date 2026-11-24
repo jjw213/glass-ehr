@@ -173,6 +173,7 @@ public class CommonCodeService {
 
     @Transactional
     public CodeView create(String enterCd, String groupCode, CodeCreateRequest req) {
+        requireGroup(enterCd, groupCode);
         requireCodesEditableHere(enterCd, groupCode);
         if (codes.existsByEnterCdAndGroupCodeAndCode(enterCd, groupCode, req.code())) {
             throw CodeException.duplicate(groupCode, req.code());
@@ -219,13 +220,19 @@ public class CommonCodeService {
      * 그 화면이 처리방식·상세 설정을 함께 저장하기 때문이다. 조회·사용처 보기는 된다.
      */
     private void requireCodesEditableHere(String enterCd, String groupCode) {
-        requireEditableHere(findGroup(enterCd, groupCode));
+        if (groups.existsByEnterCdAndGroupCodeAndEditPageIsNotNull(enterCd, groupCode)) {
+            throw editPageConflict();
+        }
     }
 
     private static void requireEditableHere(CodeGroup g) {
         if (g.getEditPage() != null) {
-            throw CodeException.conflict("이 코드그룹은 공통코드 화면에서 고칠 수 없어요. 전용 화면에서 편집해 주세요");
+            throw editPageConflict();
         }
+    }
+
+    private static CodeException editPageConflict() {
+        return CodeException.conflict("이 코드그룹은 공통코드 화면에서 고칠 수 없어요. 전용 화면에서 편집해 주세요");
     }
 
     /** 사용처 요약(테이블별 건수). 건수가 0인 테이블은 뺀다. */
