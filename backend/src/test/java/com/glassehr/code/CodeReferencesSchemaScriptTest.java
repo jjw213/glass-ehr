@@ -26,7 +26,7 @@ class CodeReferencesSchemaScriptTest {
             // 공통코드 자신·법인·조직·사업장 키
             "common_code_group.group_code", "common_code.group_code",
             "org_dept.dept_code", "biz_site.site_code", "emp_no_seq.site_code", "employee.site_code",
-            "worker_rep_agreement.site_code",
+            "worker_rep_agreement.scope_site_code",
             // 법령 기준값 항목(legal_rate_item, 전 법인 공통)
             "legal_rate_item.item_code", "legal_rate.item_code",
             // 역할·권한(app_role·app_permission, 전 법인 공통)
@@ -34,7 +34,9 @@ class CodeReferencesSchemaScriptTest {
             "app_role_permission.perm_code", "app_user_role.role_code",
             // 고정 값 CHECK 로 거는 열거형(공통코드 아님)
             "rrn_access_log.purpose_code", "privacy_access_log.item_code", "privacy_access_log.action_code",
-            "employment_contract.wage_unit_code", "retirement_case.notice_exempt_code",
+            "employment_contract.wage_unit_code",
+            // 경력증명서 발급 당시 근로계약 임금 단위 복사본(근로기준법 제39조, employment_contract 와 같은 열거형)
+            "employment_certificate.wage_unit_code", "retirement_case.notice_exempt_code",
             "retirement_checklist_item.item_code", "login_access_log.event_code",
             "work_pattern.pattern_code", "flex_work_assign.job_code");
 
