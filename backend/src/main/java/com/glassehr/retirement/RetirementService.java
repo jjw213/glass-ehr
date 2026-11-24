@@ -97,9 +97,9 @@ public class RetirementService {
     /**
      * 퇴직 처리 등록. 해고면 예고일·서면통지일이 없으면 400(근로기준법 제26조·제27조),
      * 예고기간 미달은 막지 않고 {@code warnings}로 알린다.
+     * enterCd 는 세션의 현재 법인. 다른 법인 사원은 404(#123).
      */
     @Transactional
-    /** enterCd 는 세션의 현재 법인. 다른 법인 사원은 404(#123). */
     public RetirementView register(String enterCd, RetirementRequest req, String actor) {
         String reason = req.reasonCode().strip();
         boolean dismissal = RetirementChecklist.DISMISSAL.equals(reason);

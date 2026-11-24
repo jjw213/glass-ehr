@@ -114,7 +114,7 @@ class EmployeeSchemaScriptTest {
     }
 
     private static final Pattern SEED_ROW = Pattern.compile(
-            "SELECT '(S\\d\\d-\\d{4}-\\d{3})', '(S\\d\\d)', '([^']+)', '([MF])', DATE '([\\d-]+)', '([^']+)', "
+            "SELECT enter_cd, '(S\\d\\d-\\d{4}-\\d{3})', '(S\\d\\d)', '([^']+)', '([MF])', DATE '([\\d-]+)', '([^']+)', "
                     + "(?:NULL|'[^']*'), '[^']+', '([A-Z_]+)', DATE '([\\d-]+)', (NULL|DATE '[\\d-]+'), "
                     + "(NULL|DATE '[\\d-]+'), '([A-Z_]+)', (\\d+), '([A-Z_]+)', dept_id, '([A-Z_]+)', '([A-Z_]+)' "
                     + "FROM org_dept WHERE enter_cd = 'C001' AND dept_code ='([A-Z0-9_]+)';");

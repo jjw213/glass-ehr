@@ -17,8 +17,8 @@ public class RrnAccessLogger {
         this.logs = logs;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     /** enterCd 는 대상 법인(요청자의 현재 법인). 주체 법인은 actor.homeEnterCd(). */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(String enterCd, RequestActor actor, long empId, RrnAccessLog.Purpose purpose,
             RrnAccessLog.Result result, LocalDateTime at) {
         logs.save(new RrnAccessLog(enterCd, actor, empId, purpose, result, at));
