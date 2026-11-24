@@ -53,7 +53,8 @@ class DbAuthUserResolverTest {
     void setUp() {
         when(gate.allows(A)).thenReturn(true);
         when(org.today()).thenReturn(TODAY);
-        when(org.tree(TODAY)).thenReturn(TREE);
+        // 부서장 범위는 계정 법인(A)의 조직도에서만 계산한다(#122). 다른 법인 조직도는 부르지 않는다.
+        when(org.tree(A, TODAY)).thenReturn(TREE);
         when(rolePerms.findPermCodes(anyCollection())).thenAnswer(inv -> {
             Collection<String> roles = inv.getArgument(0);
             List<String> out = new ArrayList<>();
@@ -145,7 +146,7 @@ class DbAuthUserResolverTest {
         assertThat(u.has(Permission.PRIVACY_LOG_READ)).isTrue();
         assertThat(u.has(Permission.RRN_REVEAL)).isFalse();
         assertThat(u.isSelf(1)).isFalse();
-        verify(org, never()).tree(any());
+        verify(org, never()).tree(any(), any());
     }
 
     @Test

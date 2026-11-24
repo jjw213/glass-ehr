@@ -234,9 +234,9 @@ class AuthBypassTest {
                 .andExpect(status().isForbidden());
         verify(employees, never()).update(anyLong(), any());
         verify(employees, never()).retire(anyLong(), any());
-        verify(org, never()).create(any());
-        verify(org, never()).change(anyLong(), any());
-        verify(org, never()).close(anyLong(), any());
+        verify(org, never()).create(any(), any());
+        verify(org, never()).change(any(), anyLong(), any());
+        verify(org, never()).close(any(), anyLong(), any());
         verify(codes, never()).create(any(), any(), any());
         verify(codes, never()).update(any(), any(), any(), any());
         verifyNoInteractions(rrns);

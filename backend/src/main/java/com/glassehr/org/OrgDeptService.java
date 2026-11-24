@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -74,10 +75,11 @@ public class OrgDeptService {
 
     // ---------------------------------------------------------------- 조회
 
-    /** 기준일 {@code baseDate}의 조직 트리. 형제는 정렬순서, 부서코드 순. */
-    public OrgTree tree(LocalDate baseDate) {
-        List<OrgDeptHist> rows = hists.findEffectiveOn(baseDate);
-        Map<Long, OrgDept> deptById = loadDepts(rows.stream().map(OrgDeptHist::getDeptId).collect(Collectors.toSet()));
+    /** 법인 {@code enterCd}의 기준일 {@code baseDate} 조직 트리. 형제는 정렬순서, 부서코드 순. */
+    public OrgTree tree(String enterCd, LocalDate baseDate) {
+        List<OrgDeptHist> rows = hists.findEffectiveOn(enterCd, baseDate);
+        Map<Long, OrgDept> deptById = loadDepts(enterCd,
+                rows.stream().map(OrgDeptHist::getDeptId).collect(Collectors.toSet()));
         Map<Long, OrgDeptHist> rowById = rows.stream()
                 .collect(Collectors.toMap(OrgDeptHist::getDeptId, Function.identity(), (a, b) -> {
                     // 같은 부서의 기간 겹침은 쓰기에서 막는다. 여기 오면 데이터가 깨진 것이다.
@@ -114,21 +116,25 @@ public class OrgDeptService {
 
     // ---------------------------------------------------------------- 신설
 
+    /**
+     * 법인 {@code enterCd}에 부서 신설. 부서코드는 법인 안에서만 유일하다.
+     * 상위부서는 같은 법인 부서만, 부서장은 같은 법인 사원만 둘 수 있다(V035 복합 FK, 다른 법인 사원이면 DB 가 거부).
+     */
     @Transactional
-    public DeptView create(DeptCreateRequest req) {
+    public DeptView create(String enterCd, DeptCreateRequest req) {
         lock.acquire();
-        if (depts.existsByDeptCode(req.deptCode())) {
+        if (depts.existsByEnterCdAndDeptCode(enterCd, req.deptCode())) {
             throw OrgException.conflict("이미 있는 부서코드예요: " + req.deptCode());
         }
         LocalDate d = req.effectiveDate();
         if (req.parentDeptId() != null) {
-            requireUsableParent(req.parentDeptId(), d);
+            requireUsableParent(enterCd, req.parentDeptId(), d);
         }
         LocalDateTime now = now();
-        OrgDept dept = depts.saveAndFlush(new OrgDept(req.deptCode(), d, now));
+        OrgDept dept = depts.saveAndFlush(new OrgDept(enterCd, req.deptCode(), d, now));
         DeptAttrs attrs = new DeptAttrs(req.name().strip(), req.parentDeptId(), req.headEmpId(), req.sortOrder());
-        OrgDeptHist h = hists.saveAndFlush(
-                new OrgDeptHist(dept.getDeptId(), d, attrs, DeptChangeType.CREATE, blankToNull(req.reason()), now));
+        OrgDeptHist h = hists.saveAndFlush(new OrgDeptHist(enterCd, dept.getDeptId(), d, attrs, DeptChangeType.CREATE,
+                blankToNull(req.reason()), now));
         return DeptView.of(dept, h);
     }
 
@@ -136,14 +142,14 @@ public class OrgDeptService {
 
     /** 이름·상위부서·부서장·정렬순서 변경. 마지막 이력 행을 적용일로 닫고 새 행을 추가한다. */
     @Transactional
-    public DeptView change(long deptId, DeptChangeRequest req) {
+    public DeptView change(String enterCd, long deptId, DeptChangeRequest req) {
         lock.acquire();
-        OrgDept dept = depts.findById(deptId).orElseThrow(() -> OrgException.deptNotFound(deptId));
+        OrgDept dept = findDept(enterCd, deptId);
         if (!dept.isOpenEnded()) {
             throw OrgException.conflict("폐지되었거나 폐지가 예정된 부서는 바꿀 수 없어요(폐지일 " + dept.getValidTo() + ")");
         }
         LocalDate d = req.effectiveDate();
-        OrgDeptHist latest = latestRow(deptId);
+        OrgDeptHist latest = latestRow(enterCd, deptId);
         requireAfterLatest(latest, d);
 
         DeptAttrs before = latest.attrs();
@@ -155,15 +161,15 @@ public class OrgDeptService {
             if (after.parentDeptId() == deptId) {
                 throw OrgException.badRequest("자기 자신을 상위부서로 둘 수 없어요");
             }
-            requireUsableParent(after.parentDeptId(), d);
-            requireNoCycle(deptId, after.parentDeptId(), d);
+            requireUsableParent(enterCd, after.parentDeptId(), d);
+            requireNoCycle(enterCd, deptId, after.parentDeptId(), d);
         }
 
         LocalDateTime now = now();
         latest.closeAt(d);
         hists.saveAndFlush(latest);
-        OrgDeptHist h = hists.saveAndFlush(
-                new OrgDeptHist(deptId, d, after, DeptChangeType.of(before, after), blankToNull(req.reason()), now));
+        OrgDeptHist h = hists.saveAndFlush(new OrgDeptHist(enterCd, deptId, d, after, DeptChangeType.of(before, after),
+                blankToNull(req.reason()), now));
         return DeptView.of(dept, h);
     }
 
@@ -174,23 +180,23 @@ public class OrgDeptService {
      * 폐지일 당일이나 그 뒤에 하위부서가 있거나 재직자가 소속되어 있으면 거부한다(먼저 옮긴다).
      */
     @Transactional
-    public DeptView close(long deptId, DeptCloseRequest req) {
+    public DeptView close(String enterCd, long deptId, DeptCloseRequest req) {
         lock.acquire();
-        OrgDept dept = depts.findById(deptId).orElseThrow(() -> OrgException.deptNotFound(deptId));
+        OrgDept dept = findDept(enterCd, deptId);
         if (!dept.isOpenEnded()) {
             throw OrgException.conflict("이미 폐지되었거나 폐지가 예정된 부서예요(폐지일 " + dept.getValidTo() + ")");
         }
         LocalDate d = req.effectiveDate();
-        OrgDeptHist latest = latestRow(deptId);
+        OrgDeptHist latest = latestRow(enterCd, deptId);
         requireAfterLatest(latest, d);
 
-        List<Long> childIds = hists.findEffectiveOnOrAfter(d).stream()
+        List<Long> childIds = hists.findEffectiveOnOrAfter(enterCd, d).stream()
                 .filter(h -> !h.getDeptId().equals(deptId) && Long.valueOf(deptId).equals(h.getParentDeptId()))
                 .map(OrgDeptHist::getDeptId)
                 .distinct()
                 .toList();
         if (!childIds.isEmpty()) {
-            String codes = loadDepts(childIds).values().stream().map(OrgDept::getDeptCode).sorted()
+            String codes = loadDepts(enterCd, childIds).values().stream().map(OrgDept::getDeptCode).sorted()
                     .collect(Collectors.joining(", "));
             throw OrgException.conflict("폐지일 이후에도 하위 부서가 있어요: " + codes + ". 하위 부서를 먼저 옮기거나 폐지해 주세요");
         }
@@ -209,8 +215,13 @@ public class OrgDeptService {
 
     // ---------------------------------------------------------------- 검사
 
-    private OrgDeptHist latestRow(long deptId) {
-        return hists.findFirstByDeptIdOrderByValidFromDesc(deptId)
+    /** 현재 법인의 부서. 다른 법인의 dept_id 는 없는 부서와 같은 404(존재 여부를 드러내지 않음). */
+    private OrgDept findDept(String enterCd, long deptId) {
+        return depts.findByEnterCdAndDeptId(enterCd, deptId).orElseThrow(() -> OrgException.deptNotFound(deptId));
+    }
+
+    private OrgDeptHist latestRow(String enterCd, long deptId) {
+        return hists.findFirstByEnterCdAndDeptIdOrderByValidFromDesc(enterCd, deptId)
                 .orElseThrow(() -> new IllegalStateException("부서 이력이 없습니다: dept_id=" + deptId));
     }
 
@@ -222,8 +233,8 @@ public class OrgDeptService {
     }
 
     /** 상위부서는 적용일에 이미 신설되어 있고, 폐지일이 정해지지 않은 부서여야 한다. */
-    private void requireUsableParent(long parentId, LocalDate d) {
-        OrgDept p = depts.findById(parentId)
+    private void requireUsableParent(String enterCd, long parentId, LocalDate d) {
+        OrgDept p = depts.findByEnterCdAndDeptId(enterCd, parentId)
                 .orElseThrow(() -> OrgException.badRequest("상위부서가 없어요: " + parentId));
         if (p.getValidFrom().isAfter(d)) {
             throw OrgException.badRequest("상위부서 " + p.getDeptCode() + "는 " + p.getValidFrom() + "에 신설되어 그 전 날짜로는 지정할 수 없어요");
@@ -238,8 +249,8 @@ public class OrgDeptService {
      * 미래로 예약된 다른 부서의 변경 때문에 나중에 순환이 생길 수 있으므로, d 와 그 뒤 모든 변경 시작일에서 각각 검사한다.
      * 옮기는 부서 자신은 d 뒤에 이력이 없다(requireAfterLatest).
      */
-    private void requireNoCycle(long deptId, long newParentId, LocalDate d) {
-        List<OrgDeptHist> rows = hists.findEffectiveOnOrAfter(d).stream()
+    private void requireNoCycle(String enterCd, long deptId, long newParentId, LocalDate d) {
+        List<OrgDeptHist> rows = hists.findEffectiveOnOrAfter(enterCd, d).stream()
                 .filter(h -> !h.getDeptId().equals(deptId))
                 .toList();
         TreeSet<LocalDate> points = new TreeSet<>();
@@ -264,9 +275,12 @@ public class OrgDeptService {
         }
     }
 
-    private Map<Long, OrgDept> loadDepts(Iterable<Long> ids) {
+    private Map<Long, OrgDept> loadDepts(String enterCd, Collection<Long> ids) {
         Map<Long, OrgDept> m = new HashMap<>();
-        for (OrgDept d : depts.findAllById(ids)) {
+        if (ids.isEmpty()) {
+            return m;
+        }
+        for (OrgDept d : depts.findByEnterCdAndDeptIdIn(enterCd, ids)) {
             m.put(d.getDeptId(), d);
         }
         return m;

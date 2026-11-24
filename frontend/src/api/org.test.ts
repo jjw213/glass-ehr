@@ -5,11 +5,11 @@ import { createMockOrgApi, validateDept, within, type DeptChange } from './org';
 import { ApiError } from './types';
 
 const sql = seedSql.split('\n').map((l) => l.replace(/^\s*--.*$/, '')).join('\n');
-const deptOrder = [...sql.matchAll(/INSERT INTO org_dept \(dept_code, valid_from\) VALUES \('([A-Z0-9_]+)', DATE '([\d-]+)'\)/g)].map((m) => ({ code: m[1], from: m[2] }));
+const deptOrder = [...sql.matchAll(/INSERT INTO org_dept \(enter_cd, dept_code, valid_from\) VALUES \('C001', '([A-Z0-9_]+)', DATE '([\d-]+)'\)/g)].map((m) => ({ code: m[1], from: m[2] }));
 const idOf = (code: string) => deptOrder.findIndex((d) => d.code === code) + 1;
-const histRows = [...sql.matchAll(/SELECT [^;]*?DATE '([\d-]+)', '([^']*)', (NULL|p\.dept_id), (\d+), 'CREATE'[^;]*?WHERE (?:d\.)?dept_code = '([A-Z0-9_]+)'(?: AND p\.dept_code = '([A-Z0-9_]+)')?/g)]
+const histRows = [...sql.matchAll(/SELECT [^;]*?DATE '([\d-]+)', '([^']*)', (NULL|p\.dept_id), (\d+), 'CREATE'[^;]*?WHERE [^;]*?(?:d\.)?dept_code\s*=\s*'([A-Z0-9_]+)'(?:[^;]*?p\.dept_code\s*=\s*'([A-Z0-9_]+)')?/g)]
   .map((m) => ({ from: m[1], name: m[2], sortOrder: Number(m[4]), code: m[5], parentCode: m[6] ?? null }));
-const empRows = [...sql.matchAll(/SELECT '(S\d\d-\d{4}-\d{3})', 'S\d\d', '([^']*)'[^;]*?'[A-Z_]{2,}', DATE '([\d-]+)'[^;]*?'([A-Z_]+)', \d+, '[A-Z_]+', dept_id, '([A-Z_]+)', '([A-Z_]+)' FROM org_dept WHERE dept_code = '([A-Z0-9_]+)'/g)]
+const empRows = [...sql.matchAll(/SELECT '(S\d\d-\d{4}-\d{3})', 'S\d\d', '([^']*)'[^;]*?'[A-Z_]{2,}', DATE '([\d-]+)'[^;]*?'([A-Z_]+)', \d+, '[A-Z_]+', dept_id, '([A-Z_]+)', '([A-Z_]+)' FROM org_dept WHERE enter_cd = 'C001' AND dept_code\s*=\s*'([A-Z0-9_]+)'/g)]
   .map((m) => ({ empNo: m[1], name: m[2], hireDate: m[3], employmentTypeCode: m[4], jobGradeCode: m[5], jobTitleCode: m[6], deptCode: m[7] }));
 
 describe('데모 시드는 백엔드 데모 시드(employee_demo_seed.sql)와 같다', () => {

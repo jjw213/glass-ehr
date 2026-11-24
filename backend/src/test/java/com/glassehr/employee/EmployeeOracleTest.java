@@ -98,9 +98,9 @@ class EmployeeOracleTest {
 
     @Test
     void 재직자가_있는_부서는_폐지할_수_없다() {
-        long dept = org.create(new DeptCreateRequest("ZZIT_EMP", "시험부서", null, null, 0, D0, null)).deptId();
+        long dept = org.create("C001", new DeptCreateRequest("ZZIT_EMP", "시험부서", null, null, 0, D0, null)).deptId();
         service.create("C001", req(dept, null), HR);
-        assertThatThrownBy(() -> org.close(dept, new DeptCloseRequest(D0.plusMonths(1), null)))
+        assertThatThrownBy(() -> org.close("C001", dept,new DeptCloseRequest(D0.plusMonths(1), null)))
                 .isInstanceOf(OrgException.class);
     }
 }

@@ -99,7 +99,7 @@ public class EmployeeService {
         if (first.deptId() != null) {
             // 부서 폐지(OrgDeptService.close)와 같은 조직 쓰기 잠금을 잡아, 폐지 검사와 입사 등록이 엇갈려 둘 다 통과하지 않게 한다.
             orgLock.acquire();
-            requireDeptOpenOn(first.deptId(), req.hireDate());
+            requireDeptOpenOn(enterCd, first.deptId(), req.hireDate());
         }
         requireCode(enterCd, CodeGroups.JOB_GRADE, first.jobGradeCode(), "직급", false);
         requireCode(enterCd, CodeGroups.JOB_TITLE, first.jobTitleCode(), "직책", false);
@@ -128,7 +128,7 @@ public class EmployeeService {
                 req.employmentNote(), req.otherNote());
         validate(enterCd, info, req.hireDate());
         if (req.deptId() != null) {
-            requireDeptOpenOn(req.deptId(), req.hireDate());
+            requireDeptOpenOn(enterCd, req.deptId(), req.hireDate());
         }
         requireCode(enterCd, CodeGroups.JOB_GRADE, blankToNull(req.jobGradeCode()), "직급", false);
         requireCode(enterCd, CodeGroups.JOB_TITLE, blankToNull(req.jobTitleCode()), "직책", false);
@@ -245,8 +245,10 @@ public class EmployeeService {
      * 입사 등록은 소속 종료일·퇴직일 없이 기한 없는 배정을 만들므로, 폐지(예정) 부서에 넣으면 폐지일 뒤에도
      * 재직자가 남는다. 재직자가 있는 부서의 폐지를 거부하는 규칙(OrgDeptService.close)과 맞춘다.
      */
-    private void requireDeptOpenOn(long deptId, LocalDate d) {
-        OrgDept dept = depts.findById(deptId).orElseThrow(() -> EmployeeException.badRequest("부서가 없어요: " + deptId));
+    private void requireDeptOpenOn(String enterCd, long deptId, LocalDate d) {
+        // 같은 법인 부서만(#122). 다른 법인 부서는 없는 부서와 같게 거부한다.
+        OrgDept dept = depts.findByEnterCdAndDeptId(enterCd, deptId)
+                .orElseThrow(() -> EmployeeException.badRequest("부서가 없어요: " + deptId));
         if (dept.getValidFrom().isAfter(d)) {
             throw EmployeeException.badRequest("부서 " + dept.getDeptCode() + "는 입사일(" + d + ")에 존속하지 않아요");
         }

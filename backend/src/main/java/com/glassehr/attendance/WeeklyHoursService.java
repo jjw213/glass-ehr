@@ -103,7 +103,7 @@ public class WeeklyHoursService {
         LocalDate sunday = monday.plusDays(6);
         Limits limits = limits(monday);
         Map<Long, String> deptNames = new HashMap<>();
-        collectNames(org.tree(today).roots(), deptNames);
+        collectNames(org.tree(user.enterCd(), today).roots(), deptNames);
 
         Map<Long, List<EmpWeek>> byDept = new LinkedHashMap<>();
         for (Employee e : employees.findAllByOrderByEmpNoAsc()) {

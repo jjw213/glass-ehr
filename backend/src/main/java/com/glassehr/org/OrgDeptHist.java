@@ -15,6 +15,7 @@ import java.util.Objects;
 /**
  * 부서의 시점별 속성(이름·상위부서·부서장·정렬순서). 테이블: V008__org_dept.sql.
  * 추가로만 쌓는다. 바꿀 수 있는 것은 마지막 행의 종료일(validTo)뿐이다.
+ * V035(#122): DB 키는 (enter_cd, hist_id). 부서·상위부서·부서장 FK 는 같은 법인 행만 가리킨다.
  */
 @Entity
 @Table(name = "org_dept_hist")
@@ -24,6 +25,9 @@ public class OrgDeptHist {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "hist_id", nullable = false, updatable = false)
     private Long histId;
+
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
 
     @Column(name = "dept_id", nullable = false, updatable = false)
     private Long deptId;
@@ -59,8 +63,9 @@ public class OrgDeptHist {
     protected OrgDeptHist() {
     }
 
-    OrgDeptHist(long deptId, LocalDate validFrom, DeptAttrs attrs, DeptChangeType changeType, String changeReason,
-            LocalDateTime now) {
+    OrgDeptHist(String enterCd, long deptId, LocalDate validFrom, DeptAttrs attrs, DeptChangeType changeType,
+            String changeReason, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.deptId = deptId;
         this.validFrom = validFrom;
         this.deptName = attrs.name();
@@ -88,6 +93,10 @@ public class OrgDeptHist {
 
     public Long getHistId() {
         return histId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public Long getDeptId() {

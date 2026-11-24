@@ -59,7 +59,8 @@ public class DbAuthUserResolver implements AuthUserResolver {
         // 다른 법인으로 전환했으면 부서장 범위는 비운다. 부서장·본인 판단은 주체 법인의 사원 기준이고
         // 그 사원은 현재 법인에 없다(docs/tenant-design.md 4.3).
         if (u.getEmpId() != null && !switched) {
-            managed = DeptScope.managedBy(org.tree(org.today()), u.getEmpId());
+            // 부서장 범위는 계정(주체) 법인의 오늘 조직도에서만 계산한다(#122, docs/tenant-design.md 4장).
+            managed = DeptScope.managedBy(org.tree(u.getEnterCd(), org.today()), u.getEmpId());
             if (!managed.isEmpty()) {
                 roles.add(AuthUser.ROLE_DEPT_HEAD);
             }

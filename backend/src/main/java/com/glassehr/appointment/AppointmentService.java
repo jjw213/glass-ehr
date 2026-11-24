@@ -179,7 +179,7 @@ public class AppointmentService {
         Employee e = lockEmployee(empId);
         Content c = resolve(e, draftOf(req), null);
         String apptNo = apptNos.next(today().getYear());
-        HrAppointment a = appointments.saveAndFlush(new HrAppointment(apptNo, empId, c, now()));
+        HrAppointment a = appointments.saveAndFlush(new HrAppointment(e.getEnterCd(), apptNo, empId, c, now()));
         return AppointmentView.of(a, null, null);
     }
 
@@ -252,7 +252,7 @@ public class AppointmentService {
         Content c = cancelContent(e, original, req.reason(), null);
         String apptNo = apptNos.next(today().getYear());
         LocalDateTime now = now();
-        HrAppointment cancel = appointments.saveAndFlush(new HrAppointment(apptNo, empId, c, now));
+        HrAppointment cancel = appointments.saveAndFlush(new HrAppointment(e.getEnterCd(), apptNo, empId, c, now));
         cancels.saveAndFlush(new HrAppointmentCancel(cancel.getApptId(), apptId, now));
         return AppointmentView.of(cancel, apptId, null);
     }
@@ -426,7 +426,7 @@ public class AppointmentService {
             }
         }
         if (type.changes(Field.DEPT) && dept != null) {
-            requireDeptOpenOn(dept, date);
+            requireDeptOpenOn(e.getEnterCd(), dept, date);
         }
         if (type.changes(Field.GRADE)) {
             requireCode(e.getEnterCd(), CodeGroups.JOB_GRADE, grade, "직급");
@@ -553,8 +553,9 @@ public class AppointmentService {
      * 옮길 부서는 발령일에 이미 신설되어 있고 폐지(예정)가 아니어야 한다. 사원 입사 등록 규칙(EmployeeService)과 같다.
      * 폐지 예정 부서로 보내면 폐지일 뒤에도 재직자가 남는다.
      */
-    private void requireDeptOpenOn(long deptId, LocalDate d) {
-        OrgDept dept = depts.findById(deptId)
+    private void requireDeptOpenOn(String enterCd, long deptId, LocalDate d) {
+        // 사원과 같은 법인 부서만(#122, V035 복합 FK). 다른 법인 부서는 없는 부서와 같게 거부한다.
+        OrgDept dept = depts.findByEnterCdAndDeptId(enterCd, deptId)
                 .orElseThrow(() -> AppointmentException.badRequest("부서가 없어요: " + deptId));
         if (dept.getValidFrom().isAfter(d)) {
             throw AppointmentException.badRequest("부서 " + dept.getDeptCode() + "는 발령일(" + d + ")에 존속하지 않아요");

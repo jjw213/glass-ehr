@@ -34,7 +34,12 @@ class ApproverResolverTest {
         }
 
         @Override
-        public Optional<ApproverResolver.DeptInfo> dept(long deptId, LocalDate date) {
+        public Optional<String> enterOf(long empId) {
+            return Optional.of("C001");
+        }
+
+        @Override
+        public Optional<ApproverResolver.DeptInfo> dept(String enterCd, long deptId, LocalDate date) {
             return Optional.ofNullable(depts.get(deptId));
         }
 

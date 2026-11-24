@@ -33,9 +33,13 @@ class AppointmentSchemaScriptTest {
     @Test
     void 엔티티_컬럼이_DDL에_모두_있다() throws IOException {
         String table = ddl();
+        // enter_cd 는 V031(#118)이 추가했다(복합 FK 는 V035, #122).
+        String v031 = new ClassPathResource("db/oracle/V031__enter_company_enter_cd.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+        assertThat(v031).contains("ALTER TABLE hr_appointment ADD (enter_cd VARCHAR2(10 CHAR)");
         for (Field f : HrAppointment.class.getDeclaredFields()) {
             Column c = f.getAnnotation(Column.class);
-            if (c != null) {
+            if (c != null && !c.name().equals("enter_cd")) {
                 assertThat(table).as(c.name()).containsPattern("(?m)^\\s+" + c.name() + "\\s");
             }
         }

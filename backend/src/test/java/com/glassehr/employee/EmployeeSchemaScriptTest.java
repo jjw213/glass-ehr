@@ -117,7 +117,7 @@ class EmployeeSchemaScriptTest {
             "SELECT '(S\\d\\d-\\d{4}-\\d{3})', '(S\\d\\d)', '([^']+)', '([MF])', DATE '([\\d-]+)', '([^']+)', "
                     + "(?:NULL|'[^']*'), '[^']+', '([A-Z_]+)', DATE '([\\d-]+)', (NULL|DATE '[\\d-]+'), "
                     + "(NULL|DATE '[\\d-]+'), '([A-Z_]+)', (\\d+), '([A-Z_]+)', dept_id, '([A-Z_]+)', '([A-Z_]+)' "
-                    + "FROM org_dept WHERE dept_code = '([A-Z0-9_]+)';");
+                    + "FROM org_dept WHERE enter_cd = 'C001' AND dept_code ='([A-Z0-9_]+)';");
 
     private static List<SeedEmp> seedEmployees() throws IOException {
         String sql = seed();
@@ -165,7 +165,7 @@ class EmployeeSchemaScriptTest {
             byGroup.computeIfAbsent(m.group(1), k -> new HashSet<>()).add(m.group(2));
         }
         Set<String> depts = new HashSet<>();
-        Matcher d = Pattern.compile("INSERT INTO org_dept \\(dept_code, valid_from\\) VALUES \\('([A-Z0-9_]+)'").matcher(seed());
+        Matcher d = Pattern.compile("INSERT INTO org_dept \\(enter_cd, dept_code, valid_from\\) VALUES \\('C001', '([A-Z0-9_]+)'").matcher(seed());
         while (d.find()) {
             depts.add(d.group(1));
         }

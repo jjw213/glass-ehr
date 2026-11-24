@@ -138,7 +138,9 @@ class AppointmentServiceTest {
         code(CodeGroups.JOB_TITLE, "TEAM_LEADER", true);
 
         OrgDeptRepository depts = mock(OrgDeptRepository.class);
-        when(depts.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(deptStore.get(inv.<Long>getArgument(0))));
+        // 부서는 모두 법인 C001 것이다. 다른 법인으로 찾으면 없다(#122).
+        when(depts.findByEnterCdAndDeptId(any(), anyLong())).thenAnswer(inv -> "C001".equals(inv.getArgument(0))
+                ? Optional.ofNullable(deptStore.get(inv.<Long>getArgument(1))) : Optional.empty());
         dept(DEPT_A, LocalDate.of(2000, 1, 1), null);
         dept(DEPT_B, LocalDate.of(2000, 1, 1), null);
         dept(DEPT_CLOSING, LocalDate.of(2000, 1, 1), LocalDate.of(2027, 1, 1));
