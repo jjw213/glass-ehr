@@ -212,6 +212,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V035__org_dept_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer rrnLogAccessorEnter = jdbc.queryForObject("SELECT COUNT(*) FROM user_tab_columns "
+                + "WHERE table_name = 'RRN_ACCESS_LOG' AND column_name = 'ACCESSOR_ENTER_CD'", Integer.class);
+        if (rrnLogAccessorEnter == null || rrnLogAccessorEnter == 0) {
+            // #123: 사원·주민등록번호 키와 사원 참조 FK 에 법인
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V036__employee_enter_cd.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
