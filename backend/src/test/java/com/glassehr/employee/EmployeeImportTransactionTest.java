@@ -111,7 +111,7 @@ class EmployeeImportTransactionTest {
             BizSiteRepository sites = mock(BizSiteRepository.class);
             BizSite site = mock(BizSite.class);
             when(site.isActive()).thenReturn(true);
-            when(sites.findById("S01")).thenReturn(Optional.of(site));
+            when(sites.findByEnterCdAndSiteCode("C001", "S01")).thenReturn(Optional.of(site));
             return sites;
         }
 
@@ -144,7 +144,7 @@ class EmployeeImportTransactionTest {
         RecordingTxManager tm = (RecordingTxManager) txManager;
         int commitsBefore = tm.commits;
 
-        Preview p = svc.preview((header + "\r\n" + row + "\r\n").getBytes(StandardCharsets.UTF_8));
+        Preview p = svc.preview("C001", (header + "\r\n" + row + "\r\n").getBytes(StandardCharsets.UTF_8));
 
         assertThat(p.confirmable()).isFalse();
         assertThat(p.rows()).hasSize(1);

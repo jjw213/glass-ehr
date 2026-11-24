@@ -85,6 +85,7 @@ class AppointmentApplyCancelTest {
 
     private Employee emp(long id) {
         Employee e = mock(Employee.class);
+        when(e.getEnterCd()).thenReturn("C001");
         when(e.getEmpId()).thenReturn(id);
         when(e.getHireDate()).thenReturn(HIRE);
         when(e.getCurrentDeptId()).thenReturn(DEPT_A);
@@ -98,7 +99,7 @@ class AppointmentApplyCancelTest {
     private void code(String group, String code) {
         CommonCode c = mock(CommonCode.class);
         when(c.isActive()).thenReturn(true);
-        codeStore.put(new CommonCodeId(group, code), c);
+        codeStore.put(new CommonCodeId("C001", group, code), c);
     }
 
     private void dept(long id) {
@@ -162,7 +163,8 @@ class AppointmentApplyCancelTest {
                 .map(emps::get).filter(e -> e != null).toList());
 
         codes = mock(CommonCodeRepository.class);
-        when(codes.findById(any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(inv.<CommonCodeId>getArgument(0))));
+        when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(
+                new CommonCodeId(inv.<String>getArgument(0), inv.<String>getArgument(1), inv.<String>getArgument(2)))));
         for (AppointmentType t : AppointmentType.values()) {
             code(CodeGroups.APPOINTMENT_TYPE, t.code());
         }

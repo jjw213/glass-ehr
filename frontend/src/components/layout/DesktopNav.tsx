@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LuSlidersHorizontal, LuCalendarDays, LuMail, LuBell, LuSearch, LuLogOut } from 'react-icons/lu';
-import { NAV, navFor } from '../../nav';
+import { NAV, navGroupsFor, type ModuleId, type NavGroup } from '../../nav';
 import { useData, useStore } from '../../state/store';
 import { useSession } from '../../state/session';
 import { Avatar, cx } from '../ui';
@@ -11,8 +11,28 @@ export function DesktopNav() {
   const { logout } = useSession();
   const { me } = useData();
   const [menu, setMenu] = useState(false);
+  /** 중메뉴 목록이 열린 대메뉴 */
+  const [openMod, setOpenMod] = useState<ModuleId | null>(null);
+  const closeTimer = useRef<number>(0);
+  const dockRef = useRef<HTMLElement>(null);
 
   const badgeFor = (id: string) => (id === 'approvals' ? pendingCount : id === 'messages' ? unreadCount : 0);
+  const groupBadge = (g: NavGroup) => g.items.reduce((sum, n) => sum + badgeFor(n.id), 0);
+  const groups = navGroupsFor(me.role);
+
+  // 바깥을 누르거나 Esc 를 누르면 중메뉴 목록을 닫는다
+  useEffect(() => {
+    if (!openMod) return;
+    const onDown = (e: PointerEvent) => { if (!dockRef.current?.contains(e.target as Node)) setOpenMod(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenMod(null); };
+    document.addEventListener('pointerdown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('pointerdown', onDown); window.removeEventListener('keydown', onKey); };
+  }, [openMod]);
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
+
+  const hoverOpen = (id: ModuleId) => { clearTimeout(closeTimer.current); setOpenMod(id); };
+  const hoverClose = () => { clearTimeout(closeTimer.current); closeTimer.current = window.setTimeout(() => setOpenMod(null), 160); };
 
   return (
     <>
@@ -57,19 +77,53 @@ export function DesktopNav() {
         </div>
       </header>
 
-      <nav className="glass dock" aria-label="전체 메뉴">
-        {navFor(me.role).map((n, i) => (
-          <button
-            key={n.id}
-            className={cx('dock__btn', page === n.id && 'active', i === 4 && 'sep', n.id === 'settings' && 'sep')}
-            onClick={() => go(n.id)}
-            data-tip={n.label}
-            aria-label={n.label}
-          >
-            <n.icon />
-            {badgeFor(n.id) > 0 && <span className="count">{badgeFor(n.id)}</span>}
-          </button>
-        ))}
+      <nav className="glass dock" aria-label="전체 메뉴" ref={dockRef}>
+        {groups.map((g) => {
+          const single = g.items.length === 1;
+          const active = g.items.some((n) => n.id === page);
+          const open = !single && openMod === g.module.id;
+          const count = groupBadge(g);
+          const sep = g.module.id === 'system' || g.module.id === 'settings';
+          return (
+            <div
+              key={g.module.id}
+              className={cx('dock__group', sep && 'sep')}
+              onPointerEnter={(e) => { if (!single && e.pointerType === 'mouse') hoverOpen(g.module.id); }}
+              onPointerLeave={(e) => { if (!single && e.pointerType === 'mouse') hoverClose(); }}
+            >
+              <button
+                className={cx('dock__btn', active && 'active', open && 'open')}
+                onClick={() => (single ? go(g.items[0].id) : setOpenMod((v) => (v === g.module.id ? null : g.module.id)))}
+                data-tip={single ? g.module.label : undefined}
+                aria-label={g.module.label}
+                aria-haspopup={single ? undefined : 'menu'}
+                aria-expanded={single ? undefined : open}
+                aria-current={single && active ? 'page' : undefined}
+              >
+                <g.module.icon />
+                {count > 0 && <span className="count">{count}</span>}
+              </button>
+              {open && (
+                <div className="dock__flyout" role="menu" aria-label={g.module.label}>
+                  <p className="dock__flyout-title">{g.module.label}</p>
+                  {g.items.map((n) => (
+                    <button
+                      key={n.id}
+                      role="menuitem"
+                      className={cx('dock__sub', page === n.id && 'active')}
+                      onClick={() => { go(n.id); setOpenMod(null); }}
+                      aria-current={page === n.id ? 'page' : undefined}
+                    >
+                      <n.icon />
+                      <span>{n.label}</span>
+                      {badgeFor(n.id) > 0 && <em className="dock__sub-count">{badgeFor(n.id)}</em>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </nav>
     </>
   );

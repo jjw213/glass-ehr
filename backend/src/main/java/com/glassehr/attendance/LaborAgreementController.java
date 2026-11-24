@@ -100,14 +100,14 @@ public class LaborAgreementController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AgreementView create(@Valid @RequestBody AgreementRequest req, AuthUser user) {
-        return service.create(req, user.loginId());
+        return service.create(user.enterCd(), req, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PutMapping("/{agreementId}")
     public AgreementView update(@PathVariable long agreementId, @Valid @RequestBody AgreementRequest req,
             AuthUser user) {
-        return service.update(agreementId, req, user.loginId());
+        return service.update(user.enterCd(), agreementId, req, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_WRITE)

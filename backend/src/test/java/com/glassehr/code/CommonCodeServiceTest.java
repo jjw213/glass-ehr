@@ -27,6 +27,7 @@ import org.springframework.http.HttpStatus;
 class CommonCodeServiceTest {
 
     private static final LocalDateTime T0 = LocalDateTime.of(2026, 11, 12, 9, 0);
+    private static final String E = "C001";
 
     private CodeGroupRepository groups;
     private CommonCodeRepository codes;
@@ -43,37 +44,38 @@ class CommonCodeServiceTest {
     }
 
     private static CommonCode code(String group, String code, int sort, boolean active) {
-        return new CommonCode(group, code, code + "명", null, sort, active, T0);
+        return new CommonCode(E, group, code, code + "명", null, sort, active, T0);
     }
 
     private static CodeGroup group(String g, boolean active) {
-        return new CodeGroup(g, g + "명", null, 0, active);
+        return new CodeGroup(E, g, g + "명", null, 0, active);
     }
 
     @Test
     void 관리_목록은_사용중지_포함_여부를_따른다() {
-        when(groups.existsById("JOB_GRADE")).thenReturn(true);
-        when(codes.findByGroupCodeOrderBySortOrderAscCodeAsc("JOB_GRADE"))
+        when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
+        when(codes.findByEnterCdAndGroupCodeOrderBySortOrderAscCodeAsc(E, "JOB_GRADE"))
                 .thenReturn(List.of(code("JOB_GRADE", "A", 1, true), code("JOB_GRADE", "B", 2, false)));
 
-        assertThat(service.listCodes("JOB_GRADE", true)).extracting(CodeView::code).containsExactly("A", "B");
-        assertThat(service.listCodes("JOB_GRADE", false)).extracting(CodeView::code).containsExactly("A");
+        assertThat(service.listCodes(E, "JOB_GRADE", true)).extracting(CodeView::code).containsExactly("A", "B");
+        assertThat(service.listCodes(E, "JOB_GRADE", false)).extracting(CodeView::code).containsExactly("A");
     }
 
     @Test
     void 없는_그룹_조회는_404() {
-        when(groups.existsById("NOPE")).thenReturn(false);
-        assertThatThrownBy(() -> service.listCodes("NOPE", true))
+        when(groups.existsByEnterCdAndGroupCode(E, "NOPE")).thenReturn(false);
+        assertThatThrownBy(() -> service.listCodes(E, "NOPE", true))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
     @Test
     void 여러_그룹_조회는_요청_순서이고_코드가_없는_그룹도_빈_목록으로_있다() {
-        when(groups.findAllById(any())).thenReturn(List.of(group("JOB_GRADE", true), group("EMPLOYMENT_TYPE", true)));
-        when(codes.findByGroupCodeInAndActiveOrderByGroupCodeAscSortOrderAscCodeAsc(any(), any()))
+        when(groups.findByEnterCdAndGroupCodeIn(any(), any()))
+                .thenReturn(List.of(group("JOB_GRADE", true), group("EMPLOYMENT_TYPE", true)));
+        when(codes.findByEnterCdAndGroupCodeInAndActiveOrderByGroupCodeAscSortOrderAscCodeAsc(any(), any(), any()))
                 .thenReturn(List.of(code("EMPLOYMENT_TYPE", "REGULAR", 10, true), code("EMPLOYMENT_TYPE", "FIXED_TERM", 20, true)));
 
-        Map<String, List<CodeView>> r = service.activeCodes(List.of("EMPLOYMENT_TYPE", "JOB_GRADE", "EMPLOYMENT_TYPE"));
+        Map<String, List<CodeView>> r = service.activeCodes(E, List.of("EMPLOYMENT_TYPE", "JOB_GRADE", "EMPLOYMENT_TYPE"));
 
         assertThat(r.keySet()).containsExactly("EMPLOYMENT_TYPE", "JOB_GRADE");
         assertThat(r.get("EMPLOYMENT_TYPE")).extracting(CodeView::code).containsExactly("REGULAR", "FIXED_TERM");
@@ -82,17 +84,17 @@ class CommonCodeServiceTest {
 
     @Test
     void 사용중지된_그룹의_코드는_훅에_내보내지_않는다() {
-        when(groups.findAllById(any())).thenReturn(List.of(group("WORK_LOCATION", false)));
-        when(codes.findByGroupCodeInAndActiveOrderByGroupCodeAscSortOrderAscCodeAsc(any(), any()))
+        when(groups.findByEnterCdAndGroupCodeIn(any(), any())).thenReturn(List.of(group("WORK_LOCATION", false)));
+        when(codes.findByEnterCdAndGroupCodeInAndActiveOrderByGroupCodeAscSortOrderAscCodeAsc(any(), any(), any()))
                 .thenReturn(List.of(code("WORK_LOCATION", "HQ", 10, true)));
 
-        assertThat(service.activeCodes(List.of("WORK_LOCATION")).get("WORK_LOCATION")).isEmpty();
+        assertThat(service.activeCodes(E, List.of("WORK_LOCATION")).get("WORK_LOCATION")).isEmpty();
     }
 
     @Test
     void 여러_그룹_조회에_없는_그룹이_섞이면_404() {
-        when(groups.findAllById(any())).thenReturn(List.of(group("JOB_GRADE", true)));
-        assertThatThrownBy(() -> service.activeCodes(List.of("JOB_GRADE", "NOPE")))
+        when(groups.findByEnterCdAndGroupCodeIn(any(), any())).thenReturn(List.of(group("JOB_GRADE", true)));
+        assertThatThrownBy(() -> service.activeCodes(E, List.of("JOB_GRADE", "NOPE")))
                 .isInstanceOfSatisfying(CodeException.class, e -> {
                     assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND);
                     assertThat(e.getMessage()).contains("NOPE");
@@ -101,19 +103,19 @@ class CommonCodeServiceTest {
 
     @Test
     void 여러_그룹_조회는_빈_요청과_너무_많은_그룹을_거부한다() {
-        assertThatThrownBy(() -> service.activeCodes(Collections.emptyList()))
+        assertThatThrownBy(() -> service.activeCodes(E, Collections.emptyList()))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST));
         List<String> many = IntStream.rangeClosed(0, CommonCodeService.MAX_GROUPS_PER_REQUEST).mapToObj(i -> "G" + i).toList();
-        assertThatThrownBy(() -> service.activeCodes(many))
+        assertThatThrownBy(() -> service.activeCodes(E, many))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST));
     }
 
     @Test
     void 추가는_이름을_다듬고_빈_설명은_null로_서울_시각으로_저장한다() {
-        when(groups.existsById("JOB_GRADE")).thenReturn(true);
-        when(codes.existsById(new CommonCodeId("JOB_GRADE", "INTERN"))).thenReturn(false);
+        when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
+        when(codes.existsByEnterCdAndGroupCodeAndCode(E, "JOB_GRADE", "INTERN")).thenReturn(false);
 
-        CodeView v = service.create("JOB_GRADE", new CodeCreateRequest("INTERN", "  인턴 ", "   ", 5, true));
+        CodeView v = service.create(E, "JOB_GRADE", new CodeCreateRequest("INTERN", "  인턴 ", "   ", 5, true));
 
         assertThat(v.name()).isEqualTo("인턴");
         assertThat(v.description()).isNull();
@@ -123,27 +125,28 @@ class CommonCodeServiceTest {
 
     @Test
     void 중복_코드값_추가는_409이고_저장하지_않는다() {
-        when(groups.existsById("JOB_GRADE")).thenReturn(true);
-        when(codes.existsById(new CommonCodeId("JOB_GRADE", "STAFF"))).thenReturn(true);
+        when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
+        when(codes.existsByEnterCdAndGroupCodeAndCode(E, "JOB_GRADE", "STAFF")).thenReturn(true);
 
-        assertThatThrownBy(() -> service.create("JOB_GRADE", new CodeCreateRequest("STAFF", "사원", null, 1, true)))
+        assertThatThrownBy(() -> service.create(E, "JOB_GRADE", new CodeCreateRequest("STAFF", "사원", null, 1, true)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
         verify(codes, never()).saveAndFlush(any());
     }
 
     @Test
     void 없는_그룹에_추가는_404() {
-        when(groups.existsById("NOPE")).thenReturn(false);
-        assertThatThrownBy(() -> service.create("NOPE", new CodeCreateRequest("A", "에이", null, 1, true)))
+        when(groups.existsByEnterCdAndGroupCode(E, "NOPE")).thenReturn(false);
+        assertThatThrownBy(() -> service.create(E, "NOPE", new CodeCreateRequest("A", "에이", null, 1, true)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
     @Test
     void 수정은_코드값을_유지하고_속성만_바꾼다() {
-        when(groups.existsById("JOB_GRADE")).thenReturn(true);
-        when(codes.findById(new CommonCodeId("JOB_GRADE", "STAFF"))).thenReturn(Optional.of(code("JOB_GRADE", "STAFF", 10, true)));
+        when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
+        when(codes.findByEnterCdAndGroupCodeAndCode(E, "JOB_GRADE", "STAFF"))
+                .thenReturn(Optional.of(code("JOB_GRADE", "STAFF", 10, true)));
 
-        CodeView v = service.update("JOB_GRADE", "STAFF", new CodeUpdateRequest("사원(구)", "개편 전 직급", 99, false));
+        CodeView v = service.update(E, "JOB_GRADE", "STAFF", new CodeUpdateRequest("사원(구)", "개편 전 직급", 99, false));
 
         assertThat(v.code()).isEqualTo("STAFF");
         assertThat(v.name()).isEqualTo("사원(구)");
@@ -154,9 +157,9 @@ class CommonCodeServiceTest {
 
     @Test
     void 없는_코드_수정은_404() {
-        when(groups.existsById("JOB_GRADE")).thenReturn(true);
-        when(codes.findById(any())).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.update("JOB_GRADE", "NOPE", new CodeUpdateRequest("x", null, 1, true)))
+        when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
+        when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.update(E, "JOB_GRADE", "NOPE", new CodeUpdateRequest("x", null, 1, true)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 

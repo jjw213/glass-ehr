@@ -112,13 +112,14 @@ INSERT INTO employee (emp_no, site_code, emp_name, gender, birth_date, address, 
 INSERT INTO employee (emp_no, site_code, emp_name, gender, birth_date, address, career_history, job_description, job_family_code, hire_date, contract_start_date, contract_end_date, employment_type_code, weekly_contract_minutes, work_location_code, current_dept_id, job_grade_code, job_title_code)
     SELECT 'S01-2026-003', 'S01', '예시사원32', 'F', DATE '1999-09-19', '가상시 표본구 연습로 32', NULL, '백엔드 개발', 'ENGINEERING', DATE '2026-09-01', NULL, NULL, 'REGULAR', 2400, 'HQ', dept_id, 'STAFF', 'MEMBER' FROM org_dept WHERE dept_code = 'DEMO_DEV1';
 
--- 채번 상태: 사업장·연도별 마지막 순번(위 사번과 같아야 한다. EmployeeSchemaScriptTest 가 검사)
-INSERT INTO emp_no_seq (site_code, hire_year, last_seq) VALUES ('S01', 2018, 2);
-INSERT INTO emp_no_seq (site_code, hire_year, last_seq) VALUES ('S01', 2019, 3);
-INSERT INTO emp_no_seq (site_code, hire_year, last_seq) VALUES ('S01', 2020, 4);
-INSERT INTO emp_no_seq (site_code, hire_year, last_seq) VALUES ('S01', 2021, 5);
-INSERT INTO emp_no_seq (site_code, hire_year, last_seq) VALUES ('S01', 2022, 4);
-INSERT INTO emp_no_seq (site_code, hire_year, last_seq) VALUES ('S01', 2023, 4);
-INSERT INTO emp_no_seq (site_code, hire_year, last_seq) VALUES ('S01', 2024, 4);
-INSERT INTO emp_no_seq (site_code, hire_year, last_seq) VALUES ('S01', 2025, 3);
-INSERT INTO emp_no_seq (site_code, hire_year, last_seq) VALUES ('S01', 2026, 3);
+-- 채번 상태: 법인·사업장·연도별 마지막 순번(위 사번과 같아야 한다. EmployeeSchemaScriptTest 가 검사)
+-- V034(#121)부터 emp_no_seq.enter_cd 에 DEFAULT 가 없어 법인(C001)을 직접 넣는다.
+INSERT INTO emp_no_seq (enter_cd, site_code, hire_year, last_seq) VALUES ('C001', 'S01', 2018, 2);
+INSERT INTO emp_no_seq (enter_cd, site_code, hire_year, last_seq) VALUES ('C001', 'S01', 2019, 3);
+INSERT INTO emp_no_seq (enter_cd, site_code, hire_year, last_seq) VALUES ('C001', 'S01', 2020, 4);
+INSERT INTO emp_no_seq (enter_cd, site_code, hire_year, last_seq) VALUES ('C001', 'S01', 2021, 5);
+INSERT INTO emp_no_seq (enter_cd, site_code, hire_year, last_seq) VALUES ('C001', 'S01', 2022, 4);
+INSERT INTO emp_no_seq (enter_cd, site_code, hire_year, last_seq) VALUES ('C001', 'S01', 2023, 4);
+INSERT INTO emp_no_seq (enter_cd, site_code, hire_year, last_seq) VALUES ('C001', 'S01', 2024, 4);
+INSERT INTO emp_no_seq (enter_cd, site_code, hire_year, last_seq) VALUES ('C001', 'S01', 2025, 3);
+INSERT INTO emp_no_seq (enter_cd, site_code, hire_year, last_seq) VALUES ('C001', 'S01', 2026, 3);

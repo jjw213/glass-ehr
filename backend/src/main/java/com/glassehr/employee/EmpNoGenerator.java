@@ -32,23 +32,26 @@ public class EmpNoGenerator {
         this.seqs = seqs;
     }
 
-    /** 다음 사번. 호출한 트랜잭션 안에서만 쓴다(잠금은 그 트랜잭션이 끝날 때 풀림). */
+    /**
+     * 다음 사번. 호출한 트랜잭션 안에서만 쓴다(잠금은 그 트랜잭션이 끝날 때 풀림).
+     * 순번은 법인 안에서 센다(#121). 다른 법인에 같은 사업장코드·연도의 순번이 있어도 서로 영향이 없다.
+     */
     @Transactional(propagation = Propagation.MANDATORY)
-    public String next(String siteCode, LocalDate hireDate) {
-        BizSite site = sites.findForUpdate(siteCode)
+    public String next(String enterCd, String siteCode, LocalDate hireDate) {
+        BizSite site = sites.findForUpdate(enterCd, siteCode)
                 .orElseThrow(() -> EmployeeException.badRequest("사업장이 없어요: " + siteCode));
         if (!site.isActive()) {
             throw EmployeeException.badRequest("사용하지 않는 사업장이에요: " + siteCode);
         }
         int year = hireDate.getYear();
-        EmpNoSeq seq = seqs.findForUpdate(siteCode, year).orElse(null);
+        EmpNoSeq seq = seqs.findForUpdate(enterCd, siteCode, year).orElse(null);
         int next = seq == null ? 1 : seq.getLastSeq() + 1;
         if (next > MAX_SEQ) {
             throw EmployeeException.conflict(
                     siteCode + " 사업장의 " + year + "년 입사자 사번(순번 " + MAX_SEQ + ")이 모두 쓰였어요. 관리자에게 문의해 주세요");
         }
         if (seq == null) {
-            seqs.saveAndFlush(new EmpNoSeq(siteCode, year, next));
+            seqs.saveAndFlush(new EmpNoSeq(enterCd, siteCode, year, next));
         } else {
             seq.advanceTo(next);
             seqs.saveAndFlush(seq);

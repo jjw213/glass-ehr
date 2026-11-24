@@ -25,7 +25,6 @@ interface Store {
   page: PageId; go: (p: PageId) => void;
   night: boolean; setNight: (v: boolean) => void;
   scene: SceneId; setScene: (s: SceneId) => void;
-  orgDept: string | null; setOrgDept: (d: string | null) => void;
   toasts: Toast[]; toast: (text: string) => void;
 
   /* actions → server */
@@ -52,7 +51,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [page, setPage] = useState<PageId>(readHash);
   const [night, setNight] = useState(false);
   const [scene, setScene] = useState<SceneId>('sunset');
-  const [orgDept, setOrgDept] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [enterSwitching, setEnterSwitching] = useState(false);
   const lostRef = useRef<() => void>(() => {});
@@ -180,11 +178,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Store>(() => ({
     data, login, switchEnter, enterSwitching, signOut, onSessionLost: (fn) => { lostRef.current = fn; }, dept,
-    page, go, night, setNight, scene, setScene, orgDept, setOrgDept, toasts, toast,
+    page, go, night, setNight, scene, setScene, toasts, toast,
     decide, addLeave, send, loadMessages, markRead, refreshThreads,
     pendingCount: data?.approvals.filter((a) => a.canDecide).length ?? 0,
     unreadCount: data?.threads.reduce((s, t) => s + t.unread, 0) ?? 0,
-  }), [data, login, switchEnter, enterSwitching, signOut, dept, page, go, night, scene, orgDept, toasts, toast, decide, addLeave, send, loadMessages, markRead, refreshThreads]);
+  }), [data, login, switchEnter, enterSwitching, signOut, dept, page, go, night, scene, toasts, toast, decide, addLeave, send, loadMessages, markRead, refreshThreads]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

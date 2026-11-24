@@ -42,7 +42,7 @@ class AppointmentOracleTest {
     private com.glassehr.org.OrgDeptService orgs;
 
     private long employee() {
-        return employees.create(new EmployeeCreateRequest("S01", "예시사원IT", "F", LocalDate.of(1880, 1, 1),
+        return employees.create("C001", new EmployeeCreateRequest("S01", "예시사원IT", "F", LocalDate.of(1880, 1, 1),
                 "가상시 예시구 샘플로 0", null, "시험", null, D0, null, null, null, "REGULAR", 2400, null, null, null,
                 null, "STAFF", null, null), HR).empId();
     }

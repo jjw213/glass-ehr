@@ -2,7 +2,6 @@ package com.glassehr.employee;
 
 import com.glassehr.code.CodeGroups;
 import com.glassehr.code.CommonCode;
-import com.glassehr.code.CommonCodeId;
 import com.glassehr.code.CommonCodeRepository;
 import com.glassehr.employee.Employee.BasicInfo;
 import com.glassehr.employee.Employee.InitialAssignment;
@@ -87,13 +86,14 @@ public class EmployeeService {
 
     // ---------------------------------------------------------------- 등록
 
+    /** enterCd 는 로그인 세션의 현재 법인(AuthUser.enterCd). 사업장·공통코드·사번 순번을 이 법인 안에서 찾는다(#121). */
     @Transactional
-    public EmployeeView create(EmployeeCreateRequest req, RequestActor actor) {
+    public EmployeeView create(String enterCd, EmployeeCreateRequest req, RequestActor actor) {
         BasicInfo info = basicInfo(req.name(), req.gender(), req.birthDate(), req.address(), req.careerHistory(),
                 req.jobDescription(), req.jobFamilyCode(), req.renewalDate(), req.contractStartDate(),
                 req.contractEndDate(), req.employmentTypeCode(), req.weeklyContractMinutes(), req.workLocationCode(),
                 req.employmentNote(), req.otherNote());
-        validate(info, req.hireDate());
+        validate(enterCd, info, req.hireDate());
         InitialAssignment first = new InitialAssignment(req.deptId(), blankToNull(req.jobGradeCode()),
                 blankToNull(req.jobTitleCode()));
         if (first.deptId() != null) {
@@ -101,11 +101,11 @@ public class EmployeeService {
             orgLock.acquire();
             requireDeptOpenOn(first.deptId(), req.hireDate());
         }
-        requireCode(CodeGroups.JOB_GRADE, first.jobGradeCode(), "직급", false);
-        requireCode(CodeGroups.JOB_TITLE, first.jobTitleCode(), "직책", false);
+        requireCode(enterCd, CodeGroups.JOB_GRADE, first.jobGradeCode(), "직급", false);
+        requireCode(enterCd, CodeGroups.JOB_TITLE, first.jobTitleCode(), "직책", false);
 
-        String empNo = empNos.next(req.siteCode(), req.hireDate());
-        Employee e = employees.saveAndFlush(new Employee(empNo, req.siteCode(), req.hireDate(), info, first, now()));
+        String empNo = empNos.next(enterCd, req.siteCode(), req.hireDate());
+        Employee e = employees.saveAndFlush(new Employee(enterCd, empNo, req.siteCode(), req.hireDate(), info, first, now()));
         String masked = null;
         if (req.rrn() != null) {
             masked = rrns.save(e.getEmpId(), req.rrn(), actor);
@@ -121,17 +121,17 @@ public class EmployeeService {
      * {@code noRollbackFor}를 둔다. 없으면 미리보기 트랜잭션 종료 때 UnexpectedRollbackException(500)이 난다.
      */
     @Transactional(readOnly = true, noRollbackFor = EmployeeException.class)
-    public void checkCreate(EmployeeCreateRequest req) {
+    public void checkCreate(String enterCd, EmployeeCreateRequest req) {
         BasicInfo info = basicInfo(req.name(), req.gender(), req.birthDate(), req.address(), req.careerHistory(),
                 req.jobDescription(), req.jobFamilyCode(), req.renewalDate(), req.contractStartDate(),
                 req.contractEndDate(), req.employmentTypeCode(), req.weeklyContractMinutes(), req.workLocationCode(),
                 req.employmentNote(), req.otherNote());
-        validate(info, req.hireDate());
+        validate(enterCd, info, req.hireDate());
         if (req.deptId() != null) {
             requireDeptOpenOn(req.deptId(), req.hireDate());
         }
-        requireCode(CodeGroups.JOB_GRADE, blankToNull(req.jobGradeCode()), "직급", false);
-        requireCode(CodeGroups.JOB_TITLE, blankToNull(req.jobTitleCode()), "직책", false);
+        requireCode(enterCd, CodeGroups.JOB_GRADE, blankToNull(req.jobGradeCode()), "직급", false);
+        requireCode(enterCd, CodeGroups.JOB_TITLE, blankToNull(req.jobTitleCode()), "직책", false);
     }
 
     // ---------------------------------------------------------------- 수정
@@ -144,7 +144,7 @@ public class EmployeeService {
                 req.jobDescription(), req.jobFamilyCode(), req.renewalDate(), req.contractStartDate(),
                 req.contractEndDate(), req.employmentTypeCode(), req.weeklyContractMinutes(), req.workLocationCode(),
                 req.employmentNote(), req.otherNote());
-        validate(info, e.getHireDate());
+        validate(e.getEnterCd(), info, e.getHireDate());
         e.updateBasicInfo(info, now());
         employees.saveAndFlush(e);
         return EmployeeView.of(e, rrns.masked(empId).orElse(null));
@@ -166,7 +166,7 @@ public class EmployeeService {
             throw EmployeeException.badRequest("퇴직일은 입사일(" + e.getHireDate() + ") 이후여야 해요");
         }
         String reason = req.reasonCode().strip();
-        requireCode(CodeGroups.RETIREMENT_REASON, reason, "퇴직 사유", true);
+        requireCode(e.getEnterCd(), CodeGroups.RETIREMENT_REASON, reason, "퇴직 사유", true);
         LocalDate until;
         try {
             until = retention.retentionUntil(req.retireDate());
@@ -202,7 +202,7 @@ public class EmployeeService {
     }
 
     /** 날짜 순서·코드 존재·계약기간 검사. DB CHECK(V009)와 같은 규칙을 먼저 검사해 알기 쉬운 메시지를 준다. */
-    private void validate(BasicInfo i, LocalDate hireDate) {
+    private void validate(String enterCd, BasicInfo i, LocalDate hireDate) {
         if (!i.birthDate().isBefore(hireDate)) {
             throw EmployeeException.badRequest("생년월일은 입사일보다 앞이어야 해요");
         }
@@ -215,23 +215,23 @@ public class EmployeeService {
         if (i.contractEndDate() != null && i.contractEndDate().isBefore(i.contractStartDate())) {
             throw EmployeeException.badRequest("계약 종료일은 계약 시작일 이후여야 해요");
         }
-        requireCode(CodeGroups.EMPLOYMENT_TYPE, i.employmentTypeCode(), "고용형태", true);
+        requireCode(enterCd, CodeGroups.EMPLOYMENT_TYPE, i.employmentTypeCode(), "고용형태", true);
         if (FIXED_TERM.equals(i.employmentTypeCode()) && i.contractEndDate() == null) {
             throw EmployeeException.badRequest("기간제 근로자는 계약기간(시작일·종료일)을 입력해 주세요");
         }
-        requireCode(CodeGroups.JOB_FAMILY, i.jobFamilyCode(), "직군", false);
-        requireCode(CodeGroups.WORK_LOCATION, i.workLocationCode(), "근무지", false);
+        requireCode(enterCd, CodeGroups.JOB_FAMILY, i.jobFamilyCode(), "직군", false);
+        requireCode(enterCd, CodeGroups.WORK_LOCATION, i.workLocationCode(), "근무지", false);
     }
 
-    /** 사용 중인 공통코드인지. required=false 이면 null 을 허용한다. */
-    private void requireCode(String group, String code, String label, boolean required) {
+    /** 그 법인에서 사용 중인 공통코드인지. required=false 이면 null 을 허용한다. */
+    private void requireCode(String enterCd, String group, String code, String label, boolean required) {
         if (code == null) {
             if (required) {
                 throw EmployeeException.badRequest(label + "을(를) 선택해 주세요");
             }
             return;
         }
-        CommonCode c = codes.findById(new CommonCodeId(group, code)).orElse(null);
+        CommonCode c = codes.findByEnterCdAndGroupCodeAndCode(enterCd, group, code).orElse(null);
         if (c == null) {
             throw EmployeeException.badRequest("없는 " + label + " 코드예요: " + code);
         }

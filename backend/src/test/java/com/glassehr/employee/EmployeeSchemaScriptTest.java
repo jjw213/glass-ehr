@@ -191,7 +191,9 @@ class EmployeeSchemaScriptTest {
             expected.merge(p[0] + "/" + Integer.parseInt(p[1]), Integer.parseInt(p[2]), Math::max);
         }
         Map<String, Integer> actual = new HashMap<>();
-        Matcher m = Pattern.compile("INSERT INTO emp_no_seq \\(site_code, hire_year, last_seq\\) VALUES \\('(S\\d\\d)', (\\d{4}), (\\d+)\\);")
+        // V034(#121): 채번은 법인별. 시드는 초기 법인 C001 것만 넣는다.
+        Matcher m = Pattern.compile("INSERT INTO emp_no_seq \\(enter_cd, site_code, hire_year, last_seq\\) "
+                + "VALUES \\('C001', '(S\\d\\d)', (\\d{4}), (\\d+)\\);")
                 .matcher(seed());
         while (m.find()) {
             actual.put(m.group(1) + "/" + m.group(2), Integer.parseInt(m.group(3)));

@@ -330,6 +330,35 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; line-height
   opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
 }
 .dock__btn:hover::after { opacity: 1; transform: translate(0, -50%); }
+/* 대메뉴 → 중메뉴 (독 옆에 뜨는 목록) */
+.dock__group { position: relative; }
+.dock__group.sep { margin-top: 10px; }
+.dock__btn:not([data-tip])::after { display: none; }
+.dock__btn.open:not(.active) { background: rgba(255, 255, 255, 0.2); }
+.dock__flyout {
+  position: absolute; left: 58px; top: 50%; transform: translateY(-50%); z-index: 30;
+  min-width: 210px; padding: 8px; border-radius: 18px; display: flex; flex-direction: column; gap: 2px;
+  background: rgba(30, 24, 20, 0.74); -webkit-backdrop-filter: blur(14px) saturate(150%); backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 14px 40px rgba(10, 6, 4, 0.3);
+  animation: flyoutIn 0.18s ease-out;
+}
+/* 버튼과 목록 사이 틈에서 마우스가 빠져도 닫히지 않게 */
+.dock__flyout::before { content: ''; position: absolute; left: -18px; top: 0; bottom: 0; width: 18px; }
+@keyframes flyoutIn { from { opacity: 0; transform: translate(-6px, -50%); } }
+.dock__flyout-title { margin: 0; padding: 4px 10px 6px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.6); }
+.dock__sub {
+  display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border: 0; border-radius: 12px;
+  background: transparent; color: #fff; font-size: 13.5px; font-weight: 500; text-align: left; white-space: nowrap; cursor: pointer;
+  transition: background 0.15s;
+}
+.dock__sub:hover { background: rgba(255, 255, 255, 0.14); }
+.dock__sub.active { background: #fff; color: var(--ink); font-weight: 700; }
+.dock__sub svg { font-size: 16px; flex: none; opacity: 0.85; }
+.dock__sub span { flex: 1; }
+.dock__sub-count {
+  font-style: normal; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: #ff5a1f; color: #fff; font-size: 10.5px; font-weight: 700; display: grid; place-items: center;
+}
 .count {
   position: absolute; top: 1px; right: 1px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
   background: #ff5a1f; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center;
@@ -446,9 +475,9 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; line-height
 .s-sub { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); margin-left: 20px; }
 .s-sub.open { grid-template-rows: 1fr; }
 .s-sub__inner { overflow: hidden; border-left: 1px solid rgba(255, 255, 255, 0.22); padding-left: 6px; }
-.s-subitem { gap: 4px; height: 36px; padding: 0 10px; font-size: 13px; color: rgba(255, 255, 255, 0.85); border-radius: 12px; }
+.s-subitem { gap: 10px; height: 38px; padding: 0 10px; font-size: 13px; color: rgba(255, 255, 255, 0.85); border-radius: 12px; }
 .s-subitem.active { color: #fff; font-weight: 700; }
-.s-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; flex: none; vertical-align: middle; }
+.s-subitem__icon { font-size: 15px; opacity: 0.8; flex: none; }
 .s-empty { padding: 16px 12px; font-size: 13px; color: var(--text-2); }
 .sheet__foot { border-top: 1px solid rgba(255, 255, 255, 0.16); padding-top: 10px; margin-top: 6px; display: flex; flex-direction: column; gap: 8px; }
 .s-night { display: flex; align-items: center; gap: 12px; padding: 2px 12px; font-size: 14px; }

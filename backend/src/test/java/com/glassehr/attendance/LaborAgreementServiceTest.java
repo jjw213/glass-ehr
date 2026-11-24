@@ -78,7 +78,7 @@ class LaborAgreementServiceTest {
 
     @Test
     void 등록하면_요청자와_상태를_남긴다() {
-        AgreementView v = service.create(req(AgreementType.SELECTIVE, LaborAgreement.Scope.ALL, null, null), "hr1");
+        AgreementView v = service.create("C001",req(AgreementType.SELECTIVE, LaborAgreement.Scope.ALL, null, null), "hr1");
         assertThat(v.status()).isEqualTo(Status.ACTIVE);
         assertThat(v.updatedBy()).isEqualTo("hr1");
         assertThat(v.article()).isEqualTo("근로기준법 제52조");
@@ -87,11 +87,11 @@ class LaborAgreementServiceTest {
 
     @Test
     void 없는_사업장이나_사원은_거부() {
-        when(sites.existsById("S09")).thenReturn(false);
-        assertThatThrownBy(() -> service.create(req(AgreementType.SELECTIVE, LaborAgreement.Scope.SITE, "S09", null), "hr1"))
+        when(sites.existsByEnterCdAndSiteCode("C001", "S09")).thenReturn(false);
+        assertThatThrownBy(() -> service.create("C001",req(AgreementType.SELECTIVE, LaborAgreement.Scope.SITE, "S09", null), "hr1"))
                 .hasMessageContaining("없는 사업장");
         when(employees.existsById(99L)).thenReturn(false);
-        assertThatThrownBy(() -> service.create(req(AgreementType.SELECTIVE, LaborAgreement.Scope.ALL, null, 99L), "hr1"))
+        assertThatThrownBy(() -> service.create("C001",req(AgreementType.SELECTIVE, LaborAgreement.Scope.ALL, null, 99L), "hr1"))
                 .hasMessageContaining("없는 사원");
         verify(agreements, never()).save(any());
     }
@@ -100,9 +100,9 @@ class LaborAgreementServiceTest {
     void 유형은_수정할_수_없다() {
         LaborAgreement a = agreement(3, AgreementType.SELECTIVE, TODAY, null, LaborAgreement.Scope.ALL, null);
         when(agreements.findForUpdate(3L)).thenReturn(Optional.of(a));
-        assertThatThrownBy(() -> service.update(3, req(AgreementType.DISCRETIONARY, LaborAgreement.Scope.ALL, null, null), "hr1"))
+        assertThatThrownBy(() -> service.update("C001",3, req(AgreementType.DISCRETIONARY, LaborAgreement.Scope.ALL, null, null), "hr1"))
                 .isInstanceOfSatisfying(AttendanceException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST));
-        AgreementView v = service.update(3, req(AgreementType.SELECTIVE, LaborAgreement.Scope.ALL, null, null), "hr2");
+        AgreementView v = service.update("C001",3, req(AgreementType.SELECTIVE, LaborAgreement.Scope.ALL, null, null), "hr2");
         assertThat(v.validUntil()).isEqualTo(TODAY.plusYears(1));
         assertThat(v.updatedBy()).isEqualTo("hr2");
     }
@@ -121,7 +121,7 @@ class LaborAgreementServiceTest {
                 null, "hr1", TODAY.atStartOfDay());
         when(holidays.findByAgreementId(3)).thenReturn(List.of(replacement));
         when(holidays.findById(100L)).thenReturn(Optional.of(original));
-        if (change.equals("scope")) when(sites.existsById("S01")).thenReturn(true);
+        if (change.equals("scope")) when(sites.existsByEnterCdAndSiteCode("C001", "S01")).thenReturn(true);
         AgreementRequest r = new AgreementRequest(AgreementType.HOLIDAY_SUBSTITUTION, "변경 합의서",
                 change.equals("signed") ? originalDate.plusDays(1) : TODAY,
                 change.equals("start") ? originalDate.plusDays(1) : TODAY,
@@ -129,7 +129,7 @@ class LaborAgreementServiceTest {
                 change.equals("scope") ? LaborAgreement.Scope.SITE : LaborAgreement.Scope.ALL,
                 change.equals("scope") ? "S01" : null, "전체 근로자", LaborAgreement.RepType.MAJORITY_UNION,
                 "가상노동조합", null, null, "문서함 A-1");
-        assertThatThrownBy(() -> service.update(3, r, "hr2"))
+        assertThatThrownBy(() -> service.update("C001",3, r, "hr2"))
                 .isInstanceOfSatisfying(AttendanceException.class,
                         e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
         assertThat(a.getTitle()).isNotEqualTo("변경 합의서");
@@ -149,7 +149,7 @@ class LaborAgreementServiceTest {
                 null, "hr1", TODAY.atStartOfDay());
         when(holidays.findByAgreementId(3)).thenReturn(List.of(replacement));
         when(holidays.findById(100L)).thenReturn(Optional.of(original));
-        AgreementView v = service.update(3,
+        AgreementView v = service.update("C001",3,
                 req(AgreementType.HOLIDAY_SUBSTITUTION, LaborAgreement.Scope.ALL, null, null), "hr2");
         assertThat(v.validFrom()).isEqualTo(TODAY);
         assertThat(v.validUntil()).isEqualTo(TODAY.plusYears(1));
@@ -210,7 +210,7 @@ class LaborAgreementServiceTest {
         AgreementRequest noDoc = new AgreementRequest(r.agreementType(), r.title(), r.signedDate(), r.validFrom(),
                 r.validUntil(), r.scopeType(), r.scopeSiteCode(), r.targetDesc(), r.repType(), r.repUnionName(),
                 r.repEmpId(), r.note(), "  ");
-        assertThatThrownBy(() -> service.create(noDoc, "hr1")).hasMessageContaining("합의서 문서");
+        assertThatThrownBy(() -> service.create("C001",noDoc, "hr1")).hasMessageContaining("합의서 문서");
         verify(agreements, never()).save(any());
     }
 

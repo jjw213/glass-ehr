@@ -284,7 +284,7 @@ public class ContractService {
     }
 
     private void validate(Terms t, Employee e) {
-        requireEmploymentType(t.contractTypeCode());
+        requireEmploymentType(e.getEnterCd(), t.contractTypeCode());
         if (t.endDate() != null && t.endDate().isBefore(t.startDate())) {
             throw ContractException.badRequest("계약 종료일은 계약 시작일 이후여야 해요");
         }
@@ -300,8 +300,10 @@ public class ContractService {
         }
     }
 
-    private void requireEmploymentType(String code) {
-        CommonCode c = codes.findById(new CommonCodeId(CodeGroups.EMPLOYMENT_TYPE, code)).orElse(null);
+    /** 공통코드는 법인별(#121)이라 사원의 법인에서 찾는다. */
+    private void requireEmploymentType(String enterCd, String code) {
+        CommonCode c = codes.findByEnterCdAndGroupCodeAndCode(enterCd, CodeGroups.EMPLOYMENT_TYPE, code)
+                .orElse(null);
         if (c == null) {
             throw ContractException.badRequest("없는 고용형태 코드예요: " + code);
         }

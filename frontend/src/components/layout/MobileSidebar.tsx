@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
 import { LuChevronRight, LuChevronLeft, LuChevronDown, LuSearch, LuSun, LuMoon, LuLogOut, LuCommand } from 'react-icons/lu';
-import { navById, navFor, type NavItem } from '../../nav';
+import { moduleOf, navById, navGroupsFor, type ModuleId, type NavGroup, type NavItem } from '../../nav';
 
 const SettingsIcon = navById('settings').icon;
 import { useData, useStore } from '../../state/store';
@@ -11,18 +11,20 @@ import { EnterSwitcher } from './EnterSwitcher';
 /**
  * Glass sidebar for phones (video 3):
  *  - collapsed: floating icon rail with badges and tooltips (long-press on touch)
- *  - expanded: panel that morphs out of the rail, with search, sections,
- *    a sliding highlight pill, a collapsible 조직도 sub-menu, night mode and profile.
+ *  - expanded: panel that morphs out of the rail, with search, 대메뉴 → 중메뉴 accordions,
+ *    a sliding highlight pill, night mode and profile.
+ *  - 대메뉴 아래 중메뉴는 역할별로 거른다(nav.ts navGroupsFor). 중메뉴가 하나뿐인 대메뉴는 바로 그 화면으로 간다.
  * Open with the chevron, the search icon, the avatar or a swipe from the left edge.
  */
 export function MobileSidebar() {
-  const { page, go, pendingCount, unreadCount, night, setNight, orgDept, setOrgDept } = useStore();
+  const { page, go, pendingCount, unreadCount, night, setNight } = useStore();
   const { logout } = useSession();
-  const { me, depts: DEPTS } = useData();
+  const { me } = useData();
   const ME = me;
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const [orgOpen, setOrgOpen] = useState(true);
+  /** 펼쳐 둔 대메뉴. 처음에는 지금 화면이 속한 대메뉴만 펼친다. */
+  const [expanded, setExpanded] = useState<Set<ModuleId>>(() => new Set([moduleOf(page)]));
   const [hover, setHover] = useState<string | null>(null);
   const [hl, setHl] = useState<{ top: number; height: number } | null>(null);
   const [tip, setTip] = useState<{ label: string; y: number } | null>(null);
@@ -31,14 +33,18 @@ export function MobileSidebar() {
   const tipTimer = useRef<number>(0);
 
   const badgeFor = (id: string) => (id === 'approvals' ? pendingCount : id === 'messages' ? unreadCount : 0);
-  const activeKey = page === 'org' && orgDept ? `org:${orgDept}` : page;
+  const groupBadge = (g: NavGroup) => g.items.reduce((sum, n) => sum + badgeFor(n.id), 0);
+  const groups = useMemo(() => navGroupsFor(me.role), [me.role]);
+  const activeKey: string = page;
 
   /* ----- open / close ----- */
-  const openSheet = useCallback((focusSearch = false) => {
+  const openSheet = useCallback((focusSearch = false, mod?: ModuleId) => {
     setOpen(true);
     setTip(null);
+    // 지금 화면의 대메뉴(그리고 레일에서 누른 대메뉴)는 펼쳐서 연다
+    setExpanded((prev) => new Set([...prev, moduleOf(page), ...(mod ? [mod] : [])]));
     if (focusSearch) setTimeout(() => searchRef.current?.focus(), 380);
-  }, []);
+  }, [page]);
   const close = useCallback(() => { setOpen(false); setQ(''); setHover(null); }, []);
 
   useEffect(() => {
@@ -77,14 +83,17 @@ export function MobileSidebar() {
     const list = listRef.current;
     if (!list) return;
     let key = hover ?? activeKey;
-    // sub-items are clipped while 조직도 is collapsed → highlight its header instead
-    if (!orgOpen && !q && key.startsWith('org') && key !== 'org-head') key = 'org-head';
+    // 접힌 대메뉴의 중메뉴는 보이지 않으므로 대메뉴 머리를 강조한다
+    if (!key.startsWith('mod:') && !q) {
+      const g = groups.find((x) => x.items.some((n) => n.id === key));
+      if (g && g.items.length > 1 && !expanded.has(g.module.id)) key = `mod:${g.module.id}`;
+    }
     const el = list.querySelector<HTMLElement>(`[data-key="${key}"]`);
     setHl(el ? { top: el.offsetTop, height: el.offsetHeight } : null);
-  }, [hover, activeKey, orgOpen, q]);
+  }, [hover, activeKey, expanded, q, groups]);
   useLayoutEffect(() => {
     measure();
-    // the 조직도 sub-menu animates open/closed; measure again once it settles
+    // 대메뉴가 펼쳐지고 접히는 애니메이션이 끝난 뒤 한 번 더 잰다
     const t = window.setTimeout(measure, 380);
     return () => clearTimeout(t);
   }, [measure, open]);
@@ -105,29 +114,85 @@ export function MobileSidebar() {
     onPointerUp: () => { clearTimeout(tipTimer.current); window.setTimeout(() => setTip(null), 700); },
   });
 
-  const pick = (id: NavItem['id']) => { if (id === 'org') setOrgDept(null); go(id); close(); };
-  const pickDept = (d: string) => { setOrgDept(d); go('org'); close(); };
+  const pick = (id: NavItem['id']) => { go(id); close(); };
+  const toggleModule = (id: ModuleId) => setExpanded((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const match = (s: string) => s.toLowerCase().includes(q.trim().toLowerCase());
-  const items = navFor(me.role).filter((n) => match(n.label) || (n.id === 'org' && DEPTS.some((d) => match(d.name))));
-  const section = (s: NavItem['section']) => items.filter((n) => n.section === s);
+  // 검색: 대메뉴 이름이 맞으면 그 중메뉴 전부, 아니면 이름이 맞는 중메뉴만
+  const shown: NavGroup[] = q.trim()
+    ? groups
+        .map((g) => ({ ...g, items: match(g.module.label) ? g.items : g.items.filter((n) => match(n.label)) }))
+        .filter((g) => g.items.length > 0)
+    : groups;
 
-  const item = (n: NavItem, children?: ReactNode) => (
-    <button
-      key={n.id}
-      data-key={n.id === 'org' ? 'org-head' : n.id}
-      className={cx('s-item', activeKey === n.id && n.id !== 'org' && 'active', n.id === 'org' && page === 'org' && 'within')}
-      onPointerEnter={(e) => e.pointerType === 'mouse' && setHover(n.id === 'org' ? 'org-head' : n.id)}
-      onPointerDown={() => setHover(n.id === 'org' ? 'org-head' : n.id)}
-      onClick={() => (n.id === 'org' ? setOrgOpen((v) => !v) : pick(n.id))}
-      aria-current={page === n.id ? 'page' : undefined}
-    >
-      <n.icon className="s-item__icon" />
-      <span className="s-item__label">{n.label}</span>
-      {badgeFor(n.id) > 0 && <span className={cx('s-item__badge', n.id === 'messages' && 'hot')}>{badgeFor(n.id)}</span>}
-      {children}
-    </button>
-  );
+  const hoverKey = (key: string) => ({
+    onPointerEnter: (e: RPointerEvent<HTMLElement>) => { if (e.pointerType === 'mouse') setHover(key); },
+    onPointerDown: () => setHover(key),
+  });
+
+  const renderGroup = (g: NavGroup) => {
+    const all = groups.find((x) => x.module.id === g.module.id)!;
+    const single = all.items.length === 1;
+    const within = g.items.some((n) => n.id === page);
+    if (single) {
+      const n = g.items[0];
+      return (
+        <button
+          key={g.module.id}
+          data-key={n.id}
+          className={cx('s-item', activeKey === n.id && 'active')}
+          {...hoverKey(n.id)}
+          onClick={() => pick(n.id)}
+          aria-current={page === n.id ? 'page' : undefined}
+        >
+          <g.module.icon className="s-item__icon" />
+          <span className="s-item__label">{g.module.label}</span>
+          {badgeFor(n.id) > 0 && <span className={cx('s-item__badge', n.id === 'messages' && 'hot')}>{badgeFor(n.id)}</span>}
+        </button>
+      );
+    }
+    const isOpen = expanded.has(g.module.id) || !!q.trim();
+    const count = groupBadge(g);
+    return (
+      <div key={g.module.id}>
+        <button
+          data-key={`mod:${g.module.id}`}
+          className={cx('s-item', within && 'within')}
+          {...hoverKey(`mod:${g.module.id}`)}
+          onClick={() => toggleModule(g.module.id)}
+          aria-expanded={isOpen}
+        >
+          <g.module.icon className="s-item__icon" />
+          <span className="s-item__label">{g.module.label}</span>
+          {!isOpen && count > 0 && <span className="s-item__badge">{count}</span>}
+          <LuChevronDown className={cx('s-item__chev', isOpen && 'up')} />
+        </button>
+        <div className={cx('s-sub', isOpen && 'open')}>
+          <div className="s-sub__inner">
+            {g.items.map((n) => (
+              <button
+                key={n.id}
+                data-key={n.id}
+                className={cx('s-subitem', activeKey === n.id && 'active')}
+                {...hoverKey(n.id)}
+                onClick={() => pick(n.id)}
+                tabIndex={isOpen && open ? 0 : -1}
+                aria-current={page === n.id ? 'page' : undefined}
+              >
+                <n.icon className="s-subitem__icon" />
+                <span className="s-item__label">{n.label}</span>
+                {badgeFor(n.id) > 0 && <span className="s-item__badge">{badgeFor(n.id)}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -139,18 +204,22 @@ export function MobileSidebar() {
         </div>
         <button className="rail__btn" onClick={() => openSheet(true)} aria-label="메뉴 검색" {...railHandlers('검색')}><LuSearch /></button>
         <span className="rail__sep" />
-        {navFor(me.role).filter((n) => n.section !== 'system').map((n, i) => (
-          <button
-            key={n.id}
-            className={cx('rail__btn', page === n.id && 'active', i === 4 && 'gap')}
-            onClick={() => pick(n.id)}
-            aria-label={n.label}
-            {...railHandlers(n.label)}
-          >
-            <n.icon />
-            {badgeFor(n.id) > 0 && <span className="rail__badge">{badgeFor(n.id)}</span>}
-          </button>
-        ))}
+        {groups.filter((g) => g.module.id !== 'settings').map((g) => {
+          const single = g.items.length === 1;
+          const count = groupBadge(g);
+          return (
+            <button
+              key={g.module.id}
+              className={cx('rail__btn', g.items.some((n) => n.id === page) && 'active', g.module.id === 'system' && 'gap')}
+              onClick={() => (single ? pick(g.items[0].id) : openSheet(false, g.module.id))}
+              aria-label={g.module.label}
+              {...railHandlers(g.module.label)}
+            >
+              <g.module.icon />
+              {count > 0 && <span className="rail__badge">{count}</span>}
+            </button>
+          );
+        })}
         <span className="rail__sep" />
         <button className={cx('rail__btn', page === 'settings' && 'active')} onClick={() => pick('settings')} aria-label="설정" {...railHandlers('설정')}>
           <SettingsIcon />
@@ -188,41 +257,8 @@ export function MobileSidebar() {
         <div className="sheet__list" ref={listRef} onPointerLeave={() => setHover(null)}>
           {hl && <span className="s-hl" style={{ transform: `translateY(${hl.top}px)`, height: hl.height }} />}
 
-          {section('main').length > 0 && <p className="s-section">메인</p>}
-          {section('main').map((n) => item(n))}
-
-          {section('workspace').length > 0 && <p className="s-section">워크스페이스</p>}
-          {section('workspace').map((n) =>
-            n.id === 'org' ? (
-              <div key={n.id}>
-                {item(n, <LuChevronDown className={cx('s-item__chev', orgOpen && 'up')} />)}
-                <div className={cx('s-sub', (orgOpen || q) && 'open')}>
-                  <div className="s-sub__inner">
-                  <button data-key="org" className={cx('s-subitem', activeKey === 'org' && 'active')} onPointerEnter={(e) => e.pointerType === 'mouse' && setHover('org')} onPointerDown={() => setHover('org')} onClick={() => pick('org')}>
-                    <span className="s-dot" style={{ background: '#fff' }} /> 전체 조직도
-                  </button>
-                  {DEPTS.filter((d) => !q || match(d.name) || match(n.label)).map((d) => (
-                    <button
-                      key={d.id}
-                      data-key={`org:${d.id}`}
-                      className={cx('s-subitem', activeKey === `org:${d.id}` && 'active')}
-                      onPointerEnter={(e) => e.pointerType === 'mouse' && setHover(`org:${d.id}`)}
-                      onPointerDown={() => setHover(`org:${d.id}`)}
-                      onClick={() => pickDept(d.id)}
-                    >
-                      <span className="s-dot" style={{ background: d.color }} /> {d.name}
-                    </button>
-                  ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              item(n)
-            ),
-          )}
-
-          {section('system').map((n) => item(n))}
-          {items.length === 0 && <p className="s-empty">'{q}'에 맞는 메뉴가 없어요</p>}
+          {shown.map(renderGroup)}
+          {shown.length === 0 && <p className="s-empty">'{q}'에 맞는 메뉴가 없어요</p>}
         </div>
 
         <div className="sheet__foot">

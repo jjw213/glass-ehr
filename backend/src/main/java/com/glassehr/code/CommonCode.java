@@ -11,11 +11,16 @@ import java.time.LocalDateTime;
 /**
  * 공통코드. 테이블: V006__common_code.sql.
  * 사원·발령 이력이 코드를 참조하므로 지우지 않고 사용 여부를 끈다. 코드값(PK)은 바꾸지 않는다.
+ * V034(#121): 키는 (enter_cd, group_code, code). 법인마다 따로 둔다(docs/tenant-design.md 3.2).
  */
 @Entity
 @Table(name = "common_code")
 @IdClass(CommonCodeId.class)
 public class CommonCode {
+
+    @Id
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
 
     @Id
     @Column(name = "group_code", nullable = false, updatable = false)
@@ -47,8 +52,9 @@ public class CommonCode {
     protected CommonCode() {
     }
 
-    CommonCode(String groupCode, String code, String codeName, String description, int sortOrder,
+    CommonCode(String enterCd, String groupCode, String code, String codeName, String description, int sortOrder,
             boolean active, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.groupCode = groupCode;
         this.code = code;
         this.codeName = codeName;
@@ -65,6 +71,10 @@ public class CommonCode {
         this.sortOrder = sortOrder;
         this.active = active;
         this.updatedAt = now;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public String getGroupCode() {
