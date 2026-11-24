@@ -91,7 +91,9 @@ class EmployeeServiceTest {
         when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(
                 new CommonCodeId(inv.<String>getArgument(0), inv.<String>getArgument(1), inv.<String>getArgument(2)))));
         OrgDeptRepository depts = mock(OrgDeptRepository.class);
-        when(depts.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(deptStore.get(inv.<Long>getArgument(0))));
+        // 부서는 모두 법인 C001 것이다. 다른 법인으로 찾으면 없다(#122).
+        when(depts.findByEnterCdAndDeptId(any(), anyLong())).thenAnswer(inv -> "C001".equals(inv.getArgument(0))
+                ? Optional.ofNullable(deptStore.get(inv.<Long>getArgument(1))) : Optional.empty());
 
         empNos = mock(EmpNoGenerator.class);
         when(empNos.next(any(), any(), any())).thenReturn("S01-2026-001");
