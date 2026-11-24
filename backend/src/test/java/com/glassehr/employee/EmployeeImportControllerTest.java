@@ -70,13 +70,13 @@ class EmployeeImportControllerTest {
                             .header(AuthInterceptor.ACTOR_ID_HEADER, who))
                     .andExpect(status().isForbidden());
         }
-        verify(imports, never()).preview(any());
-        verify(imports, never()).confirm(any(), any());
+        verify(imports, never()).preview(any(), any());
+        verify(imports, never()).confirm(any(), any(), any());
     }
 
     @Test
     void 미리보기는_행별_오류를_돌려준다() throws Exception {
-        when(imports.preview(any())).thenReturn(new Preview(1, 1, false, List.of(),
+        when(imports.preview(any(), any())).thenReturn(new Preview(1, 1, false, List.of(),
                 List.of(new RowResult(2, "예시사원", "S99", LocalDate.of(2026, 3, 2), List.of("사업장이 없어요: S99")))));
         mvc.perform(multipart("/api/employees/import/preview").file(FILE).header(AuthInterceptor.ACTOR_ID_HEADER, "hr1"))
                 .andExpect(status().isOk())
@@ -88,7 +88,7 @@ class EmployeeImportControllerTest {
 
     @Test
     void 확정은_오류가_있으면_422와_미리보기() throws Exception {
-        when(imports.confirm(any(), any())).thenThrow(new NotConfirmableException(new Preview(1, 1, false, List.of(),
+        when(imports.confirm(any(), any(), any())).thenThrow(new NotConfirmableException(new Preview(1, 1, false, List.of(),
                 List.of(new RowResult(2, "예시사원", "S01", null, List.of("성명을 입력해 주세요"))))));
         mvc.perform(multipart("/api/employees/import/confirm").file(FILE).header(AuthInterceptor.ACTOR_ID_HEADER, "hr1"))
                 .andExpect(status().isUnprocessableEntity())
@@ -99,13 +99,13 @@ class EmployeeImportControllerTest {
 
     @Test
     void 확정은_201이고_요청자는_서버가_확인한_사용자() throws Exception {
-        when(imports.confirm(any(), any())).thenReturn(new Confirmed(1, List.of("S01-2026-001")));
+        when(imports.confirm(any(), any(), any())).thenReturn(new Confirmed(1, List.of("S01-2026-001")));
         mvc.perform(multipart("/api/employees/import/confirm").file(FILE).header(AuthInterceptor.ACTOR_ID_HEADER, "hr1")
                         .header("X-Actor-Role", "admin"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.empNos[0]").value("S01-2026-001"));
         ArgumentCaptor<RequestActor> actor = ArgumentCaptor.forClass(RequestActor.class);
-        verify(imports).confirm(any(), actor.capture());
+        verify(imports).confirm(org.mockito.ArgumentMatchers.eq("C001"), any(), actor.capture());
         assertThat(actor.getValue().actorId()).isEqualTo("hr1");
         assertThat(actor.getValue().role()).isEqualTo(RequestActor.Role.HR);
     }

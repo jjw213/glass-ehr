@@ -71,7 +71,7 @@ class LaborAgreementControllerTest {
 
     @Test
     void 등록은_요청자를_서버가_정한다() throws Exception {
-        when(service.create(any(), eq("hr1"))).thenReturn(view());
+        when(service.create(eq("C001"), any(), eq("hr1"))).thenReturn(view());
         mvc.perform(post("/api/attendance/agreements").contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
@@ -86,7 +86,7 @@ class LaborAgreementControllerTest {
         mvc.perform(post("/api/attendance/agreements").contentType(MediaType.APPLICATION_JSON)
                         .content(BODY.replace("SELECTIVE", "NOPE")))
                 .andExpect(status().isBadRequest());
-        verify(service, never()).create(any(), any());
+        verify(service, never()).create(any(), any(), any());
     }
 
     /** #26 HolidayControllerTest 에 있던 검사. 서면합의 등록 API 가 이 컨트롤러로 옮겨 와 여기서 확인한다. */
@@ -96,7 +96,7 @@ class LaborAgreementControllerTest {
                         .content(BODY.replace("\"documentRef\":\"문서함 A-1\"", "\"documentRef\":\" \"")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("합의서 문서(파일 번호·보관 위치)를 입력해 주세요"));
-        verify(service, never()).create(any(), any());
+        verify(service, never()).create(any(), any(), any());
     }
 
     @Test
@@ -166,7 +166,7 @@ class LaborAgreementControllerTest {
         mvc.perform(post("/api/attendance/agreements").header("X-Actor-Id", "pay1")
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isForbidden());
-        verify(service, never()).create(any(), any());
+        verify(service, never()).create(any(), any(), any());
     }
 
     @Test

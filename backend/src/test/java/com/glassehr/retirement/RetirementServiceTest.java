@@ -75,6 +75,7 @@ class RetirementServiceTest {
 
     private Employee emp(long id, LocalDate retire, String reason, LocalDate until) {
         Employee e = mock(Employee.class);
+        when(e.getEnterCd()).thenReturn("C001");
         when(e.getEmpId()).thenReturn(id);
         when(e.getEmpNo()).thenReturn("S01-2024-00" + id);
         when(e.getName()).thenReturn("예시사원" + id);
@@ -92,7 +93,7 @@ class RetirementServiceTest {
     private void code(String group, String code, String name) {
         CommonCode c = mock(CommonCode.class);
         when(c.getCodeName()).thenReturn(name);
-        codeStore.put(new CommonCodeId(group, code), c);
+        codeStore.put(new CommonCodeId("C001", group, code), c);
     }
 
     private void contract(long empId, LocalDate start, Long wage) {
@@ -145,7 +146,8 @@ class RetirementServiceTest {
                 .filter(c -> c.getEmpId().equals(inv.<Long>getArgument(0))).toList());
 
         CommonCodeRepository codes = mock(CommonCodeRepository.class);
-        when(codes.findById(any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(inv.<CommonCodeId>getArgument(0))));
+        when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(
+                new CommonCodeId(inv.<String>getArgument(0), inv.<String>getArgument(1), inv.<String>getArgument(2)))));
         code(CodeGroups.JOB_GRADE, "STAFF", "사원");
         code(CodeGroups.RETIREMENT_REASON, "VOLUNTARY", "자발적 퇴사(개인 사정)");
 

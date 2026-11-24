@@ -63,7 +63,7 @@ class PunchOracleTest {
     private EntityManager em;
 
     private long employee() {
-        return employees.create(new EmployeeCreateRequest("S01", "예시사원IT", "F", LocalDate.of(1880, 1, 1),
+        return employees.create("C001", new EmployeeCreateRequest("S01", "예시사원IT", "F", LocalDate.of(1880, 1, 1),
                 "가상시 예시구 샘플로 0", null, "시험", null, LocalDate.of(1903, 1, 1), null, null, null, "REGULAR", 2400,
                 null, null, null, null, "STAFF", null, null), HR).empId();
     }

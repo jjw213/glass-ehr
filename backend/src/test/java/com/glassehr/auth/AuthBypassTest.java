@@ -170,7 +170,7 @@ class AuthBypassTest {
             mvc.perform(as(get("/api/admin/privacy-logs"), "emp1").header("X-Actor-Role", fake))
                     .andExpect(status().isForbidden());
         }
-        verify(employees, never()).create(any(), any());
+        verify(employees, never()).create(any(), any(), any());
         verifyNoInteractions(rrns, logs);
     }
 
@@ -237,8 +237,8 @@ class AuthBypassTest {
         verify(org, never()).create(any());
         verify(org, never()).change(anyLong(), any());
         verify(org, never()).close(anyLong(), any());
-        verify(codes, never()).create(any(), any());
-        verify(codes, never()).update(any(), any(), any());
+        verify(codes, never()).create(any(), any(), any());
+        verify(codes, never()).update(any(), any(), any(), any());
         verifyNoInteractions(rrns);
     }
 
@@ -328,7 +328,7 @@ class AuthBypassTest {
         mvc.perform(as(post("/api/code-groups/JOB_GRADE/codes"), "pay1").contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());
-        verify(employees, never()).create(any(), any());
+        verify(employees, never()).create(any(), any(), any());
     }
 
     @Test

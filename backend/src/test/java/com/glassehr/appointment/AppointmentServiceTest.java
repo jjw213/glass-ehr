@@ -66,6 +66,7 @@ class AppointmentServiceTest {
 
     private Employee emp(long id, LocalDate retire) {
         Employee e = mock(Employee.class);
+        when(e.getEnterCd()).thenReturn("C001");
         when(e.getEmpId()).thenReturn(id);
         when(e.getHireDate()).thenReturn(HIRE);
         when(e.getRetireDate()).thenReturn(retire);
@@ -79,7 +80,7 @@ class AppointmentServiceTest {
     private void code(String group, String code, boolean active) {
         CommonCode c = mock(CommonCode.class);
         when(c.isActive()).thenReturn(active);
-        codeStore.put(new CommonCodeId(group, code), c);
+        codeStore.put(new CommonCodeId("C001", group, code), c);
     }
 
     private void dept(long id, LocalDate from, LocalDate to) {
@@ -125,7 +126,8 @@ class AppointmentServiceTest {
         when(employees.findForUpdate(anyLong())).thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(0))));
 
         CommonCodeRepository codes = mock(CommonCodeRepository.class);
-        when(codes.findById(any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(inv.<CommonCodeId>getArgument(0))));
+        when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(
+                new CommonCodeId(inv.<String>getArgument(0), inv.<String>getArgument(1), inv.<String>getArgument(2)))));
         for (AppointmentType t : AppointmentType.values()) {
             code(CodeGroups.APPOINTMENT_TYPE, t.code(), true);
         }

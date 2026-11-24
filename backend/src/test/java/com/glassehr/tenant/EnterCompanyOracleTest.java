@@ -95,9 +95,8 @@ class EnterCompanyOracleTest {
                 + " VALUES ('ZZ_IT_ENTER', 'IT 그룹', 'ZZNONE')")).isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("INSERT INTO common_code_group (group_code, group_name, enter_cd)"
                 + " VALUES ('ZZ_IT_ENTER', 'IT 그룹', 'c001')")).isInstanceOf(DataIntegrityViolationException.class);
-        // 법인을 빠뜨리면(지금 코드) DEFAULT 로 C001 이 된다.
-        jdbc.update("INSERT INTO common_code_group (group_code, group_name) VALUES ('ZZ_IT_ENTER', 'IT 그룹')");
-        assertThat(jdbc.queryForObject("SELECT enter_cd FROM common_code_group WHERE group_code = 'ZZ_IT_ENTER'",
-                String.class)).isEqualTo("C001");
+        // V034(#121)가 common_code_group 의 DEFAULT 'C001' 을 지웠다(tenant-design 8.1 2-3). 법인을 빠뜨리면 거부한다.
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO common_code_group (group_code, group_name)"
+                + " VALUES ('ZZ_IT_ENTER', 'IT 그룹')")).isInstanceOf(DataIntegrityViolationException.class);
     }
 }

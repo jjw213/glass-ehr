@@ -81,16 +81,17 @@ public class EmployeeImportService {
     private record Parsed(Preview preview, List<EmployeeCreateRequest> requests) {
     }
 
-    public Preview preview(byte[] file) {
-        return parseAndCheck(file).preview();
+    /** enterCd 는 로그인 세션의 현재 법인. 사업장·공통코드를 이 법인 안에서 검사한다(#121). */
+    public Preview preview(String enterCd, byte[] file) {
+        return parseAndCheck(enterCd, file).preview();
     }
 
     @Transactional
-    public Confirmed confirm(byte[] file, RequestActor actor) {
+    public Confirmed confirm(String enterCd, byte[] file, RequestActor actor) {
         // 검사(checkCreate)가 부서를 이 트랜잭션의 영속성 컨텍스트에 먼저 올리므로, 그 전에 조직 쓰기 잠금을 잡는다.
         // 잠금 없이 먼저 읽으면 그 사이 부서 폐지(OrgDeptService.close)가 커밋돼도 create() 가 캐시된 폐지 전 부서를 보고 통과한다.
         orgLock.acquire();
-        Parsed p = parseAndCheck(file);
+        Parsed p = parseAndCheck(enterCd, file);
         if (!p.preview().confirmable()) {
             throw new NotConfirmableException(p.preview());
         }
@@ -98,7 +99,7 @@ public class EmployeeImportService {
         List<RowResult> rows = p.preview().rows();
         for (int i = 0; i < p.requests().size(); i++) {
             try {
-                EmployeeView v = employees.create(p.requests().get(i), actor);
+                EmployeeView v = employees.create(enterCd, p.requests().get(i), actor);
                 empNos.add(v.empNo());
             } catch (EmployeeException e) {
                 // 검사 뒤 다른 변경과 엇갈린 경우. 예외가 트랜잭션 밖으로 나가므로 앞 행 등록도 모두 되돌린다.
@@ -111,7 +112,7 @@ public class EmployeeImportService {
 
     // ---------------------------------------------------------------- 검사
 
-    private Parsed parseAndCheck(byte[] file) {
+    private Parsed parseAndCheck(String enterCd, byte[] file) {
         List<String> fileErrors = new ArrayList<>();
         List<RowResult> results = new ArrayList<>();
         List<EmployeeCreateRequest> requests = new ArrayList<>();
@@ -199,9 +200,9 @@ public class EmployeeImportService {
                     .toList();
             errors.addAll(beanErrors);
             if (parsedOk && beanErrors.isEmpty()) {
-                checkSite(req.siteCode(), errors);
+                checkSite(enterCd, req.siteCode(), errors);
                 try {
-                    employees.checkCreate(req);
+                    employees.checkCreate(enterCd, req);
                 } catch (EmployeeException e) {
                     errors.add(e.getMessage());
                 }
@@ -223,8 +224,8 @@ public class EmployeeImportService {
         return new Parsed(new Preview(dataRows.size(), errorRows, errorRows == 0, fileErrors, results), requests);
     }
 
-    private void checkSite(String siteCode, List<String> errors) {
-        BizSite site = sites.findById(siteCode).orElse(null);
+    private void checkSite(String enterCd, String siteCode, List<String> errors) {
+        BizSite site = sites.findByEnterCdAndSiteCode(enterCd, siteCode).orElse(null);
         if (site == null) {
             errors.add("사업장이 없어요: " + siteCode);
         } else if (!site.isActive()) {

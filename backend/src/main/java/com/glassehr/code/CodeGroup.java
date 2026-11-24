@@ -4,13 +4,27 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/** 공통코드 그룹. 테이블: V006__common_code.sql. 그룹은 마이그레이션으로만 추가하므로 읽기 전용으로 쓴다. */
+/**
+ * 공통코드 그룹. 테이블: V006__common_code.sql. 그룹은 마이그레이션으로만 추가하므로 읽기 전용으로 쓴다.
+ * V034(#121): 키는 (enter_cd, group_code). 법인마다 따로 둔다(docs/tenant-design.md 3.2).
+ */
 @Entity
 @Table(name = "common_code_group")
+@IdClass(CodeGroup.Key.class)
 public class CodeGroup {
+
+    /** 복합키 (enter_cd, group_code). */
+    public record Key(String enterCd, String groupCode) implements Serializable {
+    }
+
+    @Id
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
 
     @Id
     @Column(name = "group_code", nullable = false, updatable = false)
@@ -39,12 +53,17 @@ public class CodeGroup {
     }
 
     /** 테스트용. 운영 데이터는 마이그레이션으로 넣는다. */
-    CodeGroup(String groupCode, String groupName, String description, int sortOrder, boolean active) {
+    CodeGroup(String enterCd, String groupCode, String groupName, String description, int sortOrder, boolean active) {
+        this.enterCd = enterCd;
         this.groupCode = groupCode;
         this.groupName = groupName;
         this.description = description;
         this.sortOrder = sortOrder;
         this.active = active;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public String getGroupCode() {

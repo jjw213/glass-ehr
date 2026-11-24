@@ -129,7 +129,7 @@ public class EmployeeController {
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission(Permission.EMP_WRITE)
     public EmployeeView create(@Valid @RequestBody EmployeeCreateRequest req, AuthUser user) {
-        return service.create(req, user.toActor());
+        return service.create(user.enterCd(), req, user.toActor());
     }
 
     @PutMapping("/{empId}")

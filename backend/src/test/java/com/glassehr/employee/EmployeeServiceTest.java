@@ -60,7 +60,7 @@ class EmployeeServiceTest {
     private void code(String group, String code, boolean active) {
         CommonCode c = mock(CommonCode.class);
         when(c.isActive()).thenReturn(active);
-        codeStore.put(new CommonCodeId(group, code), c);
+        codeStore.put(new CommonCodeId("C001", group, code), c);
     }
 
     private void dept(long id, LocalDate from, LocalDate to) {
@@ -88,12 +88,13 @@ class EmployeeServiceTest {
             return e;
         });
         CommonCodeRepository codes = mock(CommonCodeRepository.class);
-        when(codes.findById(any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(inv.<CommonCodeId>getArgument(0))));
+        when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(
+                new CommonCodeId(inv.<String>getArgument(0), inv.<String>getArgument(1), inv.<String>getArgument(2)))));
         OrgDeptRepository depts = mock(OrgDeptRepository.class);
         when(depts.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(deptStore.get(inv.<Long>getArgument(0))));
 
         empNos = mock(EmpNoGenerator.class);
-        when(empNos.next(any(), any())).thenReturn("S01-2026-001");
+        when(empNos.next(any(), any(), any())).thenReturn("S01-2026-001");
         rrns = mock(RrnService.class);
         when(rrns.masked(anyLong())).thenReturn(Optional.empty());
         when(rrns.save(anyLong(), any(), any())).thenReturn("000000-*******");
@@ -139,7 +140,7 @@ class EmployeeServiceTest {
 
     @Test
     void 등록하면_사번과_첫_소속_직급_직책이_저장된다() {
-        EmployeeView v = service.create(regular(), HR);
+        EmployeeView v = service.create("C001",regular(), HR);
         assertThat(v.empNo()).isEqualTo("S01-2026-001");
         assertThat(v.name()).isEqualTo("예시사원");
         assertThat(v.currentDeptId()).isEqualTo(10L);
@@ -148,14 +149,14 @@ class EmployeeServiceTest {
         assertThat(v.retireDate()).isNull();
         assertThat(v.recordRetentionUntil()).isNull();
         assertThat(v.rrnMasked()).isNull();
-        verify(empNos).next("S01", HIRE);
+        verify(empNos).next("C001", "S01", HIRE);
         verify(rrns, never()).save(anyLong(), any(), any());
     }
 
     @Test
     void 주민등록번호를_함께_보내면_암호화_저장하고_마스킹_값만_돌려준다() {
         Rrn rrn = Rrn.parse("000000-0000001");
-        EmployeeView v = service.create(create("REGULAR", null, null, 10L, rrn), HR);
+        EmployeeView v = service.create("C001",create("REGULAR", null, null, 10L, rrn), HR);
         verify(rrns).save(v.empId(), rrn, HR);
         assertThat(v.rrnMasked()).isEqualTo("000000-*******");
         assertThat(v.toString()).doesNotContain("0000001");
@@ -163,44 +164,44 @@ class EmployeeServiceTest {
 
     @Test
     void 코드와_부서와_날짜를_검사한다() {
-        assertStatus(() -> service.create(create("NONE", null, null, 10L, null), HR), HttpStatus.BAD_REQUEST);
-        assertStatus(() -> service.create(create("OLD_TYPE", null, null, 10L, null), HR), HttpStatus.BAD_REQUEST);
-        assertStatus(() -> service.create(create("REGULAR", null, null, 99L, null), HR), HttpStatus.BAD_REQUEST);
-        assertStatus(() -> service.create(create("REGULAR", null, null, 11L, null), HR), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create("C001",create("NONE", null, null, 10L, null), HR), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create("C001",create("OLD_TYPE", null, null, 10L, null), HR), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create("C001",create("REGULAR", null, null, 99L, null), HR), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create("C001",create("REGULAR", null, null, 11L, null), HR), HttpStatus.BAD_REQUEST);
         // 기간제는 계약기간 필수, 종료일만 있으면 거부, 종료일이 시작일보다 앞이면 거부
-        assertStatus(() -> service.create(create("FIXED_TERM", null, null, 10L, null), HR), HttpStatus.BAD_REQUEST);
-        assertStatus(() -> service.create(create("REGULAR", null, HIRE, 10L, null), HR), HttpStatus.BAD_REQUEST);
-        assertStatus(() -> service.create(create("FIXED_TERM", HIRE, HIRE.minusDays(1), 10L, null), HR),
+        assertStatus(() -> service.create("C001",create("FIXED_TERM", null, null, 10L, null), HR), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create("C001",create("REGULAR", null, HIRE, 10L, null), HR), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create("C001",create("FIXED_TERM", HIRE, HIRE.minusDays(1), 10L, null), HR),
                 HttpStatus.BAD_REQUEST);
         assertThat(store).isEmpty();
-        verify(empNos, never()).next(any(), any());
+        verify(empNos, never()).next(any(), any(), any());
 
-        assertThat(service.create(create("FIXED_TERM", HIRE, HIRE.plusYears(1), 10L, null), HR).contractEndDate())
+        assertThat(service.create("C001",create("FIXED_TERM", HIRE, HIRE.plusYears(1), 10L, null), HR).contractEndDate())
                 .isEqualTo(HIRE.plusYears(1));
     }
 
     @Test
     void 폐지가_예정된_부서나_입사일에_없는_부서에는_입사_등록할_수_없다() {
         // 입사 등록은 기한 없는 배정이라, 폐지일이 입사일 뒤여도 폐지일 이후 재직자가 남으므로 거부한다
-        assertThatThrownBy(() -> service.create(create("REGULAR", null, null, 12L, null), HR))
+        assertThatThrownBy(() -> service.create("C001",create("REGULAR", null, null, 12L, null), HR))
                 .isInstanceOfSatisfying(EmployeeException.class, e -> {
                     assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST);
                     assertThat(e.getMessage()).contains("폐지");
                 });
-        assertStatus(() -> service.create(create("REGULAR", null, null, 13L, null), HR), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create("C001",create("REGULAR", null, null, 13L, null), HR), HttpStatus.BAD_REQUEST);
         assertThat(store).isEmpty();
-        verify(empNos, never()).next(any(), any());
+        verify(empNos, never()).next(any(), any(), any());
     }
 
     @Test
     void 부서를_지정한_입사_등록은_조직_쓰기_잠금을_잡는다() {
-        service.create(regular(), HR);
+        service.create("C001",regular(), HR);
         verify(orgLock).acquire();
     }
 
     @Test
     void 수정과_퇴직은_사원_행을_잠가_읽는다() {
-        long id = service.create(regular(), HR).empId();
+        long id = service.create("C001",regular(), HR).empId();
         when(retention.retentionUntil(any())).thenReturn(LocalDate.of(2031, 10, 31));
         service.update(id, update("새이름", "REGULAR"));
         service.retire(id, new RetirementRequest(LocalDate.of(2026, 10, 31), "VOLUNTARY", null));
@@ -209,7 +210,7 @@ class EmployeeServiceTest {
 
     @Test
     void 수정은_기본정보만_바꾸고_소속_직급_직책_사번_입사일은_그대로() {
-        long id = service.create(regular(), HR).empId();
+        long id = service.create("C001",regular(), HR).empId();
         EmployeeView v = service.update(id, update("새이름", "REGULAR"));
         assertThat(v.name()).isEqualTo("새이름");
         assertThat(v.jobDescription()).isEqualTo("프론트엔드 개발");
@@ -245,7 +246,7 @@ class EmployeeServiceTest {
 
     @Test
     void 퇴직_처리는_사유와_보존기한을_함께_저장한다() {
-        long id = service.create(regular(), HR).empId();
+        long id = service.create("C001",regular(), HR).empId();
         LocalDate retire = LocalDate.of(2026, 10, 31);
         LocalDate until = LocalDate.of(2031, 10, 31); // 계산기 가짜 반환값(법령 값 아님)
         when(retention.retentionUntil(retire)).thenReturn(until);
@@ -261,7 +262,7 @@ class EmployeeServiceTest {
 
     @Test
     void 퇴직일_사유코드를_검사한다() {
-        long id = service.create(regular(), HR).empId();
+        long id = service.create("C001",regular(), HR).empId();
         assertStatus(() -> service.retire(id, new RetirementRequest(HIRE.minusDays(1), "VOLUNTARY", null)),
                 HttpStatus.BAD_REQUEST);
         assertStatus(() -> service.retire(id, new RetirementRequest(HIRE, "NOPE", null)), HttpStatus.BAD_REQUEST);
@@ -270,7 +271,7 @@ class EmployeeServiceTest {
 
     @Test
     void 보존기간_기준값이_없으면_퇴직_처리를_거부한다() {
-        long id = service.create(regular(), HR).empId();
+        long id = service.create("C001",regular(), HR).empId();
         LegalRateException missing = mock(LegalRateException.class);
         when(missing.itemCode()).thenReturn("EMPLOYEE_RECORD_RETENTION_YEARS");
         when(retention.retentionUntil(any())).thenThrow(missing);

@@ -59,8 +59,8 @@ class EmployeeOracleTest {
 
     @Test
     void 등록하면_사업장_연도별_순번이_매겨지고_주민등록번호는_암호문으로만_저장된다() {
-        EmployeeView a = service.create(req(null, Rrn.parse("000000-0000011")), HR);
-        EmployeeView b = service.create(req(null, null), HR);
+        EmployeeView a = service.create("C001", req(null, Rrn.parse("000000-0000011")), HR);
+        EmployeeView b = service.create("C001", req(null, null), HR);
         assertThat(a.empNo()).startsWith("S01-1902-");
         int sa = Integer.parseInt(a.empNo().substring(9));
         assertThat(b.empNo()).isEqualTo(EmpNoGenerator.format("S01", 1902, sa + 1));
@@ -79,8 +79,8 @@ class EmployeeOracleTest {
 
     @Test
     void 같은_주민등록번호는_DB도_거부한다() {
-        EmployeeView a = service.create(req(null, Rrn.parse("000000-0000012")), HR);
-        EmployeeView b = service.create(req(null, null), HR);
+        EmployeeView a = service.create("C001", req(null, Rrn.parse("000000-0000012")), HR);
+        EmployeeView b = service.create("C001", req(null, null), HR);
         byte[] hash = jdbc.queryForObject("SELECT rrn_hash FROM emp_rrn WHERE emp_id = ?", byte[].class, a.empId());
         assertThatThrownBy(() -> jdbc.update("INSERT INTO emp_rrn (emp_id, rrn_enc, rrn_masked, rrn_hash, key_version, updated_by)"
                 + " VALUES (?, HEXTORAW('00'), '000000-*******', ?, 1, 'it')", b.empId(), hash))
@@ -89,7 +89,7 @@ class EmployeeOracleTest {
 
     @Test
     void DB는_퇴직일_없는_보존기한과_형식이_틀린_사번을_거부한다() {
-        EmployeeView a = service.create(req(null, null), HR);
+        EmployeeView a = service.create("C001", req(null, null), HR);
         assertThatThrownBy(() -> jdbc.update("UPDATE employee SET record_retention_until = DATE '1990-01-01' WHERE emp_id = ?",
                 a.empId())).isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("UPDATE employee SET emp_no = 'S01-1902-1' WHERE emp_id = ?", a.empId()))
@@ -99,7 +99,7 @@ class EmployeeOracleTest {
     @Test
     void 재직자가_있는_부서는_폐지할_수_없다() {
         long dept = org.create(new DeptCreateRequest("ZZIT_EMP", "시험부서", null, null, 0, D0, null)).deptId();
-        service.create(req(dept, null), HR);
+        service.create("C001", req(dept, null), HR);
         assertThatThrownBy(() -> org.close(dept, new DeptCloseRequest(D0.plusMonths(1), null)))
                 .isInstanceOf(OrgException.class);
     }

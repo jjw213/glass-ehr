@@ -38,7 +38,7 @@ class LaborAgreementOracleTest {
     private HolidayRepository holidays;
 
     private AgreementView create(AgreementType type, LocalDate from, LocalDate until) {
-        return service.create(new AgreementRequest(type, "IT 합의서", from, from, until, LaborAgreement.Scope.ALL,
+        return service.create("C001", new AgreementRequest(type, "IT 합의서", from, from, until, LaborAgreement.Scope.ALL,
                 null, "IT 대상", LaborAgreement.RepType.MAJORITY_UNION, "가상노동조합IT", null, null, "IT 문서함-1"), "it-hr");
     }
 
@@ -69,7 +69,7 @@ class LaborAgreementOracleTest {
         AgreementRequest shorter = new AgreementRequest(AgreementType.HOLIDAY_SUBSTITUTION, "IT 변경 합의서",
                 D0, D0, D0.plusDays(1), LaborAgreement.Scope.ALL, null, "IT 대상",
                 LaborAgreement.RepType.MAJORITY_UNION, "가상노동조합IT", null, null, "IT 문서함-1");
-        assertThatThrownBy(() -> service.update(v.agreementId(), shorter, "it-hr"))
+        assertThatThrownBy(() -> service.update("C001", v.agreementId(), shorter, "it-hr"))
                 .isInstanceOf(AttendanceException.class).hasMessageContaining("이미 등록된 휴일 대체");
     }
 
