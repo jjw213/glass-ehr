@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { call, httpApi, setUnauthorizedHandler } from './http';
+import { call, httpApi, setExpectedEnter, setUnauthorizedHandler } from './http';
 
 /** #76 로그인·세션: Spring /api/auth/login 연결, CSRF 헤더, 세션 만료 처리 */
 type Call = [string, RequestInit];
 const json = (status: number, body: unknown = {}) => new Response(status === 204 ? null : JSON.stringify(body), { status });
 
-afterEach(() => { setUnauthorizedHandler(null); vi.unstubAllGlobals(); });
+afterEach(() => { setUnauthorizedHandler(null); setExpectedEnter(null); vi.unstubAllGlobals(); });
 
 describe('httpApi 로그인·로그아웃', () => {
   it('Spring /api/auth/login 으로 로그인하고, 옮기는 동안 Node /api/login 에도 로그인한다', async () => {
@@ -76,6 +76,14 @@ describe('httpApi 로그인·로그아웃', () => {
 });
 
 describe('세션 만료', () => {
+  it('업무 요청에 화면이 보고 있는 현재 법인을 함께 보내 서버가 오래된 쓰기를 거부할 수 있게 한다', async () => {
+    const fetchMock = vi.fn(async () => json(204));
+    vi.stubGlobal('fetch', fetchMock);
+    setExpectedEnter('C001');
+    await call('POST', '/employees', {});
+    expect((fetchMock.mock.calls as unknown as Call[])[0][1].headers).toMatchObject({ 'X-Expected-Enter': 'C001' });
+  });
+
   it('로그인 외 API 가 401 을 주면 등록한 처리(로그인 화면으로)를 부른다', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => json(401, { error: '로그인이 필요해요' })));
     const lost = vi.fn();

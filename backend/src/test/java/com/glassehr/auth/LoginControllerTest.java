@@ -215,6 +215,11 @@ class LoginControllerTest {
         verify(privacyLogs).search(eq("C002"), any(), any(), any(), any());
         verify(privacyLogs, never()).search(eq(A), any(), any(), any(), any());
 
+        // 다른 탭이 이전 법인 화면에서 보낸 상태 변경 요청은 컨트롤러에 닿기 전에 거부한다.
+        mvc.perform(switchTo(A).session(s).header(AuthInterceptor.EXPECTED_ENTER_HEADER, A))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("다른 화면에서 회사가 바뀌었어요. 새로 고친 뒤 다시 시도해 주세요"));
+
         // 다시 주체 법인으로
         when(service.switchEnter(any(), eq(A), any())).thenReturn(true);
         mvc.perform(switchTo(A).session(s)).andExpect(status().isOk());
