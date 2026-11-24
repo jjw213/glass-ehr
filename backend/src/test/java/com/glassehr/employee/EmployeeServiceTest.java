@@ -43,7 +43,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class EmployeeServiceTest {
 
     private static final LocalDate HIRE = LocalDate.of(2026, 3, 2);
-    private static final RequestActor HR = new RequestActor("hr1", RequestActor.Role.HR, "127.0.0.1");
+    private static final RequestActor HR = new RequestActor("hr1", RequestActor.Role.HR, "127.0.0.1", "C001");
 
     private final Map<Long, Employee> store = new HashMap<>();
     private final Map<CommonCodeId, CommonCode> codeStore = new HashMap<>();

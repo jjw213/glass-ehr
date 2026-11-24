@@ -31,7 +31,7 @@ class EmployeeImportServiceTest {
 
     private static final String HEADER = new String(EmployeeImportCsv.template(), StandardCharsets.UTF_8)
             .replace("﻿", "").strip();
-    private static final RequestActor ACTOR = new RequestActor("hr1", RequestActor.Role.HR, "127.0.0.1");
+    private static final RequestActor ACTOR = new RequestActor("hr1", RequestActor.Role.HR, "127.0.0.1", "C001");
 
     private EmployeeService employees;
     private RrnService rrns;

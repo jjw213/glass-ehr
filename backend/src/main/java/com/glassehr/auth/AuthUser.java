@@ -91,6 +91,6 @@ public record AuthUser(String enterCd, String homeEnterCd, String loginId, Long 
         } else {
             r = RequestActor.Role.EMPLOYEE;
         }
-        return new RequestActor(loginId, r, clientIp);
+        return new RequestActor(loginId, r, clientIp, homeEnterCd);
     }
 }

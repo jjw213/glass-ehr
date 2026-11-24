@@ -36,7 +36,7 @@ class RrnServiceTest {
     private RrnService service;
 
     private static RequestActor actor(RequestActor.Role role) {
-        return new RequestActor("tester", role, "127.0.0.1");
+        return new RequestActor("tester", role, "127.0.0.1", "C001");
     }
 
     @BeforeEach

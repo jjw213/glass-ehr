@@ -35,7 +35,7 @@ class PrivacyLogServiceTest {
         Constructor<RrnAccessLog> c = RrnAccessLog.class.getDeclaredConstructor(RequestActor.class, long.class,
                 RrnAccessLog.Purpose.class, RrnAccessLog.Result.class, LocalDateTime.class);
         c.setAccessible(true);
-        return c.newInstance(new RequestActor("pay1", RequestActor.Role.PAYROLL, "10.0.0.2"), empId,
+        return c.newInstance(new RequestActor("pay1", RequestActor.Role.PAYROLL, "10.0.0.2", "C001"), empId,
                 RrnAccessLog.Purpose.WITHHOLDING, RrnAccessLog.Result.SUCCESS, at);
     }
 

@@ -42,6 +42,14 @@ public class RrnAccessLog {
     @Column(name = "log_id", nullable = false, updatable = false)
     private Long logId;
 
+    /** 대상 법인 = 조회한 주민등록번호의 법인(요청자의 현재 법인). docs/tenant-design.md 4.4 */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
+    /** 주체 법인 = 조회한 사람이 로그인한 법인. accessorId 는 이 법인의 login_id */
+    @Column(name = "accessor_enter_cd", nullable = false, updatable = false)
+    private String accessorEnterCd;
+
     @Column(name = "accessor_id", nullable = false, updatable = false)
     private String accessorId;
 
@@ -68,7 +76,9 @@ public class RrnAccessLog {
     protected RrnAccessLog() {
     }
 
-    RrnAccessLog(RequestActor actor, long empId, Purpose purpose, Result result, LocalDateTime at) {
+    RrnAccessLog(String enterCd, RequestActor actor, long empId, Purpose purpose, Result result, LocalDateTime at) {
+        this.enterCd = enterCd;
+        this.accessorEnterCd = actor.homeEnterCd();
         this.accessorId = actor.actorId();
         this.accessorRole = actor.role() == null ? null : actor.role().name();
         this.empId = empId;
@@ -76,6 +86,14 @@ public class RrnAccessLog {
         this.clientIp = actor.clientIp();
         this.result = result;
         this.accessedAt = at;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
+    }
+
+    public String getAccessorEnterCd() {
+        return accessorEnterCd;
     }
 
     public String getAccessorId() {

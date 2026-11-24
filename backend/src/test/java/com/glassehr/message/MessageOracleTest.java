@@ -29,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 @EnabledIfEnvironmentVariable(named = "ORACLE_IT", matches = "true")
 class MessageOracleTest {
 
-    private static final RequestActor HR = new RequestActor("it-hr", RequestActor.Role.HR, "127.0.0.1");
+    private static final RequestActor HR = new RequestActor("it-hr", RequestActor.Role.HR, "127.0.0.1", "C001");
 
     @Autowired
     private MessageService service;
