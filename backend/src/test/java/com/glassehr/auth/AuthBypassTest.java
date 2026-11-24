@@ -103,15 +103,15 @@ class AuthBypassTest {
     @BeforeEach
     void setUp() {
         clearInvocations(privacyLog);
-        when(employees.list(anyBoolean())).thenReturn(List.of(
+        when(employees.list(any(), anyBoolean())).thenReturn(List.of(
                 summary(TestAuthUsers.EMP_EMP, OTHER_DEPT),
                 summary(TestAuthUsers.HEAD_EMP, TestAuthUsers.HEAD_DEPT),
                 summary(20, TestAuthUsers.HEAD_DEPT),
                 summary(21, TestAuthUsers.HEAD_SUB_DEPT),
                 summary(22, OTHER_DEPT),
                 summary(23, null)));
-        when(employees.get(anyLong())).thenAnswer(inv -> {
-            long id = inv.getArgument(0);
+        when(employees.get(any(), anyLong())).thenAnswer(inv -> {
+            long id = inv.getArgument(1);
             return switch ((int) id) {
                 case 5 -> view(5, OTHER_DEPT);
                 case 7 -> view(7, TestAuthUsers.HEAD_DEPT);
@@ -232,8 +232,8 @@ class AuthBypassTest {
         mvc.perform(as(put("/api/code-groups/JOB_GRADE/codes/STAFF"), "emp1").contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());
-        verify(employees, never()).update(anyLong(), any());
-        verify(employees, never()).retire(anyLong(), any());
+        verify(employees, never()).update(any(), anyLong(), any());
+        verify(employees, never()).retire(any(), anyLong(), any());
         verify(org, never()).create(any(), any());
         verify(org, never()).change(any(), anyLong(), any());
         verify(org, never()).close(any(), anyLong(), any());

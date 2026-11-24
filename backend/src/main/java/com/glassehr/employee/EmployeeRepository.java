@@ -31,6 +31,20 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     List<Employee> findAllByOrderByEmpNoAsc();
 
+    // ---- 법인 조건(#123, docs/tenant-design.md 5.2). 사원 API(조회·등록·수정·퇴직·CSV·주민등록번호)는 이것만 쓴다.
+    // 위·아래의 법인 조건 없는 메서드는 다른 모듈(발령·근태·계약 등)이 쓰며 각 모듈 법인 이슈에서 바꾼다.
+
+    Optional<Employee> findByEnterCdAndEmpId(String enterCd, Long empId);
+
+    List<Employee> findByEnterCdOrderByEmpNoAsc(String enterCd);
+
+    List<Employee> findByEnterCdAndRetireDateIsNullOrderByEmpNoAsc(String enterCd);
+
+    /** {@link #findForUpdate(long)}와 같되 그 법인 사원만 잠근다. 다른 법인 사원은 빈 값(→ 404). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM Employee e WHERE e.enterCd = :enterCd AND e.empId = :empId")
+    Optional<Employee> findForUpdate(@Param("enterCd") String enterCd, @Param("empId") long empId);
+
     /** 현재 그 직책을 가진 재직자(결재자 찾기, #30). */
     @Query("SELECT e.empId FROM Employee e WHERE e.jobTitleCode = :code AND e.empStatus = 'ACTIVE'")
     List<Long> findActiveEmpIdsWithTitle(@Param("code") String titleCode);

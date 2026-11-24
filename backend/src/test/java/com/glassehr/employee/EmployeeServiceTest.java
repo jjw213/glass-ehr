@@ -75,9 +75,11 @@ class EmployeeServiceTest {
     @BeforeEach
     void setUp() {
         EmployeeRepository employees = mock(EmployeeRepository.class);
-        when(employees.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(0))));
-        when(employees.findForUpdate(anyLong()))
-                .thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(0))));
+        // 법인 조건(#123): 그 법인 사원만 찾는다
+        when(employees.findByEnterCdAndEmpId(any(), anyLong())).thenAnswer(inv -> Optional
+                .ofNullable(store.get(inv.<Long>getArgument(1))).filter(e -> e.getEnterCd().equals(inv.getArgument(0))));
+        when(employees.findForUpdate(any(), anyLong())).thenAnswer(inv -> Optional
+                .ofNullable(store.get(inv.<Long>getArgument(1))).filter(e -> e.getEnterCd().equals(inv.getArgument(0))));
         this.employees = employees;
         when(employees.saveAndFlush(any())).thenAnswer(inv -> {
             Employee e = inv.getArgument(0);
@@ -98,8 +100,8 @@ class EmployeeServiceTest {
         empNos = mock(EmpNoGenerator.class);
         when(empNos.next(any(), any(), any())).thenReturn("S01-2026-001");
         rrns = mock(RrnService.class);
-        when(rrns.masked(anyLong())).thenReturn(Optional.empty());
-        when(rrns.save(anyLong(), any(), any())).thenReturn("000000-*******");
+        when(rrns.masked(any(), anyLong())).thenReturn(Optional.empty());
+        when(rrns.save(any(), anyLong(), any(), any())).thenReturn("000000-*******");
         retention = mock(RecordRetentionCalculator.class);
 
         code(CodeGroups.EMPLOYMENT_TYPE, "REGULAR", true);
@@ -152,14 +154,14 @@ class EmployeeServiceTest {
         assertThat(v.recordRetentionUntil()).isNull();
         assertThat(v.rrnMasked()).isNull();
         verify(empNos).next("C001", "S01", HIRE);
-        verify(rrns, never()).save(anyLong(), any(), any());
+        verify(rrns, never()).save(any(), anyLong(), any(), any());
     }
 
     @Test
     void 주민등록번호를_함께_보내면_암호화_저장하고_마스킹_값만_돌려준다() {
         Rrn rrn = Rrn.parse("000000-0000001");
         EmployeeView v = service.create("C001",create("REGULAR", null, null, 10L, rrn), HR);
-        verify(rrns).save(v.empId(), rrn, HR);
+        verify(rrns).save("C001", v.empId(), rrn, HR);
         assertThat(v.rrnMasked()).isEqualTo("000000-*******");
         assertThat(v.toString()).doesNotContain("0000001");
     }
@@ -205,15 +207,28 @@ class EmployeeServiceTest {
     void 수정과_퇴직은_사원_행을_잠가_읽는다() {
         long id = service.create("C001",regular(), HR).empId();
         when(retention.retentionUntil(any())).thenReturn(LocalDate.of(2031, 10, 31));
-        service.update(id, update("새이름", "REGULAR"));
-        service.retire(id, new RetirementRequest(LocalDate.of(2026, 10, 31), "VOLUNTARY", null));
-        verify(employees, org.mockito.Mockito.times(2)).findForUpdate(id);
+        service.update("C001", id, update("새이름", "REGULAR"));
+        service.retire("C001", id, new RetirementRequest(LocalDate.of(2026, 10, 31), "VOLUNTARY", null));
+        verify(employees, org.mockito.Mockito.times(2)).findForUpdate("C001", id);
+    }
+
+    @Test
+    void 다른_법인_사원은_조회_수정_퇴직_모두_404() {
+        long id = service.create("C001", regular(), HR).empId();
+        when(retention.retentionUntil(any())).thenReturn(LocalDate.of(2031, 10, 31));
+        assertStatus(() -> service.get("C002", id), HttpStatus.NOT_FOUND);
+        assertStatus(() -> service.update("C002", id, update("x", "REGULAR")), HttpStatus.NOT_FOUND);
+        assertStatus(() -> service.retire("C002", id, new RetirementRequest(LocalDate.of(2026, 10, 31), "VOLUNTARY",
+                null)), HttpStatus.NOT_FOUND);
+        assertThat(service.list("C002", true)).isEmpty();
+        assertThat(store.get(id).getName()).isEqualTo("예시사원");
+        assertThat(store.get(id).isRetired()).isFalse();
     }
 
     @Test
     void 수정은_기본정보만_바꾸고_소속_직급_직책_사번_입사일은_그대로() {
         long id = service.create("C001",regular(), HR).empId();
-        EmployeeView v = service.update(id, update("새이름", "REGULAR"));
+        EmployeeView v = service.update("C001", id, update("새이름", "REGULAR"));
         assertThat(v.name()).isEqualTo("새이름");
         assertThat(v.jobDescription()).isEqualTo("프론트엔드 개발");
         assertThat(v.weeklyContractMinutes()).isEqualTo(1200);
@@ -243,7 +258,7 @@ class EmployeeServiceTest {
 
     @Test
     void 수정할_사원이_없으면_404() {
-        assertStatus(() -> service.update(99L, update("x", "REGULAR")), HttpStatus.NOT_FOUND);
+        assertStatus(() -> service.update("C001", 99L, update("x", "REGULAR")), HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -253,21 +268,21 @@ class EmployeeServiceTest {
         LocalDate until = LocalDate.of(2031, 10, 31); // 계산기 가짜 반환값(법령 값 아님)
         when(retention.retentionUntil(retire)).thenReturn(until);
 
-        EmployeeView v = service.retire(id, new RetirementRequest(retire, "VOLUNTARY", " 개인 사정 "));
+        EmployeeView v = service.retire("C001", id, new RetirementRequest(retire, "VOLUNTARY", " 개인 사정 "));
         assertThat(v.retireDate()).isEqualTo(retire);
         assertThat(v.retireReasonCode()).isEqualTo("VOLUNTARY");
         assertThat(v.retireReasonDetail()).isEqualTo("개인 사정");
         assertThat(v.recordRetentionUntil()).isEqualTo(until);
 
-        assertStatus(() -> service.retire(id, new RetirementRequest(retire, "VOLUNTARY", null)), HttpStatus.CONFLICT);
+        assertStatus(() -> service.retire("C001", id, new RetirementRequest(retire, "VOLUNTARY", null)), HttpStatus.CONFLICT);
     }
 
     @Test
     void 퇴직일_사유코드를_검사한다() {
         long id = service.create("C001",regular(), HR).empId();
-        assertStatus(() -> service.retire(id, new RetirementRequest(HIRE.minusDays(1), "VOLUNTARY", null)),
+        assertStatus(() -> service.retire("C001", id, new RetirementRequest(HIRE.minusDays(1), "VOLUNTARY", null)),
                 HttpStatus.BAD_REQUEST);
-        assertStatus(() -> service.retire(id, new RetirementRequest(HIRE, "NOPE", null)), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.retire("C001", id, new RetirementRequest(HIRE, "NOPE", null)), HttpStatus.BAD_REQUEST);
         assertThat(store.get(id).isRetired()).isFalse();
     }
 
@@ -277,7 +292,7 @@ class EmployeeServiceTest {
         LegalRateException missing = mock(LegalRateException.class);
         when(missing.itemCode()).thenReturn("EMPLOYEE_RECORD_RETENTION_YEARS");
         when(retention.retentionUntil(any())).thenThrow(missing);
-        assertStatus(() -> service.retire(id, new RetirementRequest(HIRE.plusDays(10), "VOLUNTARY", null)),
+        assertStatus(() -> service.retire("C001", id, new RetirementRequest(HIRE.plusDays(10), "VOLUNTARY", null)),
                 HttpStatus.CONFLICT);
         assertThat(store.get(id).isRetired()).isFalse();
     }

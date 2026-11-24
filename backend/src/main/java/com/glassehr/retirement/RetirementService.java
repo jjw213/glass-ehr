@@ -99,13 +99,14 @@ public class RetirementService {
      * 예고기간 미달은 막지 않고 {@code warnings}로 알린다.
      */
     @Transactional
-    public RetirementView register(RetirementRequest req, String actor) {
+    /** enterCd 는 세션의 현재 법인. 다른 법인 사원은 404(#123). */
+    public RetirementView register(String enterCd, RetirementRequest req, String actor) {
         String reason = req.reasonCode().strip();
         boolean dismissal = RetirementChecklist.DISMISSAL.equals(reason);
         validateNotice(req, dismissal);
 
         // 근로자 명부 퇴직일·사유·보존기한(근로기준법 제42조) — 사원 잠금·중복 퇴직·사유 코드 검사 포함
-        employeeService.retire(req.empId(),
+        employeeService.retire(enterCd, req.empId(),
                 new EmployeeDtos.RetirementRequest(req.retireDate(), reason, req.reasonDetail()));
         if (cases.existsByEmpId(req.empId())) {
             throw RetirementException.conflict("이미 퇴직 처리가 등록된 사원이에요");

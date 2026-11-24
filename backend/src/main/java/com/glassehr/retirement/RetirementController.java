@@ -56,7 +56,7 @@ public class RetirementController {
     @PostMapping("/api/retirements")
     @ResponseStatus(HttpStatus.CREATED)
     public RetirementView register(@Valid @RequestBody RetirementRequest req, AuthUser user) {
-        return service.register(req, user.loginId());
+        return service.register(user.enterCd(), req, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)

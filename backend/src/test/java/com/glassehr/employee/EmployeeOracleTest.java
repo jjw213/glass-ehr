@@ -70,7 +70,7 @@ class EmployeeOracleTest {
                 a.empId());
         assertThat(new String((byte[]) row.get("RRN_ENC"), StandardCharsets.ISO_8859_1)).doesNotContain("0000011");
         assertThat(row.get("RRN_MASKED")).isEqualTo("000000-*******");
-        assertThat(rrns.reveal(a.empId(), HR, RrnAccessLog.Purpose.VIEW)).isEqualTo(Rrn.parse("000000-0000011"));
+        assertThat(rrns.reveal("C001", a.empId(), HR, RrnAccessLog.Purpose.VIEW)).isEqualTo(Rrn.parse("000000-0000011"));
 
         List<String> results = jdbc.queryForList(
                 "SELECT result FROM rrn_access_log WHERE emp_id = ? ORDER BY log_id", String.class, a.empId());

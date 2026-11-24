@@ -107,12 +107,12 @@ class EmployeeControllerTest {
                             .content(UPDATE_BODY.formatted(extra)))
                     .andExpect(status().isBadRequest());
         }
-        verify(service, never()).update(anyLong(), any());
+        verify(service, never()).update(any(), anyLong(), any());
     }
 
     @Test
     void 수정은_기본정보만으로_200() throws Exception {
-        when(service.update(eq(1L), any())).thenReturn(view(null));
+        when(service.update(eq("C001"), eq(1L), any())).thenReturn(view(null));
         mvc.perform(put("/api/employees/1").contentType(MediaType.APPLICATION_JSON).content(UPDATE_BODY.formatted("")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentDeptId").value(10));
@@ -120,23 +120,23 @@ class EmployeeControllerTest {
 
     @Test
     void 목록과_상세() throws Exception {
-        when(service.list(true)).thenReturn(List.of(
+        when(service.list("C001", true)).thenReturn(List.of(
                 new EmployeeSummary(1, "S01-2026-001", "예시사원", 10L, "STAFF", "MEMBER", "REGULAR", HIRE, null)));
         mvc.perform(get("/api/employees").param("includeRetired", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].empNo").value("S01-2026-001"))
                 .andExpect(jsonPath("$[0].address").doesNotExist());
-        when(service.get(1L)).thenReturn(view("000000-*******"));
+        when(service.get("C001", 1L)).thenReturn(view("000000-*******"));
         mvc.perform(get("/api/employees/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rrnMasked").value("000000-*******"));
-        when(service.get(2L)).thenThrow(EmployeeException.notFound(2L));
+        when(service.get("C001", 2L)).thenThrow(EmployeeException.notFound(2L));
         mvc.perform(get("/api/employees/2")).andExpect(status().isNotFound());
     }
 
     @Test
     void 퇴직_처리() throws Exception {
-        when(service.retire(eq(1L), any())).thenReturn(view(null));
+        when(service.retire(eq("C001"), eq(1L), any())).thenReturn(view(null));
         mvc.perform(post("/api/employees/1/retire").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"retireDate\":\"2026-10-31\",\"reasonCode\":\"VOLUNTARY\"}"))
                 .andExpect(status().isOk());
@@ -146,7 +146,7 @@ class EmployeeControllerTest {
 
     @Test
     void 원문_조회는_캐시_금지_헤더를_붙이고_요청자와_목적을_넘긴다() throws Exception {
-        when(rrns.reveal(eq(1L), any(), eq(RrnAccessLog.Purpose.SOCIAL_INSURANCE))).thenReturn(Rrn.parse("000000-0000001"));
+        when(rrns.reveal(eq("C001"), eq(1L), any(), eq(RrnAccessLog.Purpose.SOCIAL_INSURANCE))).thenReturn(Rrn.parse("000000-0000001"));
         mvc.perform(get("/api/employees/1/rrn").param("purpose", "SOCIAL_INSURANCE")
                         .header("X-Actor-Id", "pay1").header("X-Actor-Role", "PAYROLL"))
                 .andExpect(status().isOk())
@@ -154,14 +154,14 @@ class EmployeeControllerTest {
                 .andExpect(header().string("Pragma", "no-cache"))
                 .andExpect(jsonPath("$.rrn").value("000000-0000001"));
         ArgumentCaptor<RequestActor> actor = ArgumentCaptor.forClass(RequestActor.class);
-        verify(rrns).reveal(eq(1L), actor.capture(), eq(RrnAccessLog.Purpose.SOCIAL_INSURANCE));
+        verify(rrns).reveal(eq("C001"), eq(1L), actor.capture(), eq(RrnAccessLog.Purpose.SOCIAL_INSURANCE));
         assertThat(actor.getValue().role()).isEqualTo(RequestActor.Role.PAYROLL);
         assertThat(actor.getValue().clientIp()).isNotBlank();
     }
 
     @Test
     void 원문_조회_거부는_403() throws Exception {
-        when(rrns.reveal(anyLong(), any(), any())).thenThrow(EmployeeException.forbidden("거부"));
+        when(rrns.reveal(any(), anyLong(), any(), any())).thenThrow(EmployeeException.forbidden("거부"));
         mvc.perform(get("/api/employees/1/rrn").header("X-Actor-Role", "ADMIN"))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/employees/1/rrn").param("purpose", "NOPE")).andExpect(status().isBadRequest());
@@ -169,18 +169,18 @@ class EmployeeControllerTest {
 
     @Test
     void 암호화_키가_없으면_503() throws Exception {
-        when(rrns.reveal(anyLong(), any(), any())).thenThrow(new RrnCrypto.KeyNotConfiguredException("x"));
+        when(rrns.reveal(any(), anyLong(), any(), any())).thenThrow(new RrnCrypto.KeyNotConfiguredException("x"));
         mvc.perform(get("/api/employees/1/rrn").header("X-Actor-Role", "HR"))
                 .andExpect(status().isServiceUnavailable());
     }
 
     @Test
     void 주민등록번호_등록_정정() throws Exception {
-        when(rrns.save(eq(1L), any(), any())).thenReturn("000000-*******");
+        when(rrns.save(eq("C001"), eq(1L), any(), any())).thenReturn("000000-*******");
         mvc.perform(put("/api/employees/1/rrn").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rrn\":\"0000000000001\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rrnMasked").value("000000-*******"));
-        verify(rrns).save(eq(1L), eq(Rrn.parse("000000-0000001")), any());
+        verify(rrns).save(eq("C001"), eq(1L), eq(Rrn.parse("000000-0000001")), any());
     }
 }
