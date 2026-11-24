@@ -29,7 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
  * 주민등록번호 조회 로그의 대상·주체 법인을 본다(docs/tenant-design.md 3.2·4.4·5.2).
  * 실행 조건: {@code ORACLE_IT=true}. 각 테스트는 롤백한다. 1900년대 날짜, ZZIT 코드, 명백한 가짜 번호만 쓴다.
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        "glassehr.rrn.enc-keys=1:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+        "glassehr.rrn.current-key-version=1",
+        "glassehr.rrn.hmac-key=CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk="})
 @Transactional
 @EnabledIfEnvironmentVariable(named = "ORACLE_IT", matches = "true")
 class EmployeeTenantOracleTest {
