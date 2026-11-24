@@ -9,8 +9,14 @@ import { ApiError, type Api } from './types';
  * 화면은 X-Actor-Id 를 보내지 않는다. 상태를 바꾸는 요청의 CSRF 검사용으로 모든 요청에 아래 헤더를 붙인다.
  */
 export const CSRF_HEADERS: Readonly<Record<string, string>> = { 'X-Requested-With': 'XMLHttpRequest' };
+const EXPECTED_ENTER_HEADER = 'X-Expected-Enter';
+let expectedEnterCd: string | null = null;
+/** 화면에 적재된 법인을 서버가 가진 현재 법인과 대조해, 다른 탭의 오래된 쓰기를 막는다. */
+export function setExpectedEnter(enterCd: string | null) { expectedEnterCd = enterCd; }
 /** JSON 이 아닌 요청(파일 올리기·내려받기)에 붙일 헤더. */
-export function csrfHeader(): Record<string, string> { return { ...CSRF_HEADERS }; }
+export function csrfHeader(): Record<string, string> {
+  return { ...CSRF_HEADERS, ...(expectedEnterCd ? { [EXPECTED_ENTER_HEADER]: expectedEnterCd } : {}) };
+}
 
 let onUnauthorized: (() => void) | null = null;
 /** 세션이 끝나 API 가 401 을 주면 부를 함수(로그인 화면으로 돌아가기). 로그인 요청 자체의 401 은 부르지 않는다. */
@@ -29,6 +35,7 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: s
   const headers: Record<string, string> = {
     ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     ...CSRF_HEADERS,
+    ...(expectedEnterCd ? { [EXPECTED_ENTER_HEADER]: expectedEnterCd } : {}),
     ...extraHeaders,
   };
   let res: Response;
@@ -52,16 +59,14 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: s
   return res.json() as Promise<T>;
 }
 
-const DEFAULT_ENTER_CD = 'C001';
-
 export const httpApi: Api = {
   mode: 'http',
+  enterCompanies: () => call('GET', '/enter-companies'),
   // 로그인은 Spring(/api/auth/login, 세션 쿠키)이 정한다(#76). 홈 화면 데이터(/api/bootstrap 등)가 아직 Node 서버라
   // 옮기는 동안만 같은 아이디·비밀번호로 Node 에도 로그인한다. Node 경로를 모두 옮기면 두 번째 호출을 지운다.
-  login: async (loginId, password) => {
-    // 로그인 본문에 법인 코드가 필요하다(#119). 회사 선택 화면이 생기기 전까지는 다법인 배포 잠금으로
-    // 서버가 허용하는 유일한 법인 C001 을 보낸다(docs/tenant-design.md 8.2).
-    await call('POST', '/auth/login', { enterCd: DEFAULT_ENTER_CD, loginId, password });
+  login: async (enterCd, loginId, password) => {
+    // 로그인 화면에서 고른 회사(#120). 법인은 로그인 본문과 그룹 관리자 전환 API 에서만 보낸다(docs/tenant-design.md 2장).
+    await call('POST', '/auth/login', { enterCd, loginId, password });
     try {
       await call('POST', '/login', { loginId, password });
     } catch (e) {
@@ -69,6 +74,7 @@ export const httpApi: Api = {
       throw e;
     }
   },
+  switchEnter: async (enterCd) => { await call('POST', '/auth/switch-enter', { enterCd }); },
   logout: async () => {
     const results = await Promise.allSettled([call('POST', '/auth/logout'), call('POST', '/logout')]);
     const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');

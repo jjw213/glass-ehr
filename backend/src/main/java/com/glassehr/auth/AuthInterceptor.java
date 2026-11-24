@@ -42,6 +42,8 @@ public class AuthInterceptor implements HandlerInterceptor {
     /** CSRF 방어용 사용자 지정 헤더와 값. 화면(api/http.ts)이 모든 요청에 붙인다. */
     public static final String CSRF_HEADER = "X-Requested-With";
     public static final String CSRF_HEADER_VALUE = "XMLHttpRequest";
+    /** 화면에 적재된 법인. 상태 변경 시 세션의 현재 법인과 같아야 한다. */
+    public static final String EXPECTED_ENTER_HEADER = "X-Expected-Enter";
     /** 세션에 넣는 로그인 아이디 속성 이름(LoginController 가 로그인 성공 시 넣는다). */
     public static final String SESSION_LOGIN_ID = "glassehr.auth.loginId";
     /** 세션의 주체 법인(로그인한 법인, 바뀌지 않음). docs/tenant-design.md 4.2 */
@@ -50,6 +52,7 @@ public class AuthInterceptor implements HandlerInterceptor {
     public static final String SESSION_CURRENT_ENTER_CD = "glassehr.auth.currentEnterCd";
     static final String ATTR = AuthUser.class.getName();
     private static final String CSRF_REJECT = "요청 출처를 확인할 수 없어요. 화면을 새로 고친 뒤 다시 시도해 주세요";
+    private static final String STALE_ENTER_REJECT = "다른 화면에서 회사가 바뀌었어요. 새로 고친 뒤 다시 시도해 주세요";
 
     private final AuthUserResolver resolver;
     private final PrivacyAccessLogger privacyLog;
@@ -70,23 +73,30 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     /**
      * 세션의 주체 법인·로그인 아이디. 로그인 세션이 없고 test 프로필이면 X-Actor-Id·X-Actor-Enter(없으면 C001) 헤더.
-     * 법인 전환 기능이 아직 없으므로 세션의 현재 법인이 주체 법인과 다르거나 법인이 없는 세션(이 변경 전 세션)은
-     * 사용자를 찾지 않는다(401, 다시 로그인).
+     * 법인이 없는 세션(#119 전 세션)은 사용자를 찾지 않는다(401, 다시 로그인).
      */
     Principal principalOf(HttpServletRequest req) {
         String fromSession = sessionLoginId(req);
         if (fromSession != null) {
-            HttpSession s = req.getSession(false);
-            Object home = s.getAttribute(SESSION_ENTER_CD);
-            Object current = s.getAttribute(SESSION_CURRENT_ENTER_CD);
-            boolean ok = home instanceof String h && h.equals(current);
-            return new Principal(ok ? (String) home : null, fromSession);
+            Object home = req.getSession(false).getAttribute(SESSION_ENTER_CD);
+            return new Principal(home instanceof String h ? h : null, fromSession);
         }
         if (!acceptActorHeader) {
             return new Principal(null, null);
         }
         String ent = req.getHeader(ACTOR_ENTER_HEADER);
         return new Principal(ent == null ? EnterCompany.DEFAULT_ENTER_CD : ent, req.getHeader(ACTOR_ID_HEADER));
+    }
+
+    /**
+     * 현재 법인. 로그인 세션이면 세션의 현재 법인(그룹 관리자 전환 때만 주체 법인과 다르다. 다르면 resolver 가 전환 권한을
+     * 다시 확인한다). 세션이 없는 test 프로필 헤더 요청은 전환이 없어 주체 법인과 같다.
+     */
+    static String currentEnterOf(HttpServletRequest req, Principal who) {
+        if (sessionLoginId(req) != null) {
+            return req.getSession(false).getAttribute(SESSION_CURRENT_ENTER_CD) instanceof String c ? c : null;
+        }
+        return who.enterCd();
     }
 
     private static String sessionLoginId(HttpServletRequest req) {
@@ -123,7 +133,8 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         PrivacyAudit audit = hm.getMethodAnnotation(PrivacyAudit.class);
         Principal who = principalOf(req);
-        Optional<AuthUser> found = resolver.resolve(who.enterCd(), who.loginId(), req.getRemoteAddr());
+        Optional<AuthUser> found = resolver.resolve(who.enterCd(), who.loginId(), currentEnterOf(req, who),
+                req.getRemoteAddr());
         if (found.isEmpty()) {
             if (audit != null) {
                 privacyLog.logAnonymousDenied(who.enterCd(), who.loginId(), req.getRemoteAddr(), targetEmpId(req),
@@ -139,6 +150,10 @@ public class AuthInterceptor implements HandlerInterceptor {
             return reject(res, HttpStatus.FORBIDDEN, CSRF_REJECT);
         }
         AuthUser user = found.get();
+        String expectedEnter = req.getHeader(EXPECTED_ENTER_HEADER);
+        if (changesState(req) && expectedEnter != null && !expectedEnter.equals(user.enterCd())) {
+            return reject(res, HttpStatus.CONFLICT, STALE_ENTER_REJECT);
+        }
         RequiresPermission rp = hm.getMethodAnnotation(RequiresPermission.class);
         boolean allowed = rp != null && (rp.value().length == 0 || user.hasAny(rp.value()));
         if (!allowed) {

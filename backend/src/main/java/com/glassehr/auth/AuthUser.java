@@ -27,6 +27,8 @@ public record AuthUser(String enterCd, String homeEnterCd, String loginId, Long 
     public static final String ROLE_PAYROLL = "PAYROLL";
     public static final String ROLE_DEPT_HEAD = "DEPT_HEAD";
     public static final String ROLE_EMPLOYEE = "EMPLOYEE";
+    /** 그룹 관리자: 법인을 전환해 다른 법인 데이터를 본다(V033). */
+    public static final String ROLE_GROUP_ADMIN = "GROUP_ADMIN";
 
     public AuthUser {
         roles = Collections.unmodifiableSet(new TreeSet<>(roles));

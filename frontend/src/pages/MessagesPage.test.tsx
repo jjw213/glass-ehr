@@ -39,7 +39,7 @@ describe('MessagesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     data = {
-      me: { loginId: 'emp1', empId: 1, name: '가짜사원', dept: '', role: 'EMPLOYEE', roles: [], permissions: [], annualLeave: 15 },
+      me: { loginId: 'emp1', empId: 1, name: '가짜사원', dept: '', role: 'EMPLOYEE', roles: [], permissions: [], enterCd: 'C001', enterName: '가짜법인', homeEnterCd: 'C001', annualLeave: 15 }, companies: [],
       depts: [], legacyDepts: [], dashboard: null, approvals: [], leaves: [], payslips: [], threads: THREADS,
     };
     store.loadMessages.mockResolvedValue({ messages: [msg(10, false, '첫 번째'), msg(11, false, '두 번째')], hasMore: true });

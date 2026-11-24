@@ -129,6 +129,24 @@ public class LoginService {
         log(enterCd, loginId, Event.LOGOUT, null, false, clientIp, LocalDateTime.now(clock));
     }
 
+    /**
+     * 그룹 관리자 법인 전환(#120, docs/tenant-design.md 4.3). 권한(ENTER_SWITCH)은 API 가 이미 검사했다.
+     * 대상 법인은 로그인과 같은 규칙(형식·사용 중·다법인 배포 잠금)으로 확인하고, 통과하면 접속기록에
+     * 주체 법인·아이디와 대상 법인을 남긴다(개인정보 보호법 제29조·안전성 확보조치 기준의 접속기록).
+     *
+     * @return 대상 법인으로 바꿀 수 있으면 true. 없거나 사용 안 함·잠금이면 false(기록하지 않음)
+     */
+    @Transactional
+    public boolean switchEnter(AuthUser user, String targetEnterCd, String clientIp) {
+        String target = targetEnterCd == null ? null : targetEnterCd.strip();
+        if (!companies.allows(target)) {
+            return false;
+        }
+        logs.save(new LoginAccessLog(user.homeEnterCd(), user.loginId(), Event.ENTER_SWITCH, null, false, clientIp,
+                LocalDateTime.now(clock), target));
+        return true;
+    }
+
     private Result fail(String ent, String id, FailReason reason, String ip, LocalDateTime now) {
         log(ent, id, Event.LOGIN_FAILURE, reason, false, ip, now);
         return new Result(Outcome.BAD_CREDENTIALS, ent, id, null);

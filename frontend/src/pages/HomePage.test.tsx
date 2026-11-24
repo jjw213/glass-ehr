@@ -23,7 +23,7 @@ const SUMMARY: DashboardSummary = {
 };
 
 const make = (dashboard: DashboardSummary | null): AppData => ({
-  me: { loginId: 'emp1', empId: 1, name: '가짜사원', dept: '', role: 'EMPLOYEE', roles: [], permissions: [], annualLeave: 15 },
+  me: { loginId: 'emp1', empId: 1, name: '가짜사원', dept: '', role: 'EMPLOYEE', roles: [], permissions: [], enterCd: 'C001', enterName: '가짜법인', homeEnterCd: 'C001', annualLeave: 15 }, companies: [],
   depts: [], legacyDepts: [], dashboard,
   approvals: [], leaves: [], payslips: [], threads: [],
 });

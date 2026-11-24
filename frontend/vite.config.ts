@@ -14,6 +14,8 @@ export default defineConfig({
       '/api/employees': 'http://localhost:8080',
       // 권한(#19): 내 권한 조회와 관리자용 개인정보 조회 로그.
       '/api/auth': 'http://localhost:8080',
+      // 로그인 화면 회사 선택·상단 법인 이름(#118·#120).
+      '/api/enter-companies': 'http://localhost:8080',
       '/api/admin': 'http://localhost:8080',
       // 근태는 모두 Spring(#78): 근무유형·배정(#25 work-patterns·employees), 휴일(#26 holidays), 서면합의서(#27 agreements),
       // 출퇴근 기록(#28 punches, 홈·근태 화면 출퇴근 버튼), 일별 집계(#29 daily-summaries), 주 52시간(#31 weekly-hours),

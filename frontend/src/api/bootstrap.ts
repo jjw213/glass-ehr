@@ -7,7 +7,8 @@
 import { flattenDepts, seoulToday, type DeptNode, type EmployeeSummary, type OrgTree } from './employees';
 import {
   canSeeDashboard, DEPT_COLORS, menuRole,
-  type AppData, type AuthMe, type Bootstrap, type DashboardSummary, type Dept, type MessageThread, type SessionUser,
+  type AppData, type AuthMe, type Bootstrap, type DashboardSummary, type Dept, type EnterCompany, type MessageThread,
+  type SessionUser,
 } from './types';
 
 type Get = <T>(path: string) => Promise<T>;
@@ -19,23 +20,31 @@ export function toDepts(roots: DeptNode[]): Dept[] {
   }));
 }
 
-/** 로그인 사용자. 사원과 연결되지 않은 계정(관리자 등)이거나 목록에 본인이 없으면 이름 대신 로그인 아이디. */
-export function toSessionUser(auth: AuthMe, self: EmployeeSummary | undefined, annualLeave: number): SessionUser {
+/**
+ * 로그인 사용자. 사원과 연결되지 않은 계정(관리자 등)이거나 목록에 본인이 없으면 이름 대신 로그인 아이디.
+ * 법인 이름은 사용 중 법인 목록에서 찾고, 없으면 코드를 보여 준다(#120).
+ */
+export function toSessionUser(auth: AuthMe, self: EmployeeSummary | undefined, annualLeave: number, companies: EnterCompany[] = []): SessionUser {
   return {
     loginId: auth.loginId, empId: auth.empId,
     name: self?.name ?? auth.loginId,
     dept: self?.currentDeptId != null ? String(self.currentDeptId) : '',
     role: menuRole(auth.roles), roles: auth.roles, permissions: auth.permissions,
+    enterCd: auth.enterCd,
+    enterName: companies.find((c) => c.enterCd === auth.enterCd)?.enterName ?? auth.enterCd,
+    homeEnterCd: auth.homeEnterCd,
     annualLeave,
   };
 }
 
 export async function loadAppData(get: Get): Promise<AppData> {
-  const [node, auth, tree, threads] = await Promise.all([
+  // 사원·부서·요약·메시지는 서버가 세션의 현재 법인(#120 전환 포함) 조건으로 거른다. 화면은 법인 코드를 보내지 않는다.
+  const [node, auth, tree, threads, companies] = await Promise.all([
     get<Bootstrap>('/bootstrap'),
     get<AuthMe>('/auth/me'),
     get<OrgTree>(`/org/tree?date=${encodeURIComponent(seoulToday())}`),
     get<MessageThread[]>('/threads'),
+    get<EnterCompany[]>('/enter-companies'),
   ]);
   // 사원 목록은 권한에 맞게 서버가 거른다(일반 사원은 본인만). 요약은 볼 권한이 있을 때만 부른다(없으면 403).
   const [list, dashboard] = await Promise.all([
@@ -47,11 +56,11 @@ export async function loadAppData(get: Get): Promise<AppData> {
   // Node 의 payslips 도 쓰지 않는다. 급여명세서는 급여 모듈에서 새로 만든다(#81).
   const { approvals, leaves } = node;
   return {
-    me: toSessionUser(auth, self, node.me.annualLeave),
+    me: toSessionUser(auth, self, node.me.annualLeave, companies),
     depts: toDepts(tree.roots),
     // 결재는 아직 Node 의 hr·mgmt 같은 ID를 쓰므로 Spring 부서와 별도로 조회에 보존한다.
     legacyDepts: node.depts,
     dashboard,
-    approvals, leaves, payslips: null, threads,
+    approvals, leaves, payslips: null, threads, companies,
   };
 }

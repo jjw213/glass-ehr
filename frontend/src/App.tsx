@@ -8,7 +8,7 @@ import { SessionCtx } from './state/session';
 type Phase = 'login' | 'app';
 
 function Root() {
-  const { scene, night, data, signOut, onSessionLost } = useStore();
+  const { scene, night, data, enterSwitching, signOut, onSessionLost } = useStore();
   const [phase, setPhase] = useState<Phase>('login');
   const [intro, setIntro] = useState(true);   // cursor intro only on first entry
   const [loginKey, setLoginKey] = useState(0);
@@ -32,7 +32,9 @@ function Root() {
     <SessionCtx.Provider value={{ logout }}>
       <div className={night ? 'theme night' : 'theme'}>
         <Scene mode={inApp ? 'app' : 'login'} variant={night ? 'night' : scene} />
-        {inApp ? (
+        {phase === 'app' && enterSwitching ? (
+          <main role="status" aria-live="polite">법인 데이터를 불러오는 중이에요…</main>
+        ) : inApp ? (
           <>
             <div className="sweep" aria-hidden />
             <AppShell />
