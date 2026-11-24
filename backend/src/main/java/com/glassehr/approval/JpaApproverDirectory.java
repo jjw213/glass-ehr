@@ -4,6 +4,7 @@ import com.glassehr.appointment.AppointmentException;
 import com.glassehr.appointment.AppointmentService;
 import com.glassehr.appointment.EmpStatus;
 import com.glassehr.auth.AppUserRepository;
+import com.glassehr.employee.Employee;
 import com.glassehr.employee.EmployeeRepository;
 import com.glassehr.org.OrgDeptHistRepository;
 import java.time.LocalDate;
@@ -43,8 +44,13 @@ class JpaApproverDirectory implements ApproverResolver.Directory {
     }
 
     @Override
-    public Optional<ApproverResolver.DeptInfo> dept(long deptId, LocalDate date) {
-        return deptHist.findEffectiveOn(date).stream()
+    public Optional<String> enterOf(long empId) {
+        return employees.findById(empId).map(Employee::getEnterCd);
+    }
+
+    @Override
+    public Optional<ApproverResolver.DeptInfo> dept(String enterCd, long deptId, LocalDate date) {
+        return deptHist.findEffectiveOn(enterCd, date).stream()
                 .filter(h -> h.getDeptId() == deptId)
                 .findFirst()
                 .map(h -> new ApproverResolver.DeptInfo(h.getHeadEmpId(), h.getParentDeptId()));

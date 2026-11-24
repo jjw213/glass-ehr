@@ -24,8 +24,11 @@ public class ApproverResolver {
         /** 기준일 소속 부서(없으면 empty). */
         Optional<Long> deptOf(long empId, LocalDate date);
 
-        /** 기준일 부서 정보(없으면 empty). */
-        Optional<DeptInfo> dept(long deptId, LocalDate date);
+        /** 사원의 법인(없으면 empty). 부서·상위 부서는 신청자 법인 조직도에서만 찾는다(#122). */
+        Optional<String> enterOf(long empId);
+
+        /** 기준일 그 법인의 부서 정보(없으면 empty). */
+        Optional<DeptInfo> dept(String enterCd, long deptId, LocalDate date);
 
         /** 그 직책을 가진 재직자. */
         Set<Long> activeWithTitle(String titleCode);
@@ -78,14 +81,14 @@ public class ApproverResolver {
 
     private Set<Long> candidates(ApprovalTemplate.Step s, long requester, LocalDate date) {
         return switch (s.getApproverKind()) {
-            case DEPT_HEAD -> dir.deptOf(requester, date)
-                    .flatMap(d -> dir.dept(d, date))
+            case DEPT_HEAD -> dir.enterOf(requester).flatMap(enter -> dir.deptOf(requester, date)
+                    .flatMap(d -> dir.dept(enter, d, date)))
                     .map(ApproverResolver::head)
                     .orElse(Set.of());
-            case UPPER_DEPT_HEAD -> dir.deptOf(requester, date)
-                    .flatMap(d -> dir.dept(d, date))
+            case UPPER_DEPT_HEAD -> dir.enterOf(requester).flatMap(enter -> dir.deptOf(requester, date)
+                    .flatMap(d -> dir.dept(enter, d, date))
                     .map(DeptInfo::parentDeptId)
-                    .flatMap(p -> dir.dept(p, date))
+                    .flatMap(p -> dir.dept(enter, p, date)))
                     .map(ApproverResolver::head)
                     .orElse(Set.of());
             case POSITION -> dir.activeWithTitle(s.getApproverRef());

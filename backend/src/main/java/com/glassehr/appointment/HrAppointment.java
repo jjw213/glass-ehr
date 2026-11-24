@@ -34,6 +34,13 @@ public class HrAppointment {
     @Column(name = "appt_type_code", nullable = false)
     private String apptTypeCode;
 
+    /**
+     * 사원의 법인(#122). 이전·이후 부서 FK 가 (enter_cd, 부서) 복합이라 등록할 때 사원 법인을 넣는다.
+     * 키·DEFAULT 전환은 인사발령 법인 이슈에서 한다.
+     */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
@@ -102,7 +109,8 @@ public class HrAppointment {
             String reason, LocalDate leaveStartDate, LocalDate leaveEndDate) {
     }
 
-    HrAppointment(String apptNo, long empId, Content c, LocalDateTime now) {
+    HrAppointment(String enterCd, String apptNo, long empId, Content c, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.apptNo = apptNo;
         this.empId = empId;
         this.confirmed = false;
