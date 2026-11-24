@@ -48,7 +48,7 @@ const PAGES: Record<PageId, () => JSX.Element> = {
 
 /** Desktop: top pill bar + floating dock (video 2). Mobile: glass sidebar (video 3). */
 export function AppShell() {
-  const { page } = useStore();
+  const { page, data } = useStore();
   const mobile = useIsMobile();
   const Page = PAGES[page];
   // right after login everything waits for the scene change before rising in
@@ -57,8 +57,9 @@ export function AppShell() {
   return (
     <div className={`shell ${mobile ? 'shell--mobile' : 'shell--desktop'}${entering ? ' entering' : ''}`}>
       {mobile ? <MobileSidebar /> : <DesktopNav />}
-      {/* key → remount on page change, which replays the staggered rise animation */}
-      <main key={page} className="page">
+      {/* key → remount on page change, which replays the staggered rise animation.
+          법인을 바꾸면(#120) 화면이 직접 부르는 API(출퇴근·사원 목록 등)도 새 법인으로 다시 불러오게 다시 그린다. */}
+      <main key={`${data?.me.enterCd ?? ''}:${page}`} className="page">
         <Page />
       </main>
       <Toasts />

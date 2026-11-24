@@ -34,10 +34,16 @@ class LoginSchemaScriptTest {
         return Arrays.stream(m.group(1).split(",")).map(s -> s.strip().replace("'", "")).collect(Collectors.toSet());
     }
 
+    private static String switchSql() throws IOException {
+        return new ClassPathResource("db/oracle/V033__group_admin_enter_switch.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+    }
+
     @Test
     void 접속기록_CHECK_값은_enum과_같다() throws IOException {
         String sql = sql();
-        assertThat(inList(sql, "ck_login_log_event CHECK \\(event_code IN \\(([^)]*)\\)\\)"))
+        // 이벤트 목록은 V033 이 ENTER_SWITCH 를 더해 다시 만든 제약이 최신이다.
+        assertThat(inList(switchSql(), "ck_login_log_event CHECK \\(event_code IN \\(([^)]*)\\)\\)"))
                 .isEqualTo(names(LoginAccessLog.Event.class));
         assertThat(inList(sql, "fail_reason IN \\(([^)]*)\\)")).isEqualTo(names(LoginAccessLog.FailReason.class));
     }
@@ -54,6 +60,16 @@ class LoginSchemaScriptTest {
         assertThat(table).doesNotContain("FOREIGN KEY");
         // 비밀번호(원문·해시) 열이 없어야 한다. 실패 사유 코드 NO_PASSWORD 는 값이라 열 정의만 본다.
         assertThat(table).doesNotContainPattern("(?im)^\\s*\\w*password\\w*\\s+(VARCHAR2|CHAR|CLOB|RAW)");
+    }
+
+    @Test
+    void 법인_전환_대상은_전환_기록에만_있고_FK가_없다() throws IOException {
+        String sql = switchSql();
+        assertThat(sql).contains("ALTER TABLE login_access_log DROP CONSTRAINT ck_login_log_event;")
+                .contains("(event_code = 'ENTER_SWITCH' AND target_enter_cd IS NOT NULL")
+                .contains("OR (event_code <> 'ENTER_SWITCH' AND target_enter_cd IS NULL)")
+                .doesNotContain("FOREIGN KEY").doesNotContain("REFERENCES")
+                .doesNotContain("{").doesNotContain("}");
     }
 
     @Test

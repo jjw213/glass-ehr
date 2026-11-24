@@ -37,10 +37,11 @@ public class DbAuthUserResolver implements AuthUserResolver {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<AuthUser> resolve(String enterCd, String loginId, String clientIp) {
-        if (enterCd == null || loginId == null || loginId.isBlank()) {
+    public Optional<AuthUser> resolve(String enterCd, String loginId, String currentEnterCd, String clientIp) {
+        if (enterCd == null || currentEnterCd == null || loginId == null || loginId.isBlank()) {
             return Optional.empty();
         }
+        boolean switched = !enterCd.equals(currentEnterCd);
         // 법인이 사용 중지되거나 다법인 배포 잠금에 걸리면 남은 세션도 쓰지 못하게 한다(로그인과 같은 규칙).
         if (!companies.allows(enterCd)) {
             return Optional.empty();
@@ -55,7 +56,9 @@ public class DbAuthUserResolver implements AuthUserResolver {
         roles.remove(AuthUser.ROLE_DEPT_HEAD);
         roles.add(AuthUser.ROLE_EMPLOYEE);
         Set<Long> managed = Set.of();
-        if (u.getEmpId() != null) {
+        // 다른 법인으로 전환했으면 부서장 범위는 비운다. 부서장·본인 판단은 주체 법인의 사원 기준이고
+        // 그 사원은 현재 법인에 없다(docs/tenant-design.md 4.3).
+        if (u.getEmpId() != null && !switched) {
             // 부서장 범위는 계정(주체) 법인의 오늘 조직도에서만 계산한다(#122, docs/tenant-design.md 4장).
             managed = DeptScope.managedBy(org.tree(u.getEnterCd(), org.today()), u.getEmpId());
             if (!managed.isEmpty()) {
@@ -70,6 +73,12 @@ public class DbAuthUserResolver implements AuthUserResolver {
                 // 코드에 없는 권한은 주지 않는다.
             }
         }
-        return Optional.of(new AuthUser(u.getEnterCd(), u.getEnterCd(), u.getLoginId(),u.getEmpId(), roles, perms, managed, clientIp));
+        // 현재 법인이 주체 법인과 다르면 전환 권한(GROUP_ADMIN)이 있고 그 법인이 지금도 사용 가능해야 한다.
+        // 전환 뒤 법인이 사용 중지되거나 역할을 회수하면 남은 세션도 쓰지 못하게 한다(401, 다시 로그인).
+        if (switched && (!perms.contains(Permission.ENTER_SWITCH) || !companies.allows(currentEnterCd))) {
+            return Optional.empty();
+        }
+        return Optional.of(new AuthUser(currentEnterCd, u.getEnterCd(), u.getLoginId(), u.getEmpId(), roles, perms,
+                managed, clientIp));
     }
 }

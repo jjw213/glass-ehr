@@ -42,8 +42,22 @@ class AuthSchemaScriptTest {
 
     @Test
     void 권한_코드는_Permission_enum과_같다() throws IOException {
-        Set<String> perms = all(sql(), "INSERT INTO app_permission \\(perm_code, perm_name\\) VALUES \\('([A-Z_]+)'");
+        Set<String> perms = all(TestAuthUsers.roleSql(),
+                "INSERT INTO app_permission \\(perm_code, perm_name\\) VALUES \\('([A-Z_]+)'");
         assertThat(perms).isEqualTo(names(Permission.class));
+    }
+
+    @Test
+    void V033은_그룹_관리자_역할만_추가하고_법인_전환은_그룹_관리자만() throws IOException {
+        String v033 = new ClassPathResource("db/oracle/V033__group_admin_enter_switch.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+        Set<String> roles = all(v033, "INSERT INTO app_role \\(role_code, role_name, sort_order\\) VALUES \\('([A-Z_]+)'");
+        assertThat(roles).containsExactly(AuthUser.ROLE_GROUP_ADMIN);
+        assertThat(v033).doesNotContain("{").doesNotContain("}");
+        assertThat(v033.toUpperCase()).doesNotContain("DELETE ").doesNotContain("TRUNCATE ");
+        TestAuthUsers.v011Matrix().forEach((role, ps) -> assertThat(ps.contains(Permission.ENTER_SWITCH))
+                .as(role).isEqualTo(role.equals(AuthUser.ROLE_GROUP_ADMIN)));
+        assertThat(TestAuthUsers.v011Matrix().get(AuthUser.ROLE_GROUP_ADMIN)).containsExactly(Permission.ENTER_SWITCH);
     }
 
     @Test

@@ -8,7 +8,7 @@ import { DEMO_EMPLOYEES } from '../data/org';
 import { toDepts, toSessionUser } from './bootstrap';
 import { messageError } from './messages';
 import {
-  ApiError, type Api, type Approval, type AuthMe, type ChatMessage, type DashboardSummary, type LeaveRequest,
+  ApiError, type Api, type Approval, type AuthMe, type ChatMessage, type DashboardSummary, type EnterCompany, type LeaveRequest,
   type MessageThread, type ThreadMember,
 } from './types';
 
@@ -69,18 +69,38 @@ function businessDays(from: string, to: string) {
 
 const REPLIES = ['확인했습니다 👍', '네, 반영해서 다시 공유드릴게요.', '감사합니다!', '오후에 잠깐 통화 가능하실까요?'];
 
+/** 데모 법인(가짜 이름). 데모 계정 hr 은 첫 법인 소속이고, 법인 전환 메뉴를 보여 주려고 그룹 관리자 역할도 준다(#120). */
+export const DEMO_COMPANIES: EnterCompany[] = [
+  { enterCd: 'C001', enterName: '글래스HR(예시)' },
+  { enterCd: 'C002', enterName: '글래스물류(예시)' },
+];
+const DEMO_HOME_ENTER = DEMO_COMPANIES[0].enterCd;
+let currentEnter = DEMO_HOME_ENTER;
+
 export const mockApi: Api = {
   mode: 'mock',
-  async login(loginId, password) {
+  async enterCompanies() { await wait(100); return clone(DEMO_COMPANIES); },
+  async login(enterCd, loginId, password) {
     await wait(500);
-    if (loginId.trim() !== 'hr' || password !== '1234') throw new ApiError(401, '아이디 또는 비밀번호가 맞지 않아요');
+    // Spring 처럼 회사가 다르면 아이디·비밀번호가 틀린 것과 같은 문구(#119).
+    if (enterCd !== DEMO_HOME_ENTER || loginId.trim() !== 'hr' || password !== '1234') throw new ApiError(401, '아이디 또는 비밀번호가 맞지 않아요');
+    currentEnter = DEMO_HOME_ENTER;
   },
-  async logout() { await wait(100); },
+  async switchEnter(enterCd) {
+    await wait(200);
+    if (!DEMO_COMPANIES.some((c) => c.enterCd === enterCd)) throw new ApiError(404, '회사를 찾을 수 없어요');
+    currentEnter = enterCd;
+  },
+  async logout() { await wait(100); currentEnter = DEMO_HOME_ENTER; },
   async bootstrap() {
     await wait(200);
     // Spring 과 같은 모양(#77): 데모 계정 hr = 인사팀 예시사원(data/org.ts), 부서는 데모 조직 트리, 요약은 데모 숫자.
+    // 데모는 법인별 데이터를 따로 두지 않고 현재 법인 표시만 바꾼다.
     const self = DEMO_EMPLOYEES.find((e) => e.empId === DEMO_SELF_EMP_ID);
-    const auth: AuthMe = { loginId: ME.loginId, empId: DEMO_SELF_EMP_ID, roles: ['HR'], permissions: ['EMP_READ_ALL', 'EMP_WRITE'], managedDeptIds: [] };
+    const auth: AuthMe = {
+      enterCd: currentEnter, homeEnterCd: DEMO_HOME_ENTER,
+      loginId: ME.loginId, empId: DEMO_SELF_EMP_ID, roles: ['GROUP_ADMIN', 'HR'], permissions: ['EMP_READ_ALL', 'EMP_WRITE', 'ENTER_SWITCH'], managedDeptIds: [],
+    };
     const now = new Date();
     const dashboard: DashboardSummary = {
       today: ymd(now), headcount: DASHBOARD.headcount, hiredThisMonth: DASHBOARD.hiredThisMonth, presentToday: DASHBOARD.presentToday,
@@ -90,8 +110,9 @@ export const mockApi: Api = {
       }),
     };
     return {
-      me: toSessionUser(auth, self, ME.annualLeave), depts: toDepts(EMP_DEPT_TREE), legacyDepts: clone(DEPTS), dashboard,
+      me: toSessionUser(auth, self, ME.annualLeave, DEMO_COMPANIES), depts: toDepts(EMP_DEPT_TREE), legacyDepts: clone(DEPTS), dashboard,
       approvals: clone(approvals), leaves: clone(leaves), payslips: clone(PAYSLIPS), threads: listThreads(),
+      companies: clone(DEMO_COMPANIES),
     };
   },
   async addLeave(input) {
