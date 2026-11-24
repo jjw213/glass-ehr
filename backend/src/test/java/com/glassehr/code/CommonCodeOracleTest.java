@@ -49,6 +49,44 @@ class CommonCodeOracleTest {
     }
 
     @Test
+    void V037_시스템_그룹과_기본_코드가_표시되고_기본_코드_삭제는_409() {
+        assertThat(service.listGroups(E)).allSatisfy(g -> assertThat(g.system()).isTrue());
+        assertThat(service.listCodes(E, CodeGroups.EMPLOYMENT_TYPE, true))
+                .filteredOn(CodeDtos.CodeListItem::system).extracting(CodeDtos.CodeListItem::code)
+                .containsExactlyInAnyOrder("FIXED_TERM", "PART_TIME");
+        assertThatThrownBy(() -> service.deleteCode(E, CodeGroups.EMPLOYMENT_TYPE, "PART_TIME"))
+                .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
+        assertThatThrownBy(() -> service.deleteGroup(E, CodeGroups.JOB_GRADE))
+                .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    @Test
+    void 사용처_건수는_사원_테이블_직접_집계와_같고_행_목록_SQL이_돈다() {
+        Integer staff = jdbc.queryForObject("SELECT COUNT(*) FROM employee WHERE enter_cd = ? AND job_grade_code = 'STAFF'",
+                Integer.class, E);
+        var summary = service.usages(E, CodeGroups.JOB_GRADE, "STAFF", true);
+        assertThat(summary.tables().stream().filter(t -> t.table().equals("employee"))
+                .mapToLong(CodeDtos.UsageTable::count).sum()).isEqualTo(staff.longValue());
+        assertThat(service.listCodes(E, CodeGroups.JOB_GRADE, true)).filteredOn(c -> c.code().equals("STAFF"))
+                .allSatisfy(c -> assertThat(c.inUse()).isEqualTo(summary.total() > 0));
+        for (var ref : CodeReferences.BY_GROUP.values().stream().flatMap(List::stream).toList()) {
+            String group = CodeReferences.BY_GROUP.entrySet().stream().filter(en -> en.getValue().contains(ref))
+                    .findFirst().orElseThrow().getKey();
+            String code = service.listCodes(E, group, true).get(0).code();
+            assertThat(service.usageRows(E, group, code, ref.table(), 0).rows()).hasSizeLessThanOrEqualTo(
+                    CommonCodeService.USAGE_PAGE_SIZE);
+        }
+        // 사용자 그룹: 추가 → 코드 추가 → 코드 삭제 → 그룹 삭제
+        service.createGroup(E, new CodeDtos.GroupCreateRequest("ZZ_IT_USER", "IT 사용자 그룹", null, 999, true));
+        service.create(E, "ZZ_IT_USER", new CodeCreateRequest("A1", "가", null, 0, true));
+        service.create(E, "ZZ_IT_USER", new CodeCreateRequest("A2", "나", null, 1, true));
+        service.deleteCode(E, "ZZ_IT_USER", "A1");
+        service.deleteGroup(E, "ZZ_IT_USER");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM common_code WHERE enter_cd = ? AND group_code = 'ZZ_IT_USER'",
+                Integer.class, E)).isZero();
+    }
+
+    @Test
     void 추가_수정_사용중지가_조회에_반영된다() {
         service.create(E, CodeGroups.JOB_GRADE, new CodeCreateRequest("ZZ_IT_GRADE", "IT 테스트 직급", null, 0, true));
         assertThat(service.activeCodes(E, List.of(CodeGroups.JOB_GRADE)).get(CodeGroups.JOB_GRADE).get(0).code())

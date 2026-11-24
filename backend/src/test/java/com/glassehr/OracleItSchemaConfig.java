@@ -219,6 +219,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V035__org_dept_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer codeSystemCols = jdbc.queryForObject("SELECT COUNT(*) FROM user_tab_columns"
+                + " WHERE table_name = 'COMMON_CODE_GROUP' AND column_name = 'SYSTEM_YN'", Integer.class);
+        if (codeSystemCols == null || codeSystemCols == 0) {
+            // #140: 시스템 그룹·기본 코드 표시, 다른 화면 편집 그룹
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V037__common_code_system_edit_page.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

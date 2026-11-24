@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.glassehr.code.CodeDtos.CodeCreateRequest;
 import com.glassehr.code.CodeDtos.CodeUpdateRequest;
-import com.glassehr.code.CodeDtos.CodeView;
+import com.glassehr.code.CodeDtos.CodeListItem;
 import com.glassehr.code.CodeException;
 import com.glassehr.code.CommonCodeService;
 import com.glassehr.employee.EmpNoGenerator;
@@ -70,9 +70,25 @@ class CodeSiteTenantOracleTest {
     }
 
     @Test
+    void 법인_A_세션은_법인_B의_그룹과_코드를_삭제할_수_없다_404() {
+        assertNotFound(() -> codes.deleteCode(A, "ZZ_IT_ONLY_B", "X1"));
+        assertNotFound(() -> codes.deleteGroup(A, "ZZ_IT_ONLY_B"));
+        assertNotFound(() -> codes.deleteCode(A, "JOB_GRADE", "ZZ_B_GRADE"));
+        assertNotFound(() -> codes.usages(A, "JOB_GRADE", "ZZ_B_GRADE", true));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM common_code WHERE enter_cd = ?"
+                + " AND code IN ('X1', 'ZZ_B_GRADE')", Integer.class, B)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM common_code_group WHERE enter_cd = ?"
+                + " AND group_code = 'ZZ_IT_ONLY_B'", Integer.class, B)).isEqualTo(1);
+        // 같은 법인(B) 세션은 참조 없는 사용자 그룹을 코드와 함께 지울 수 있다.
+        codes.deleteGroup(B, "ZZ_IT_ONLY_B");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM common_code WHERE enter_cd = ?"
+                + " AND group_code = 'ZZ_IT_ONLY_B'", Integer.class, B)).isZero();
+    }
+
+    @Test
     void 같은_그룹의_코드도_법인_A에는_A_것만_보이고_B_코드는_수정할_수_없다() {
-        assertThat(codes.listCodes(A, "JOB_GRADE", true)).extracting(CodeView::code).doesNotContain("ZZ_B_GRADE");
-        assertThat(codes.listCodes(B, "JOB_GRADE", true)).extracting(CodeView::code).containsExactly("ZZ_B_GRADE");
+        assertThat(codes.listCodes(A, "JOB_GRADE", true)).extracting(CodeListItem::code).doesNotContain("ZZ_B_GRADE");
+        assertThat(codes.listCodes(B, "JOB_GRADE", true)).extracting(CodeListItem::code).containsExactly("ZZ_B_GRADE");
         assertNotFound(() -> codes.update(A, "JOB_GRADE", "ZZ_B_GRADE", new CodeUpdateRequest("바꿈", null, 0, false)));
         // 법인 B 에 같은 코드값(STAFF)을 따로 만들 수 있다.
         codes.create(B, "JOB_GRADE", new CodeCreateRequest("STAFF", "B 사원", null, 1, true));

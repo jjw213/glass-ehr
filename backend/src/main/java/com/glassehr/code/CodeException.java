@@ -28,6 +28,10 @@ public class CodeException extends RuntimeException {
         return new CodeException(HttpStatus.CONFLICT, "이미 있는 코드값이에요: " + groupCode + "/" + code);
     }
 
+    static CodeException conflict(String message) {
+        return new CodeException(HttpStatus.CONFLICT, message);
+    }
+
     static CodeException badRequest(String message) {
         return new CodeException(HttpStatus.BAD_REQUEST, message);
     }
