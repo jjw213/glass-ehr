@@ -218,6 +218,10 @@ public class CommonCodeService {
      * 다른 화면에서 편집하는 그룹(edit_page, 예: 근태코드)은 공통코드 API 로 고치지 않는다(#143).
      * 그 화면이 처리방식·상세 설정을 함께 저장하기 때문이다. 조회·사용처 보기는 된다.
      */
+    private void requireCodesEditableHere(String enterCd, String groupCode) {
+        requireEditableHere(findGroup(enterCd, groupCode));
+    }
+
     private static void requireEditableHere(CodeGroup g) {
         if (g.getEditPage() != null) {
             throw CodeException.conflict("이 코드그룹은 공통코드 화면에서 고칠 수 없어요. 전용 화면에서 편집해 주세요");
