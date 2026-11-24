@@ -66,7 +66,10 @@ describe('StoreProvider 법인 전환', () => {
     let receive: (() => void) | null = null;
     class FakeBroadcastChannel {
       onmessage: ((event: MessageEvent) => void) | null = null;
-      constructor(_name: string) { receive = () => this.onmessage?.(new MessageEvent('message', { data: { source: 'other-tab' } })); }
+      constructor(name: string) {
+        expect(name).toBe('glass-ehr-enter-switch');
+        receive = () => this.onmessage?.(new MessageEvent('message', { data: { source: 'other-tab' } }));
+      }
       postMessage() {}
       close() {}
     }
