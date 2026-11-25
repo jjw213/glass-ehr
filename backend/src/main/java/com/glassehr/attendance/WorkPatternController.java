@@ -52,8 +52,8 @@ public class WorkPatternController {
 
     @RequiresPermission
     @GetMapping("/work-patterns")
-    public List<WorkPatternView> list() {
-        return service.list();
+    public List<WorkPatternView> list(AuthUser user) {
+        return service.list(user.enterCd());
     }
 
     @RequiresPermission
@@ -71,27 +71,29 @@ public class WorkPatternController {
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/work-patterns")
     @ResponseStatus(HttpStatus.CREATED)
-    public WorkPatternView create(@Valid @RequestBody WorkPatternRequest req) {
-        return service.create(req);
+    public WorkPatternView create(@Valid @RequestBody WorkPatternRequest req, AuthUser user) {
+        return service.create(user.enterCd(), req);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PutMapping("/work-patterns/{patternId}")
-    public WorkPatternView update(@PathVariable long patternId, @Valid @RequestBody WorkPatternRequest req) {
-        return service.update(patternId, req);
+    public WorkPatternView update(@PathVariable long patternId, @Valid @RequestBody WorkPatternRequest req,
+            AuthUser user) {
+        return service.update(user.enterCd(), patternId, req);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/employees/{empId}/work-patterns")
-    public List<AssignmentView> history(@PathVariable long empId) {
-        return service.history(empId);
+    public List<AssignmentView> history(@PathVariable long empId, AuthUser user) {
+        return service.history(user.enterCd(), empId);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/employees/{empId}/work-patterns/effective")
     public ResponseEntity<AssignmentView> effective(@PathVariable long empId,
-            @RequestParam(name = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return service.effective(empId, date != null ? date : service.today())
+            @RequestParam(name = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            AuthUser user) {
+        return service.effective(user.enterCd(), empId, date != null ? date : service.today())
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
@@ -100,6 +102,6 @@ public class WorkPatternController {
     @PostMapping("/employees/{empId}/work-patterns")
     @ResponseStatus(HttpStatus.CREATED)
     public AssignmentView assign(@PathVariable long empId, @Valid @RequestBody AssignRequest req, AuthUser user) {
-        return service.assign(empId, req, user.loginId());
+        return service.assign(user.enterCd(), empId, req, user.loginId());
     }
 }

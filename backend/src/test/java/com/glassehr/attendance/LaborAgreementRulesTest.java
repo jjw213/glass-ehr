@@ -21,7 +21,7 @@ class LaborAgreementRulesTest {
 
     static LaborAgreement agreement(long id, AgreementType type, LocalDate from, LocalDate until,
             LaborAgreement.Scope scope, String site) {
-        LaborAgreement a = new LaborAgreement(type, fields(from, until, scope, site), "hr1", LocalDateTime.of(2026, 1, 1, 0, 0));
+        LaborAgreement a = new LaborAgreement("C001", type, fields(from, until, scope, site), "hr1", LocalDateTime.of(2026, 1, 1, 0, 0));
         try {
             Field f = LaborAgreement.class.getDeclaredField("agreementId");
             f.setAccessible(true);

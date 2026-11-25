@@ -135,7 +135,7 @@ class OvertimeLimitCheckerTest {
         OvertimeRequest request = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, requestStart,
                 requestStart.plusHours(3), 60, "사유", requestStart.minusDays(1));
         ReflectionTestUtils.setField(request, "requestId", 1L);
-        WorkPattern pattern = new WorkPattern("DAY", "주간", new WorkPatternRules.Spec(540, 1080, 720, 60, "WWWWWOO"),
+        WorkPattern pattern = new WorkPattern("C001", "DAY", "주간", new WorkPatternRules.Spec(540, 1080, 720, 60, "WWWWWOO"),
                 new WorkPatternRules.Result(480, 2400, List.of()), true, null, requestStart.minusDays(10));
         ReflectionTestUtils.setField(pattern, "patternId", 1L);
         when(patterns.findById(1L)).thenReturn(Optional.of(pattern));

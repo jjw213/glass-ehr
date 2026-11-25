@@ -21,6 +21,10 @@ public class LaborAgreementFile {
     @Column(name = "file_id", nullable = false, updatable = false)
     private Long fileId;
 
+    /** 법인 코드(#125). 합의서와 같은 법인(복합 FK). PK 는 DB 에서 (enter_cd, file_id). */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "agreement_id", nullable = false, updatable = false)
     private Long agreementId;
 
@@ -50,8 +54,9 @@ public class LaborAgreementFile {
     protected LaborAgreementFile() {
     }
 
-    public LaborAgreementFile(long agreementId, String fileName, String contentType, byte[] content, String sha256,
-            String uploadedBy, LocalDateTime uploadedAt) {
+    public LaborAgreementFile(String enterCd, long agreementId, String fileName, String contentType, byte[] content,
+            String sha256, String uploadedBy, LocalDateTime uploadedAt) {
+        this.enterCd = enterCd;
         this.agreementId = agreementId;
         this.fileName = fileName;
         this.contentType = contentType;

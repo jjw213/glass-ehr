@@ -99,41 +99,42 @@ public class LaborAgreementService {
     }
 
     @Transactional(readOnly = true)
-    public List<AgreementView> list() {
+    public List<AgreementView> list(String enterCd) {
         LocalDate today = today();
-        return agreements.findAllByOrderByEffectiveFromDescAgreementIdDesc().stream().map(a -> view(a, today)).toList();
+        return agreements.findByEnterCdOrderByEffectiveFromDescAgreementIdDesc(enterCd).stream()
+                .map(a -> view(a, today)).toList();
     }
 
     @Transactional(readOnly = true)
-    public AgreementDetail get(long agreementId) {
-        LaborAgreement a = find(agreementId);
-        return new AgreementDetail(view(a, today()), files.findViews(agreementId));
+    public AgreementDetail get(String enterCd, long agreementId) {
+        LaborAgreement a = find(enterCd, agreementId);
+        return new AgreementDetail(view(a, today()), files.findViews(enterCd, agreementId));
     }
 
     @Transactional
     public AgreementView create(String enterCd, AgreementRequest req, String actor) {
         Fields f = checked(enterCd, req);
-        LaborAgreement saved = agreements.save(new LaborAgreement(req.agreementType(), f, actor, now()));
+        LaborAgreement saved = agreements.save(new LaborAgreement(enterCd, req.agreementType(), f, actor, now()));
         return view(saved, today());
     }
 
     @Transactional
     public AgreementView update(String enterCd, long agreementId, AgreementRequest req, String actor) {
-        LaborAgreement a = agreements.findForUpdate(agreementId)
+        LaborAgreement a = agreements.findForUpdate(enterCd, agreementId)
                 .orElseThrow(() -> AttendanceException.notFound("합의서가 없어요: " + agreementId));
         if (a.getAgreementType() != req.agreementType()) {
             throw AttendanceException.badRequest("합의 유형은 바꿀 수 없어요. 새 합의서로 등록해 주세요");
         }
         Fields f = checked(enterCd, req);
-        preserveHolidaySubstitutions(agreementId, f);
+        preserveHolidaySubstitutions(enterCd, agreementId, f);
         a.apply(f, actor, now());
         return view(a, today());
     }
 
     /** 근로기준법 제55조 제2항 단서: 이미 등록된 휴일 대체의 서면합의 조건을 유지한다. */
-    private void preserveHolidaySubstitutions(long agreementId, Fields f) {
-        for (Holiday replacement : holidays.findByAgreementId(agreementId)) {
-            Holiday original = holidays.findById(replacement.getReplacesHolidayId())
+    private void preserveHolidaySubstitutions(String enterCd, long agreementId, Fields f) {
+        for (Holiday replacement : holidays.findByEnterCdAndAgreementId(enterCd, agreementId)) {
+            Holiday original = holidays.findByEnterCdAndHolidayId(enterCd, replacement.getReplacesHolidayId())
                     .orElseThrow(() -> AttendanceException.conflict("휴일 대체의 원래 공휴일을 확인할 수 없어요"));
             for (LocalDate date : List.of(original.getHolidayDate(), replacement.getHolidayDate())) {
                 if (f.scopeType() != LaborAgreement.Scope.ALL || date.isBefore(f.validFrom())
@@ -147,20 +148,21 @@ public class LaborAgreementService {
 
     /** 만료 예정 알림: 오늘부터 days 일 안(오늘·마지막 날 포함)에 유효기간이 끝나는 합의서. days 미지정 = 설정값. */
     @Transactional(readOnly = true)
-    public ExpiringView expiring(Integer days) {
+    public ExpiringView expiring(String enterCd, Integer days) {
         int d = days == null ? expiryAlertDays : days;
         if (d < 0 || d > 3650) {
             throw AttendanceException.badRequest("알림 기간은 0~3650일로 지정해 주세요");
         }
         LocalDate today = today();
-        List<AgreementView> rows = agreements.findExpiring(today, today.plusDays(d)).stream()
+        List<AgreementView> rows = agreements.findExpiring(enterCd, today, today.plusDays(d)).stream()
                 .map(a -> view(a, today)).toList();
         return new ExpiringView(d, rows);
     }
 
     @Transactional
-    public AgreementFileView addFile(long agreementId, String originalName, byte[] content, String actor) {
-        find(agreementId);
+    public AgreementFileView addFile(String enterCd, long agreementId, String originalName, byte[] content,
+            String actor) {
+        find(enterCd, agreementId);
         if (content == null || content.length == 0) {
             throw AttendanceException.badRequest("빈 파일은 올릴 수 없어요");
         }
@@ -170,21 +172,21 @@ public class LaborAgreementService {
         }
         FileKind kind = FileKind.detect(content).orElseThrow(() -> new AttendanceException(
                 HttpStatus.UNSUPPORTED_MEDIA_TYPE, "합의서 첨부는 PDF·PNG·JPG 파일만 올릴 수 있어요", List.of()));
-        LaborAgreementFile saved = files.save(new LaborAgreementFile(agreementId, cleanName(originalName, kind),
+        LaborAgreementFile saved = files.save(new LaborAgreementFile(enterCd, agreementId, cleanName(originalName, kind),
                 kind.contentType, content, sha256(content), actor, now()));
         return new AgreementFileView(saved.getFileId(), agreementId, saved.getFileName(), saved.getContentType(),
                 saved.getFileSize(), saved.getSha256(), saved.getUploadedBy(), saved.getUploadedAt());
     }
 
     @Transactional(readOnly = true)
-    public LaborAgreementFile file(long agreementId, long fileId) {
-        return files.findByFileIdAndAgreementId(fileId, agreementId)
+    public LaborAgreementFile file(String enterCd, long agreementId, long fileId) {
+        return files.findByEnterCdAndFileIdAndAgreementId(enterCd, fileId, agreementId)
                 .orElseThrow(() -> AttendanceException.notFound("첨부파일이 없어요: " + fileId));
     }
 
     @Transactional
-    public void deleteFile(long agreementId, long fileId) {
-        files.delete(file(agreementId, fileId));
+    public void deleteFile(String enterCd, long agreementId, long fileId) {
+        files.delete(file(enterCd, agreementId, fileId));
     }
 
     /** enterCd: 세션의 현재 법인. 사업장은 법인별(#121)이라 현재 법인 사업장만 인정한다. */
@@ -197,21 +199,25 @@ public class LaborAgreementService {
         if (f.scopeSiteCode() != null && !sites.existsByEnterCdAndSiteCode(enterCd, f.scopeSiteCode())) {
             throw AttendanceException.badRequest("없는 사업장이에요: " + f.scopeSiteCode());
         }
-        if (f.repEmpId() != null && !employees.existsById(f.repEmpId())) {
+        if (f.repEmpId() != null && employees.findByEnterCdAndEmpId(enterCd, f.repEmpId()).isEmpty()) {
             throw AttendanceException.badRequest("없는 사원이에요: " + f.repEmpId());
         }
         return f;
     }
 
-    private LaborAgreement find(long agreementId) {
-        return agreements.findById(agreementId)
+    /** 다른 법인 합의서는 404(존재 여부를 드러내지 않는다, #125). */
+    private LaborAgreement find(String enterCd, long agreementId) {
+        return agreements.findByEnterCdAndAgreementId(enterCd, agreementId)
                 .orElseThrow(() -> AttendanceException.notFound("합의서가 없어요: " + agreementId));
     }
 
     private AgreementView view(LaborAgreement a, LocalDate today) {
-        Optional<Employee> rep = a.getRepEmpId() == null ? Optional.empty() : employees.findById(a.getRepEmpId());
+        Optional<Employee> rep = a.getRepEmpId() == null ? Optional.empty()
+                : employees.findByEnterCdAndEmpId(a.getEnterCd(), a.getRepEmpId());
         return AgreementView.of(a, rep.map(Employee::getName).orElse(null), rep.map(Employee::getEmpNo).orElse(null),
-                a.getAgreementId() == null ? 0 : files.countByAgreementId(a.getAgreementId()), today);
+                a.getAgreementId() == null ? 0
+                        : files.countByEnterCdAndAgreementId(a.getEnterCd(), a.getAgreementId()),
+                today);
     }
 
     /** 경로 구분자·제어문자를 지운 파일 이름(최대 255자). 비면 형식에 맞는 기본 이름. */

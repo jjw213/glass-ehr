@@ -34,11 +34,11 @@ class WorkHoursControllerTest {
 
     @Test
     void 인사담당은_재계산하고_요청자를_계산자로_남긴다() throws Exception {
-        when(service.recalculate(1L, MON, MON, "hr1")).thenReturn(List.of());
+        when(service.recalculate("C001", 1L, MON, MON, "hr1")).thenReturn(List.of());
         mvc.perform(post("/api/attendance/daily-summaries/recalculate").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"empId\":1,\"from\":\"2099-03-02\",\"to\":\"2099-03-02\"}"))
                 .andExpect(status().isOk());
-        verify(service).recalculate(eq(1L), eq(MON), eq(MON), eq("hr1"));
+        verify(service).recalculate(eq("C001"), eq(1L), eq(MON), eq(MON), eq("hr1"));
     }
 
     @Test
