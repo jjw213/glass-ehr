@@ -15,13 +15,25 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
-/** #59 V019(사원 재직상태·취소 발령 연결) 정적 검사. DB 없이 돈다. */
+/** #59 V019(사원 재직상태·취소 발령 연결)과 #124 V038(법인 키) 정적 검사. DB 없이 돈다. */
 class AppointmentApplySchemaScriptTest {
 
     private static String ddl() throws IOException {
-        return new ClassPathResource("db/oracle/V019__hr_appointment_apply_cancel.sql")
-                .getContentAsString(StandardCharsets.UTF_8)
-                .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
+        return List.of(
+                        "db/oracle/V019__hr_appointment_apply_cancel.sql",
+                        "db/oracle/V038__appointment_contract_retirement_enter_cd.sql")
+                .stream()
+                .map(AppointmentApplySchemaScriptTest::read)
+                .collect(Collectors.joining("\n"));
+    }
+
+    private static String read(String path) {
+        try {
+            return new ClassPathResource(path).getContentAsString(StandardCharsets.UTF_8)
+                    .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
+        } catch (IOException e) {
+            throw new IllegalStateException("마이그레이션을 읽을 수 없어요: " + path, e);
+        }
     }
 
     @Test

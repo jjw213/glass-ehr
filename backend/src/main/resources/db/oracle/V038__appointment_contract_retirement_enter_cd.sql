@@ -39,6 +39,9 @@ DROP INDEX ix_hr_appt_after_dept;
 CREATE INDEX ix_hr_appt_after_dept ON hr_appointment (enter_cd, after_dept_id);
 
 -- 3) hr_appointment_cancel
+ALTER TABLE hr_appointment_cancel ADD (
+    enter_cd VARCHAR2(20 CHAR) DEFAULT 'C001' NOT NULL
+);
 ALTER TABLE hr_appointment_cancel MODIFY (enter_cd DEFAULT NULL);
 ALTER TABLE hr_appointment_cancel DROP CONSTRAINT uq_hr_appt_cancel_original DROP INDEX;
 ALTER TABLE hr_appointment_cancel DROP CONSTRAINT pk_hr_appointment_cancel DROP INDEX;

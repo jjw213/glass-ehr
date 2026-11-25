@@ -116,7 +116,8 @@ class AppointmentApplyCancelTest {
     @BeforeEach
     void setUp() {
         appointments = mock(HrAppointmentRepository.class);
-        when(appointments.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(0))));
+        when(appointments.findByEnterCdAndApptId(eq("C001"), anyLong()))
+                .thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(1))));
         when(appointments.findForUpdate(eq("C001"), anyLong())).thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(1))));
         when(appointments.findEmpIdByApptId(eq("C001"), anyLong())).thenAnswer(inv ->
                 Optional.ofNullable(store.get(inv.<Long>getArgument(1))).map(HrAppointment::getEmpId));
@@ -140,26 +141,32 @@ class AppointmentApplyCancelTest {
         when(appointments.findByEnterCdOrderByEffectiveDateAscApptIdAsc("C001")).thenAnswer(inv -> sorted());
 
         cancels = mock(HrAppointmentCancelRepository.class);
-        when(cancels.existsById(anyLong())).thenAnswer(inv -> links.containsKey(inv.<Long>getArgument(0)));
-        when(cancels.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(links.get(inv.<Long>getArgument(0))));
+        when(cancels.existsByEnterCdAndCancelApptId(eq("C001"), anyLong()))
+                .thenAnswer(inv -> links.containsKey(inv.<Long>getArgument(1)));
+        when(cancels.findByEnterCdAndCancelApptId(eq("C001"), anyLong()))
+                .thenAnswer(inv -> Optional.ofNullable(links.get(inv.<Long>getArgument(1))));
         when(cancels.findByEnterCdAndOriginalApptId(eq("C001"), anyLong())).thenAnswer(inv -> links.values().stream()
                 .filter(l -> l.getOriginalApptId() == inv.<Long>getArgument(1)).findFirst());
-        when(cancels.findAllById(any())).thenAnswer(inv -> ids(inv.<Iterable<Long>>getArgument(0)).stream()
+        when(cancels.findByEnterCdAndCancelApptIdIn(eq("C001"), any())).thenAnswer(inv ->
+                ids(inv.<Iterable<Long>>getArgument(1)).stream()
                 .map(links::get).filter(l -> l != null).toList());
-        when(cancels.findAll()).thenAnswer(inv -> new ArrayList<>(links.values()));
+        when(cancels.findByEnterCd("C001")).thenAnswer(inv -> new ArrayList<>(links.values()));
         when(cancels.saveAndFlush(any())).thenAnswer(inv -> {
             HrAppointmentCancel l = inv.getArgument(0);
             links.put(l.getCancelApptId(), l);
             return l;
         });
+        doAnswer(inv -> links.remove(inv.<HrAppointmentCancel>getArgument(0).getCancelApptId()))
+                .when(cancels).delete(any());
         doAnswer(inv -> links.remove(inv.<Long>getArgument(0))).when(cancels).deleteById(anyLong());
 
         employees = mock(EmployeeRepository.class);
         when(employees.findByEnterCdAndEmpId(any(), anyLong())).thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(1))));
         when(employees.findForUpdate(any(), anyLong())).thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(1))));
         when(employees.applyAppointment(eq("C001"), anyLong(), any(), any(), any(), any(), any())).thenReturn(1);
-        when(employees.findAllByOrderByEmpNoAsc()).thenAnswer(inv -> new ArrayList<>(emps.values()));
-        when(employees.findAllById(any())).thenAnswer(inv -> ids(inv.<Iterable<Long>>getArgument(0)).stream()
+        when(employees.findByEnterCdOrderByEmpNoAsc("C001")).thenAnswer(inv -> new ArrayList<>(emps.values()));
+        when(employees.findByEnterCdAndEmpIdIn(eq("C001"), any())).thenAnswer(inv ->
+                ids(inv.<Iterable<Long>>getArgument(1)).stream()
                 .map(emps::get).filter(e -> e != null).toList());
 
         codes = mock(CommonCodeRepository.class);
