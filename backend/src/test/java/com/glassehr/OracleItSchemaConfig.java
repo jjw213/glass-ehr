@@ -241,6 +241,13 @@ public class OracleItSchemaConfig {
                     new ClassPathResource("db/oracle/V039__work_pattern_holiday_agreement_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer msgKeyCols = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_MSG_THREAD'", Integer.class);
+        if (msgKeyCols == null || msgKeyCols < 2) {
+            // #128: 사내 메시지 키와 메시지 FK 에 법인
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V040__message_enter_cd.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
