@@ -66,7 +66,7 @@ class WorkHoursServiceTest {
     }
 
     private void punchesAre(PunchRecord... list) {
-        when(mapper.findPunches(eq(EMP), any(), any())).thenReturn(List.of(list));
+        when(mapper.findPunches(eq(ENTER), eq(EMP), any(), any())).thenReturn(List.of(list));
     }
 
     @BeforeEach
@@ -94,14 +94,14 @@ class WorkHoursServiceTest {
     @Test
     void 기간을_월요일부터_일요일까지_넓혀_지우고_다시_넣는다() {
         LocalDate wed = MON.plusDays(2);
-        when(mapper.findPunches(EMP, MON, MON.plusDays(8)))
+        when(mapper.findPunches(ENTER, EMP, MON, MON.plusDays(8)))
                 .thenReturn(List.of(punch(AttendancePunch.Type.IN, wed.atTime(9, 0)),
                         punch(AttendancePunch.Type.OUT, wed.atTime(20, 0))));
 
         List<DailyWorkSummaryRow> rows = service.recalculate(ENTER,EMP, wed, wed, "hr1");
 
-        verify(mapper).deleteRange(EMP, MON, MON.plusDays(6));
-        verify(mapper, times(7)).insert(any());
+        verify(mapper).deleteRange(ENTER, EMP, MON, MON.plusDays(6));
+        verify(mapper, times(7)).insert(eq(ENTER), any());
         assertThat(rows).hasSize(7);
         DailyWorkSummaryRow w = rows.get(2);
         assertThat(w.workDate()).isEqualTo(wed);
@@ -169,8 +169,8 @@ class WorkHoursServiceTest {
     void 기준값이_없으면_지우지_않는다() {
         when(legalRules.asOf(any())).thenThrow(mock(LegalRateException.class));
         assertThatThrownBy(() -> service.recalculate(ENTER,EMP, MON, MON, "hr1")).isInstanceOf(LegalRateException.class);
-        verify(mapper, never()).deleteRange(anyLong(), any(), any());
-        verify(mapper, never()).insert(any());
+        verify(mapper, never()).deleteRange(any(), anyLong(), any(), any());
+        verify(mapper, never()).insert(any(), any());
     }
 
     @Test
@@ -179,8 +179,19 @@ class WorkHoursServiceTest {
                 .isInstanceOf(AttendanceException.class).hasMessageContaining("사원이 없어요");
         assertThatThrownBy(() -> service.recalculate(ENTER,EMP, MON, MON.minusDays(1), "hr1"))
                 .isInstanceOf(AttendanceException.class);
-        assertThatThrownBy(() -> service.find(EMP, MON, MON.plusDays(WorkHoursService.MAX_RANGE_DAYS)))
+        assertThatThrownBy(() -> service.find(ENTER, EMP, MON, MON.plusDays(WorkHoursService.MAX_RANGE_DAYS)))
                 .isInstanceOf(AttendanceException.class);
+    }
+
+    @Test
+    void 다른_법인_사원의_집계_조회는_404이고_집계_행을_읽지_않는다() {
+        // C002 세션에는 EMP 사원이 없다(#126). 존재 여부를 드러내지 않는다.
+        assertThatThrownBy(() -> service.find("C002", EMP, MON, MON))
+                .isInstanceOfSatisfying(AttendanceException.class,
+                        e -> assertThat(e.status()).isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND));
+        verify(mapper, never()).findRange(any(), anyLong(), any(), any());
+        service.find(ENTER, EMP, MON, MON);
+        verify(mapper).findRange(ENTER, EMP, MON, MON);
     }
 
     @Test
@@ -190,8 +201,8 @@ class WorkHoursServiceTest {
         List<DailyWorkSummaryRow> b = service.recalculate(ENTER,EMP, MON.plusDays(3), MON.plusDays(3), "hr1");
         assertThat(b).isEqualTo(a);
         ArgumentCaptor<DailyWorkSummaryRow> rows = ArgumentCaptor.forClass(DailyWorkSummaryRow.class);
-        verify(mapper, times(14)).insert(rows.capture());
-        verify(mapper, times(2)).deleteRange(EMP, MON, MON.plusDays(6));
+        verify(mapper, times(14)).insert(eq(ENTER), rows.capture());
+        verify(mapper, times(2)).deleteRange(ENTER, EMP, MON, MON.plusDays(6));
     }
 
     // --- 근무 짝짓기 ---

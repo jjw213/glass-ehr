@@ -41,7 +41,7 @@ class PunchControllerTest {
 
     @Test
     void 출근은_요청자의_사원으로_기록하고_201() throws Exception {
-        when(service.punch(eq(TestAuthUsers.EMP_EMP), eq("emp1"), any()))
+        when(service.punch(eq(TestAuthUsers.C001), eq(TestAuthUsers.EMP_EMP), eq("emp1"), any()))
                 .thenReturn(new PunchView(1, AttendancePunch.Type.IN, AT, LocalDate.of(2099, 3, 2), null, null));
         mvc.perform(post("/api/attendance/punches").header("X-Actor-Id", "emp1")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"type\":\"IN\"}"))
@@ -52,7 +52,7 @@ class PunchControllerTest {
 
     @Test
     void 본문에_사원_ID나_기록_시각을_보내도_쓰지_않는다() throws Exception {
-        when(service.punch(eq(TestAuthUsers.EMP_EMP), eq("emp1"), any()))
+        when(service.punch(eq(TestAuthUsers.C001), eq(TestAuthUsers.EMP_EMP), eq("emp1"), any()))
                 .thenReturn(new PunchView(1, AttendancePunch.Type.OUT, AT, LocalDate.of(2099, 3, 2),
                         AttendancePunch.Check.OUT_WITHOUT_IN, "msg"));
         mvc.perform(post("/api/attendance/punches").header("X-Actor-Id", "emp1")
@@ -70,12 +70,12 @@ class PunchControllerTest {
                 .andExpect(jsonPath("$.error").value("출근(IN)인지 퇴근(OUT)인지 보내 주세요"));
         mvc.perform(post("/api/attendance/punches").contentType(MediaType.APPLICATION_JSON).content("{\"type\":\"BREAK\"}"))
                 .andExpect(status().isBadRequest());
-        verify(service, never()).punch(any(), any(), any());
+        verify(service, never()).punch(any(), any(), any(), any());
     }
 
     @Test
     void 서비스_거부는_상태와_메시지로() throws Exception {
-        when(service.punch(any(), any(), any())).thenThrow(
+        when(service.punch(any(), any(), any(), any())).thenThrow(
                 new AttendanceException(HttpStatus.FORBIDDEN, "사원과 연결된 계정만 출퇴근을 기록할 수 있어요", List.of()));
         mvc.perform(post("/api/attendance/punches").contentType(MediaType.APPLICATION_JSON).content("{\"type\":\"IN\"}"))
                 .andExpect(status().isForbidden())
@@ -84,7 +84,7 @@ class PunchControllerTest {
 
     @Test
     void 오늘_요약() throws Exception {
-        when(service.today(TestAuthUsers.EMP_EMP)).thenReturn(new TodayView(AT, LocalDate.of(2099, 3, 2),
+        when(service.today(TestAuthUsers.C001, TestAuthUsers.EMP_EMP)).thenReturn(new TodayView(AT, LocalDate.of(2099, 3, 2),
                 AT.minusMinutes(90), null, true, 90L, List.of()));
         mvc.perform(get("/api/attendance/punches/today").header("X-Actor-Id", "emp1"))
                 .andExpect(status().isOk())

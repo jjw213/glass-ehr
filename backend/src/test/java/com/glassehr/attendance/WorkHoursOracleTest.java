@@ -52,24 +52,24 @@ class WorkHoursOracleTest {
         long emp = employee();
         DailyWorkSummaryRow a = row(emp, D, 480, 480, 0);
         DailyWorkSummaryRow b = row(emp, D.plusDays(1), 540, 480, 60);
-        mapper.insert(a);
-        mapper.insert(b);
-        assertThat(mapper.findRange(emp, D, D.plusDays(6)))
+        mapper.insert("C001", a);
+        mapper.insert("C001", b);
+        assertThat(mapper.findRange("C001", emp, D, D.plusDays(6)))
                 .usingRecursiveFieldByFieldElementComparatorIgnoringFields("overtimeRate", "nightRate", "holidayRate",
                         "holidayExcessRate")
                 .containsExactly(a, b);
-        assertThat(mapper.findRange(emp, D, D).get(0).nightRate()).isEqualByComparingTo("22.5");
-        assertThat(mapper.deleteRange(emp, D, D)).isEqualTo(1);
-        assertThat(mapper.findRange(emp, D, D.plusDays(6))).hasSize(1);
+        assertThat(mapper.findRange("C001", emp, D, D).get(0).nightRate()).isEqualByComparingTo("22.5");
+        assertThat(mapper.deleteRange("C001", emp, D, D)).isEqualTo(1);
+        assertThat(mapper.findRange("C001", emp, D, D.plusDays(6))).hasSize(1);
     }
 
     @Test
     void 분류_합이_실근로와_다르거나_같은_날이_두_번이면_거부() {
         long emp = employee();
-        assertThatThrownBy(() -> mapper.insert(row(emp, D, 500, 480, 0)))
+        assertThatThrownBy(() -> mapper.insert("C001", row(emp, D, 500, 480, 0)))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        mapper.insert(row(emp, D, 480, 480, 0));
-        assertThatThrownBy(() -> mapper.insert(row(emp, D, 480, 480, 0)))
+        mapper.insert("C001", row(emp, D, 480, 480, 0));
+        assertThatThrownBy(() -> mapper.insert("C001", row(emp, D, 480, 480, 0)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

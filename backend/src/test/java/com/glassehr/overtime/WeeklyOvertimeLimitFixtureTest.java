@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -164,7 +165,7 @@ class WeeklyOvertimeLimitFixtureTest {
             int expectedOvertime, String allowed) throws IOException {
         DailyWorkSummaryMapper summaries = mock(DailyWorkSummaryMapper.class);
         OvertimeRequestRepository requests = mock(OvertimeRequestRepository.class);
-        when(summaries.findRange(anyLong(), any(), any()))
+        when(summaries.findRange(eq("C001"), anyLong(), any(), any()))
                 .thenReturn(items(daily).stream().map(WeeklyOvertimeLimitFixtureTest::record).toList());
         when(requests.findByEmpIdAndWorkDateBetweenAndStatusIn(anyLong(), any(), any(), any()))
                 .thenReturn(items(approvedSpec).stream().map(WeeklyOvertimeLimitFixtureTest::request).toList());
@@ -174,11 +175,11 @@ class WeeklyOvertimeLimitFixtureTest {
         assertThat(target.getWorkDate().with(java.time.DayOfWeek.MONDAY)).isEqualTo(LocalDate.parse(weekStart));
 
         if ("Y".equals(allowed)) {
-            OvertimeLimitChecker.Result r = checker.check(target);
+            OvertimeLimitChecker.Result r = checker.check("C001", target);
             assertThat(r.overtimeMinutes()).as(caseId).isEqualTo(expectedOvertime);
             assertThat(r.weekStart()).isEqualTo(LocalDate.parse(weekStart));
         } else {
-            assertThatThrownBy(() -> checker.check(target)).as(caseId)
+            assertThatThrownBy(() -> checker.check("C001", target)).as(caseId)
                     .isInstanceOfSatisfying(ApprovalException.class,
                             e -> assertThat(e.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY))
                     .hasMessageContaining(OvertimeLimitChecker.hm(expectedOvertime) + "로");

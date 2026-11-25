@@ -14,7 +14,7 @@ class PunchRulesTest {
     private static final LocalDateTime D = LocalDateTime.of(2099, 3, 2, 0, 0);
 
     private static AttendancePunch p(Type t, int h, int m) {
-        return new AttendancePunch(5L, t, D.withHour(h).withMinute(m), null, null, AttendancePunch.Source.WEB, "emp1");
+        return new AttendancePunch("C001", 5L, t, D.withHour(h).withMinute(m), null, null, AttendancePunch.Source.WEB, "emp1");
     }
 
     @Test

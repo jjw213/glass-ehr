@@ -82,9 +82,9 @@ class FlexibleWorkServiceTest {
         when(e.getEnterCd()).thenReturn(ENTER);
         when(e.getSiteCode()).thenReturn("HQ");
         when(e.getHireDate()).thenReturn(LocalDate.of(2020, 1, 1));
-        when(employees.findById(EMP)).thenReturn(Optional.of(e));
-        when(employees.findForUpdate(EMP)).thenReturn(Optional.of(e));
-        when(assigns.findByEmpIdOrderByPeriodStartAsc(anyLong())).thenReturn(List.of());
+        when(employees.findByEnterCdAndEmpId(ENTER, EMP)).thenReturn(Optional.of(e));
+        when(employees.findForUpdate(ENTER, EMP)).thenReturn(Optional.of(e));
+        when(assigns.findByEnterCdAndEmpIdOrderByPeriodStartAsc(any(), anyLong())).thenReturn(List.of());
         when(assigns.save(any())).thenAnswer(inv -> {
             FlexWorkAssign a = inv.getArgument(0);
             setField(a, "flexId", 1L);
@@ -117,11 +117,11 @@ class FlexibleWorkServiceTest {
     }
 
     private FlexWorkAssign stored(WorkSystem sys, String job, Integer cs, Integer ce, Integer deemed) {
-        FlexWorkAssign a = new FlexWorkAssign(EMP, sys, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31), job, cs,
+        FlexWorkAssign a = new FlexWorkAssign(ENTER, EMP, sys, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31), job, cs,
                 ce, deemed, sys.requiredAgreement() == null ? null : 7L, null, "hr1", LocalDateTime.now());
         setField(a, "flexId", 1L);
-        when(assigns.findById(1L)).thenReturn(Optional.of(a));
-        when(assigns.findForUpdate(1L)).thenReturn(Optional.of(a));
+        when(assigns.findByEnterCdAndFlexId(ENTER, 1L)).thenReturn(Optional.of(a));
+        when(assigns.findForUpdate(ENTER, 1L)).thenReturn(Optional.of(a));
         return a;
     }
 
@@ -131,7 +131,7 @@ class FlexibleWorkServiceTest {
     void 유효한_서면합의가_없으면_배정_거부() {
         when(guard.requireValid(eq(ENTER), eq(AgreementType.SELECTIVE), any(), any(), eq("HQ")))
                 .thenThrow(new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY, "합의서 없음", List.of()));
-        assertThatThrownBy(() -> service.assign(req(WorkSystem.SELECTIVE, LocalDate.of(2026, 3, 1),
+        assertThatThrownBy(() -> service.assign(ENTER, req(WorkSystem.SELECTIVE, LocalDate.of(2026, 3, 1),
                 LocalDate.of(2026, 3, 31), "GENERAL", null, null, null), "hr1"))
                 .isInstanceOf(AttendanceException.class)
                 .satisfies(ex -> assertThat(((AttendanceException) ex).status())
@@ -144,7 +144,7 @@ class FlexibleWorkServiceTest {
         LaborAgreement a = agreement(7L);
         when(guard.requireValid(ENTER, AgreementType.FLEXIBLE_WRITTEN, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31),
                 "HQ")).thenReturn(a);
-        var v = service.assign(req(WorkSystem.FLEXIBLE_WRITTEN, LocalDate.of(2026, 3, 1),
+        var v = service.assign(ENTER, req(WorkSystem.FLEXIBLE_WRITTEN, LocalDate.of(2026, 3, 1),
                 LocalDate.of(2026, 3, 31), null, null, null, null), "hr1");
         assertThat(v.agreementId()).isEqualTo(7L);
         assertThat(v.article()).isEqualTo("근로기준법 제51조 제2항");
@@ -155,7 +155,7 @@ class FlexibleWorkServiceTest {
     void 재량근로도_서면합의를_검사() {
         LaborAgreement a = agreement(8L);
         when(guard.requireValid(eq(ENTER), eq(AgreementType.DISCRETIONARY), any(), any(), any())).thenReturn(a);
-        var v = service.assign(req(WorkSystem.DISCRETIONARY, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 12, 31),
+        var v = service.assign(ENTER, req(WorkSystem.DISCRETIONARY, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 12, 31),
                 "INFO_SYSTEM", null, null, 540), "hr1");
         assertThat(v.agreementId()).isEqualTo(8L);
         assertThat(v.deemedMinutes()).isEqualTo(540);
@@ -165,7 +165,7 @@ class FlexibleWorkServiceTest {
     void 취업규칙형_2주_탄력적은_합의서를_요구하지_않는다() {
         when(rules.flexibleAsOf(eq(WorkSystem.FLEXIBLE_SHORT), any()))
                 .thenReturn(new Limits(2, 0, 3000, 0, 0, 420, 1800, 0));
-        var v = service.assign(req(WorkSystem.FLEXIBLE_SHORT, LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 15),
+        var v = service.assign(ENTER, req(WorkSystem.FLEXIBLE_SHORT, LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 15),
                 null, null, null, null), "hr1");
         assertThat(v.agreementId()).isNull();
         verify(guard, never()).requireValid(any(), any(), any(), any(), any());
@@ -173,7 +173,7 @@ class FlexibleWorkServiceTest {
 
     @Test
     void 단위기간_한도를_넘으면_합의서_검사_전에_거부() {
-        assertThatThrownBy(() -> service.assign(req(WorkSystem.FLEXIBLE_WRITTEN, LocalDate.of(2026, 3, 1),
+        assertThatThrownBy(() -> service.assign(ENTER, req(WorkSystem.FLEXIBLE_WRITTEN, LocalDate.of(2026, 3, 1),
                 LocalDate.of(2026, 4, 1), null, null, null, null), "hr1"))
                 .isInstanceOf(AttendanceException.class)
                 .hasMessageContaining("제51조 제2항");
@@ -189,16 +189,16 @@ class FlexibleWorkServiceTest {
         when(guard.requireValid(eq(ENTER), eq(AgreementType.FLEXIBLE_LONG), any(), any(), eq("HQ"))).thenReturn(agreement);
         LocalDate last = first.plusMonths(2).minusDays(1);
 
-        assertThatThrownBy(() -> service.assign(req(WorkSystem.FLEXIBLE_LONG, first, last, null, null, null, null), "hr1"))
+        assertThatThrownBy(() -> service.assign(ENTER, req(WorkSystem.FLEXIBLE_LONG, first, last, null, null, null, null), "hr1"))
                 .isInstanceOf(AttendanceException.class)
                 .hasMessageContaining("2개월을 초과");
-        var assign = service.assign(req(WorkSystem.FLEXIBLE_LONG, first, last.plusDays(1), null, null, null, null), "hr1");
+        var assign = service.assign(ENTER, req(WorkSystem.FLEXIBLE_LONG, first, last.plusDays(1), null, null, null, null), "hr1");
         assertThat(assign.agreementId()).isEqualTo(7L);
     }
 
     @Test
     void 재량근로_대상_업무가_아니면_거부() {
-        assertThatThrownBy(() -> service.assign(req(WorkSystem.DISCRETIONARY, LocalDate.of(2026, 3, 1),
+        assertThatThrownBy(() -> service.assign(ENTER, req(WorkSystem.DISCRETIONARY, LocalDate.of(2026, 3, 1),
                 LocalDate.of(2026, 3, 31), "SALES", null, null, 480), "hr1"))
                 .isInstanceOf(AttendanceException.class)
                 .hasMessageContaining("시행령 제31조");
@@ -208,8 +208,8 @@ class FlexibleWorkServiceTest {
     @Test
     void 기간이_겹치는_배정은_409() {
         FlexWorkAssign old = stored(WorkSystem.SELECTIVE, "GENERAL", null, null, null);
-        when(assigns.findByEmpIdOrderByPeriodStartAsc(EMP)).thenReturn(List.of(old));
-        assertThatThrownBy(() -> service.assign(req(WorkSystem.SELECTIVE, LocalDate.of(2026, 3, 31),
+        when(assigns.findByEnterCdAndEmpIdOrderByPeriodStartAsc(ENTER, EMP)).thenReturn(List.of(old));
+        assertThatThrownBy(() -> service.assign(ENTER, req(WorkSystem.SELECTIVE, LocalDate.of(2026, 3, 31),
                 LocalDate.of(2026, 4, 20), "GENERAL", null, null, null), "hr1"))
                 .isInstanceOf(AttendanceException.class)
                 .satisfies(ex -> assertThat(((AttendanceException) ex).status()).isEqualTo(HttpStatus.CONFLICT));
@@ -217,7 +217,7 @@ class FlexibleWorkServiceTest {
 
     @Test
     void 코어타임은_선택적에서만() {
-        assertThatThrownBy(() -> service.assign(req(WorkSystem.FLEXIBLE_WRITTEN, LocalDate.of(2026, 3, 1),
+        assertThatThrownBy(() -> service.assign(ENTER, req(WorkSystem.FLEXIBLE_WRITTEN, LocalDate.of(2026, 3, 1),
                 LocalDate.of(2026, 3, 31), null, "10:00", "15:00", null), "hr1"))
                 .isInstanceOf(AttendanceException.class);
     }
@@ -233,7 +233,7 @@ class FlexibleWorkServiceTest {
     void 선택적_계획은_본인이_저장한다() {
         stored(WorkSystem.SELECTIVE, "GENERAL", 600, 900, null);
         service.savePlan(1L, List.of(day(2, 9, 18, 480), day(3, 10, 15, 300)), SELF);
-        verify(plans).deleteAllOfAssign(1L);
+        verify(plans).deleteAllOfAssign(ENTER, 1L);
         verify(plans).saveAll(any());
     }
 
@@ -247,7 +247,7 @@ class FlexibleWorkServiceTest {
         assertThatThrownBy(() -> service.savePlan(1L, List.of(day(2, 9, 18, 480)), SELF))
                 .hasMessageContaining("서면합의서");
         assertThatThrownBy(() -> service.settle(1L, SELF)).hasMessageContaining("서면합의서");
-        verify(plans, never()).deleteAllOfAssign(1L);
+        verify(plans, never()).deleteAllOfAssign(ENTER, 1L);
         verify(workHours, never()).weekInputs(any(), any());
     }
 
@@ -357,6 +357,26 @@ class FlexibleWorkServiceTest {
     }
 
     @Test
+    void 다른_법인_세션은_배정_조회_계획_정산_배정_모두_404() {
+        // C002 로 전환한 인사담당: C001 배정·사원은 그 법인에 없다(#126). 존재 여부를 드러내지 않는다.
+        stored(WorkSystem.SELECTIVE, "GENERAL", null, null, null);
+        AuthUser otherHr = new AuthUser("C001", "C002", "hr1", 100L, Set.of("HR"),
+                Set.of(Permission.EMP_WRITE, Permission.EMP_READ_ALL), Set.of(), "127.0.0.1");
+        for (org.assertj.core.api.ThrowableAssert.ThrowingCallable call : List.<org.assertj.core.api.ThrowableAssert.ThrowingCallable>of(
+                () -> service.detail(1L, otherHr),
+                () -> service.savePlan(1L, List.of(day(2, 9, 18, 480)), otherHr),
+                () -> service.settle(1L, otherHr),
+                () -> service.assign("C002", req(WorkSystem.SELECTIVE, LocalDate.of(2026, 4, 1),
+                        LocalDate.of(2026, 4, 30), "GENERAL", null, null, null), "hr1"))) {
+            assertThatThrownBy(call).isInstanceOfSatisfying(AttendanceException.class,
+                    ex -> assertThat(ex.status()).isEqualTo(HttpStatus.NOT_FOUND));
+        }
+        verify(plans, never()).saveAll(any());
+        verify(assigns, never()).save(any());
+        assertThat(service.list("C002", null)).isEmpty();
+    }
+
+    @Test
     void 다른_사원의_정산은_403() {
         stored(WorkSystem.SELECTIVE, "GENERAL", null, null, null);
         assertThatThrownBy(() -> service.settle(1L, OTHER))
@@ -368,7 +388,7 @@ class FlexibleWorkServiceTest {
     void 탄력적_정산은_계획을_넘는_분을_연장으로() {
         stored(WorkSystem.FLEXIBLE_WRITTEN, null, null, null, null);
         actualEveryDay(300);
-        when(plans.findByFlexIdOrderByWorkDateAsc(1L)).thenReturn(List.of());
+        when(plans.findByEnterCdAndFlexIdOrderByWorkDateAsc(ENTER, 1L)).thenReturn(List.of());
         Settlement s = service.settle(1L, HR);
         assertThat(s.days()).hasSize(31);
         assertThat(s.workFrom()).isEqualTo(LocalDate.of(2026, 3, 1));
