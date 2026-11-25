@@ -86,7 +86,7 @@ public class WeeklyHoursService {
         Employee e = employees.findById(user.empId())
                 .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + user.empId()));
         LocalDate today = LocalDate.now(clock);
-        WorkHoursService.WeekInputs week = workHours.weekInputs(today);
+        WorkHoursService.WeekInputs week = workHours.weekInputs(e.getEnterCd(), today);
         Limits limits = limits(week.monday());
         return new MyWeek(week.monday(), week.monday().plusDays(6), today, limits, empWeek(e, week, limits));
     }
@@ -98,7 +98,7 @@ public class WeeklyHoursService {
     @Transactional(readOnly = true)
     public TeamWeek team(AuthUser user) {
         LocalDate today = LocalDate.now(clock);
-        WorkHoursService.WeekInputs week = workHours.weekInputs(today);
+        WorkHoursService.WeekInputs week = workHours.weekInputs(user.enterCd(), today);
         LocalDate monday = week.monday();
         LocalDate sunday = monday.plusDays(6);
         Limits limits = limits(monday);
@@ -106,7 +106,8 @@ public class WeeklyHoursService {
         collectNames(org.tree(user.enterCd(), today).roots(), deptNames);
 
         Map<Long, List<EmpWeek>> byDept = new LinkedHashMap<>();
-        for (Employee e : employees.findAllByOrderByEmpNoAsc()) {
+        // 휴일 달력(week)이 현재 법인 것이므로 현재 법인 사원만 계산한다(#125).
+        for (Employee e : employees.findByEnterCdOrderByEmpNoAsc(user.enterCd())) {
             boolean employed = !e.getHireDate().isAfter(sunday)
                     && (e.getRetireDate() == null || !e.getRetireDate().isBefore(monday));
             if (!employed || !user.canSeeEmployee(e.getEmpId(), e.getCurrentDeptId())) {

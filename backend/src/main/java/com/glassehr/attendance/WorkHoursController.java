@@ -49,6 +49,6 @@ public class WorkHoursController {
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/recalculate")
     public List<DailyWorkSummaryRow> recalculate(@Valid @RequestBody RecalculateRequest req, AuthUser user) {
-        return service.recalculate(req.empId(), req.from(), req.to(), user.loginId());
+        return service.recalculate(user.enterCd(), req.empId(), req.from(), req.to(), user.loginId());
     }
 }

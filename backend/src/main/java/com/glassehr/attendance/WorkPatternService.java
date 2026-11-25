@@ -65,9 +65,9 @@ public class WorkPatternService {
     }
 
     @Transactional(readOnly = true)
-    public List<WorkPatternView> list() {
-        return patterns.findAllByOrderByPatternCodeAsc().stream()
-                .map(p -> WorkPatternView.of(p, assignments.existsByPatternId(p.getPatternId())))
+    public List<WorkPatternView> list(String enterCd) {
+        return patterns.findByEnterCdOrderByPatternCodeAsc(enterCd).stream()
+                .map(p -> WorkPatternView.of(p, assignments.existsByEnterCdAndPatternId(enterCd, p.getPatternId())))
                 .toList();
     }
 
@@ -78,24 +78,26 @@ public class WorkPatternService {
     }
 
     @Transactional
-    public WorkPatternView create(WorkPatternRequest req) {
-        if (patterns.existsByPatternCode(req.patternCode())) {
+    /** enterCd: 세션의 현재 법인. 근무유형 코드는 법인 안에서만 유일하다(#125). */
+    public WorkPatternView create(String enterCd, WorkPatternRequest req) {
+        if (patterns.existsByEnterCdAndPatternCode(enterCd, req.patternCode())) {
             throw AttendanceException.conflict("이미 있는 근무유형 코드예요: " + req.patternCode());
         }
         WorkPatternRules.Result r = requireValid(req.spec(), today());
-        WorkPattern p = new WorkPattern(req.patternCode(), req.patternName().strip(), req.spec(), r,
+        WorkPattern p = new WorkPattern(enterCd, req.patternCode(), req.patternName().strip(), req.spec(), r,
                 req.active() == null || req.active(), blankToNull(req.note()), now());
         return WorkPatternView.of(patterns.save(p), false);
     }
 
+    /** 다른 법인 근무유형은 404(존재 여부를 드러내지 않는다, #125). */
     @Transactional
-    public WorkPatternView update(long patternId, WorkPatternRequest req) {
-        WorkPattern p = patterns.findForUpdate(patternId)
+    public WorkPatternView update(String enterCd, long patternId, WorkPatternRequest req) {
+        WorkPattern p = patterns.findForUpdate(enterCd, patternId)
                 .orElseThrow(() -> AttendanceException.notFound("근무유형이 없어요: " + patternId));
         if (!p.getPatternCode().equals(req.patternCode())) {
             throw AttendanceException.badRequest("근무유형 코드는 바꿀 수 없어요");
         }
-        boolean assigned = assignments.existsByPatternId(patternId);
+        boolean assigned = assignments.existsByEnterCdAndPatternId(enterCd, patternId);
         if (!p.spec().equals(req.spec())) {
             if (assigned) {
                 throw AttendanceException.conflict(
@@ -108,25 +110,26 @@ public class WorkPatternService {
     }
 
     @Transactional(readOnly = true)
-    public List<AssignmentView> history(long empId) {
-        if (!employees.existsById(empId)) {
+    public List<AssignmentView> history(String enterCd, long empId) {
+        if (employees.findByEnterCdAndEmpId(enterCd, empId).isEmpty()) {
             throw AttendanceException.notFound("사원이 없어요: " + empId);
         }
-        return views(assignments.findByEmpIdOrderByValidFromAsc(empId));
+        return views(assignments.findByEnterCdAndEmpIdOrderByValidFromAsc(enterCd, empId));
     }
 
     /** 기준일에 적용되는 배정. 없으면 빈 값. */
     @Transactional(readOnly = true)
-    public Optional<AssignmentView> effective(long empId, LocalDate date) {
-        return history(empId).stream()
+    public Optional<AssignmentView> effective(String enterCd, long empId, LocalDate date) {
+        return history(enterCd, empId).stream()
                 .filter(a -> !a.validFrom().isAfter(date) && (a.validTo() == null || date.isBefore(a.validTo())))
                 .findFirst();
     }
 
     @Transactional
-    public AssignmentView assign(long empId, AssignRequest req, String actorId) {
+    /** 사원·근무유형 모두 enterCd 법인의 것만 인정한다. 다른 법인 ID 는 404(#125). */
+    public AssignmentView assign(String enterCd, long empId, AssignRequest req, String actorId) {
         Objects.requireNonNull(req.validFrom(), "validFrom");
-        Employee e = employees.findForUpdate(empId)
+        Employee e = employees.findForUpdate(enterCd, empId)
                 .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + empId));
         LocalDate from = req.validFrom();
         if (from.isBefore(e.getHireDate())) {
@@ -136,14 +139,14 @@ public class WorkPatternService {
         if (e.getRetireDate() != null && from.isAfter(e.getRetireDate())) {
             throw AttendanceException.badRequest("적용 시작일이 퇴직일(" + e.getRetireDate() + ") 뒤예요");
         }
-        WorkPattern p = patterns.findForUpdate(req.patternId())
+        WorkPattern p = patterns.findForUpdate(enterCd, req.patternId())
                 .orElseThrow(() -> AttendanceException.notFound("근무유형이 없어요: " + req.patternId()));
         if (!p.isActive()) {
             throw AttendanceException.badRequest("사용 중지된 근무유형은 배정할 수 없어요: " + p.getPatternCode());
         }
         requireValid(p.spec(), from);
 
-        List<EmpWorkPattern> rows = assignments.findByEmpIdOrderByValidFromAsc(empId);
+        List<EmpWorkPattern> rows = assignments.findByEnterCdAndEmpIdOrderByValidFromAsc(enterCd, empId);
         if (!rows.isEmpty()) {
             EmpWorkPattern last = rows.get(rows.size() - 1);
             if (!from.isAfter(last.getValidFrom())) {
@@ -154,7 +157,7 @@ public class WorkPatternService {
                 last.closeAt(from);
             }
         }
-        EmpWorkPattern saved = assignments.save(new EmpWorkPattern(empId, p.getPatternId(), from,
+        EmpWorkPattern saved = assignments.save(new EmpWorkPattern(enterCd, empId, p.getPatternId(), from,
                 blankToNull(req.reason()), actorId, now()));
         return view(saved, p);
     }
@@ -164,17 +167,17 @@ public class WorkPatternService {
      * 가족휴직 서비스가 직전 단축 종료 시 만든 복원 배정만 그 ID를 지정해 호출한다.
      */
     @Transactional
-    public AssignmentView replaceLatest(long empId, long assignId, AssignRequest req) {
+    public AssignmentView replaceLatest(String enterCd, long empId, long assignId, AssignRequest req) {
         Objects.requireNonNull(req.validFrom(), "validFrom");
-        Employee e = employees.findForUpdate(empId)
+        employees.findForUpdate(enterCd, empId)
                 .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + empId));
-        WorkPattern p = patterns.findForUpdate(req.patternId())
+        WorkPattern p = patterns.findForUpdate(enterCd, req.patternId())
                 .orElseThrow(() -> AttendanceException.notFound("근무유형이 없어요: " + req.patternId()));
         if (!p.isActive()) {
             throw AttendanceException.badRequest("사용 중지된 근무유형은 배정할 수 없어요: " + p.getPatternCode());
         }
         requireValid(p.spec(), req.validFrom());
-        List<EmpWorkPattern> rows = assignments.findByEmpIdOrderByValidFromAsc(empId);
+        List<EmpWorkPattern> rows = assignments.findByEnterCdAndEmpIdOrderByValidFromAsc(enterCd, empId);
         if (rows.isEmpty()) {
             throw AttendanceException.notFound("바꿀 근무유형 배정이 없어요: " + assignId);
         }

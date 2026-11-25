@@ -72,11 +72,11 @@ public class HolidayService {
 
     /** 그 해(1월 1일~12월 31일) 휴일 달력. 대체 관계와 서면합의 제목을 붙인다. */
     @Transactional(readOnly = true)
-    public List<HolidayView> year(int year) {
+    public List<HolidayView> year(String enterCd, int year) {
         if (year < 1900 || year > 9999) {
             throw AttendanceException.badRequest("연도를 확인해 주세요: " + year);
         }
-        return views(holidays.findInRange(LocalDate.of(year, 1, 1), LocalDate.of(year + 1, 1, 1)));
+        return views(enterCd, holidays.findInRange(enterCd, LocalDate.of(year, 1, 1), LocalDate.of(year + 1, 1, 1)));
     }
 
     /**
@@ -84,48 +84,51 @@ public class HolidayService {
      * 근태 집계(휴일근로 판정)가 쓴다. 사원별 주휴일은 근무유형(#25)에서 따로 본다.
      */
     @Transactional(readOnly = true)
-    public boolean isHoliday(LocalDate date) {
-        List<Holiday> rows = holidays.findByHolidayDate(date);
+    public boolean isHoliday(String enterCd, LocalDate date) {
+        List<Holiday> rows = holidays.findByEnterCdAndHolidayDate(enterCd, date);
         if (rows.isEmpty()) {
             return false;
         }
-        Set<Long> replaced = replacedIds(rows);
+        Set<Long> replaced = replacedIds(enterCd, rows);
         return rows.stream().anyMatch(h -> !replaced.contains(h.getHolidayId()));
     }
 
-    /** [from, to) 기간에서 {@link #isHoliday(LocalDate)}가 참인 날짜들. 근로시간 집계(#29)가 쓴다. */
+    /**
+     * [from, to) 기간에서 {@link #isHoliday(String, LocalDate)}가 참인 날짜들. 근로시간 집계(#29)가 쓴다.
+     * enterCd: 대상 사원의 법인. 휴일 달력은 법인마다 따로 둔다(#125).
+     */
     @Transactional(readOnly = true)
-    public Set<LocalDate> holidayDates(LocalDate from, LocalDate to) {
-        List<Holiday> rows = holidays.findInRange(from, to);
-        Set<Long> replaced = replacedIds(rows);
+    public Set<LocalDate> holidayDates(String enterCd, LocalDate from, LocalDate to) {
+        List<Holiday> rows = holidays.findInRange(enterCd, from, to);
+        Set<Long> replaced = replacedIds(enterCd, rows);
         return rows.stream().filter(h -> !replaced.contains(h.getHolidayId()))
                 .map(Holiday::getHolidayDate).collect(Collectors.toSet());
     }
 
-    private Set<Long> replacedIds(List<Holiday> rows) {
+    private Set<Long> replacedIds(String enterCd, List<Holiday> rows) {
         List<Long> ids = rows.stream().filter(h -> h.getKind().isStatutory()).map(Holiday::getHolidayId).toList();
         if (ids.isEmpty()) {
             return Set.of();
         }
-        return holidays.findByReplacesHolidayIdIn(ids).stream()
+        return holidays.findByEnterCdAndReplacesHolidayIdIn(enterCd, ids).stream()
                 .map(Holiday::getReplacesHolidayId).collect(Collectors.toSet());
     }
 
-    private List<HolidayView> views(List<Holiday> rows) {
+    private List<HolidayView> views(String enterCd, List<Holiday> rows) {
         List<Long> statutoryIds = rows.stream().filter(h -> h.getKind().isStatutory())
                 .map(Holiday::getHolidayId).toList();
         Map<Long, Holiday> replacedBy = statutoryIds.isEmpty() ? Map.of()
-                : holidays.findByReplacesHolidayIdIn(statutoryIds).stream()
+                : holidays.findByEnterCdAndReplacesHolidayIdIn(enterCd, statutoryIds).stream()
                         .collect(Collectors.toMap(Holiday::getReplacesHolidayId, Function.identity(), (a, b) -> a));
         Set<Long> originalIds = rows.stream().map(Holiday::getReplacesHolidayId).filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         Map<Long, Holiday> originals = originalIds.isEmpty() ? Map.of()
-                : holidays.findAllById(originalIds).stream()
+                : holidays.findByEnterCdAndHolidayIdIn(enterCd, originalIds).stream()
                         .collect(Collectors.toMap(Holiday::getHolidayId, Function.identity()));
         Set<Long> agreementIds = rows.stream().map(Holiday::getAgreementId).filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         Map<Long, LaborAgreement> agreementById = agreementIds.isEmpty() ? Map.of()
-                : agreements.findAllById(agreementIds).stream()
+                : agreements.findByEnterCdAndAgreementIdIn(enterCd, agreementIds).stream()
                         .collect(Collectors.toMap(LaborAgreement::getAgreementId, Function.identity()));
         return rows.stream().map(h -> {
             Holiday by = replacedBy.get(h.getHolidayId());
@@ -139,7 +142,7 @@ public class HolidayService {
     }
 
     private HolidayView view(Holiday h) {
-        return views(List.of(h)).get(0);
+        return views(h.getEnterCd(), List.of(h)).get(0);
     }
 
     // ---- 공휴일 자료 불러오기 ----
@@ -151,9 +154,11 @@ public class HolidayService {
      * <p>근로기준법 제55조 제2항·부칙: 공휴일 행은 유급휴일로 저장하므로, 모든 행의 날짜에 대해 이 사업장 규모에
      * 제55조 제2항이 적용되는지 먼저 확인한다({@link PublicHolidayPaidRule}). 기준값이 없으면 409(LegalRateException),
      * 시행 전 날짜가 하나라도 있으면 422로 전체를 거부한다. 시행 전 날을 쉬게 했다면 회사휴일로 등록한다.
+     *
+     * <p>enterCd: 세션의 현재 법인. 그 법인 달력에만 넣고, 같은 날짜·이름 비교도 그 법인 안에서만 한다(#125).
      */
     @Transactional
-    public ImportResult importPublicHolidays(String csv, String actor) {
+    public ImportResult importPublicHolidays(String enterCd, String csv, String actor) {
         List<PublicHolidayCsv.Row> rows;
         try {
             rows = PublicHolidayCsv.parse(csv);
@@ -171,7 +176,8 @@ public class HolidayService {
         List<Holiday> created = new ArrayList<>();
         int skipped = 0;
         for (PublicHolidayCsv.Row r : rows) {
-            List<Holiday> existing = byDate.computeIfAbsent(r.date(), holidays::findByHolidayDate);
+            List<Holiday> existing = byDate.computeIfAbsent(r.date(),
+                    d -> holidays.findByEnterCdAndHolidayDate(enterCd, d));
             Holiday same = existing.stream().filter(h -> h.getHolidayName().equals(r.name())).findFirst().orElse(null);
             if (same != null) {
                 if (same.getKind() != r.kind()) {
@@ -181,21 +187,22 @@ public class HolidayService {
                 skipped++;
                 continue;
             }
-            created.add(holidays.save(Holiday.statutory(r.date(), r.name(), r.kind(), r.source(), r.verified(),
-                    actor, now)));
+            created.add(holidays.save(Holiday.statutory(enterCd, r.date(), r.name(), r.kind(), r.source(),
+                    r.verified(), actor, now)));
         }
-        return new ImportResult(created.size(), skipped, created.isEmpty() ? List.of() : views(created));
+        return new ImportResult(created.size(), skipped, created.isEmpty() ? List.of() : views(enterCd, created));
     }
 
     // ---- 회사휴일 ----
 
     @Transactional
-    public HolidayView createCompanyHoliday(CompanyHolidayRequest req, String actor) {
-        if (!holidays.findByHolidayDate(req.date()).isEmpty()) {
+    public HolidayView createCompanyHoliday(String enterCd, CompanyHolidayRequest req, String actor) {
+        if (!holidays.findByEnterCdAndHolidayDate(enterCd, req.date()).isEmpty()) {
             throw AttendanceException.conflict(req.date() + "은(는) 이미 휴일 달력에 있어요");
         }
         boolean paid = req.paid() == null || req.paid();
-        return view(reserve(Holiday.company(req.date(), req.name().trim(), paid, clean(req.note()), actor, now())));
+        return view(reserve(Holiday.company(enterCd, req.date(), req.name().trim(), paid, clean(req.note()), actor,
+                now())));
     }
 
     /**
@@ -215,8 +222,9 @@ public class HolidayService {
      * 공휴일 행은 공휴일 자료로만 관리하므로 여기서 지우지 않는다.
      */
     @Transactional
-    public void delete(long holidayId) {
-        Holiday h = holidays.findById(holidayId)
+    public void delete(String enterCd, long holidayId) {
+        // 다른 법인 휴일은 404(존재 여부를 드러내지 않는다, #125).
+        Holiday h = holidays.findByEnterCdAndHolidayId(enterCd, holidayId)
                 .orElseThrow(() -> AttendanceException.notFound("휴일이 없어요: " + holidayId));
         LocalDate today = today();
         switch (h.getKind()) {
@@ -228,7 +236,8 @@ public class HolidayService {
                 }
             }
             case REPLACEMENT -> {
-                Holiday original = holidays.findById(h.getReplacesHolidayId()).orElseThrow();
+                Holiday original = holidays.findByEnterCdAndHolidayId(enterCd, h.getReplacesHolidayId())
+                        .orElseThrow();
                 if (!h.getHolidayDate().isAfter(today) || !original.getHolidayDate().isAfter(today)) {
                     throw AttendanceException.conflict("원래 공휴일이나 대체된 날이 이미 지난 휴일 대체는 취소할 수 없어요");
                 }
@@ -247,19 +256,20 @@ public class HolidayService {
      *   <li>대신 쉴 날은 원래 날과 다르고, 휴일 달력에 휴일이 없는 날(근로일)이어야 한다.</li>
      *   <li>서면합의는 휴일 대체용이어야 하고, 원래 날과 대신 쉴 날 모두 합의 유효기간 안이며, 두 날보다 먼저 체결돼 있어야 한다.</li>
      * </ul>
+     * 합의서·원래 공휴일은 세션 현재 법인(enterCd)의 것만 인정한다. 다른 법인 합의서는 없는 것으로 본다(#125).
      */
     @Transactional
-    public HolidayView substitute(SubstitutionRequest req, String actor) {
-        LaborAgreement agreement = agreements.findForUpdate(req.agreementId())
+    public HolidayView substitute(String enterCd, SubstitutionRequest req, String actor) {
+        LaborAgreement agreement = agreements.findForUpdate(enterCd, req.agreementId())
                 .orElseThrow(() -> AttendanceException.badRequest(
                         "근로자대표 서면합의 문서가 없어요: " + req.agreementId() + " (근로기준법 제55조 제2항 단서)"));
-        Holiday original = holidays.findForUpdate(req.originalHolidayId())
+        Holiday original = holidays.findForUpdate(enterCd, req.originalHolidayId())
                 .orElseThrow(() -> AttendanceException.notFound("공휴일이 없어요: " + req.originalHolidayId()));
         if (!original.getKind().isStatutory()) {
             throw AttendanceException.badRequest(
                     "법정공휴일·대체공휴일만 휴일 대체할 수 있어요(근로기준법 제55조 제2항): " + original.getKind().label());
         }
-        if (holidays.findByReplacesHolidayId(original.getHolidayId()).isPresent()) {
+        if (holidays.findByEnterCdAndReplacesHolidayId(enterCd, original.getHolidayId()).isPresent()) {
             throw AttendanceException.conflict(original.getHolidayDate() + " " + original.getHolidayName()
                     + "은(는) 이미 다른 날로 대체됐어요");
         }
@@ -268,7 +278,7 @@ public class HolidayService {
         if (to.equals(from)) {
             throw AttendanceException.badRequest("대신 쉴 날은 원래 공휴일과 달라야 해요");
         }
-        if (!holidays.findByHolidayDate(to).isEmpty()) {
+        if (!holidays.findByEnterCdAndHolidayDate(enterCd, to).isEmpty()) {
             throw AttendanceException.conflict(to + "은(는) 이미 휴일이에요. 근로일로만 대체할 수 있어요(근로기준법 제55조 제2항 단서)");
         }
         if (agreement.getAgreementType() != AgreementType.HOLIDAY_SUBSTITUTION) {
@@ -288,7 +298,7 @@ public class HolidayService {
         String base = original.getHolidayName();
         int max = PublicHolidayCsv.NAME_MAX - REPLACEMENT_SUFFIX.length();
         String name = (base.length() > max ? base.substring(0, max) : base) + REPLACEMENT_SUFFIX;
-        return view(reserve(Holiday.replacement(to, name, original.getHolidayId(), agreement.getAgreementId(),
+        return view(reserve(Holiday.replacement(enterCd, to, name, original.getHolidayId(), agreement.getAgreementId(),
                 clean(req.note()), actor, now())));
     }
 

@@ -85,16 +85,19 @@ public class WorkHoursService {
      * 기준값이 없으면 LegalRateException(409) — 아무 행도 바꾸지 않는다.
      */
     @Transactional
-    public List<DailyWorkSummaryRow> recalculate(long empId, LocalDate from, LocalDate to, String actor) {
+    public List<DailyWorkSummaryRow> recalculate(String enterCd, long empId, LocalDate from, LocalDate to,
+            String actor) {
         checkRange(from, to);
-        if (!employees.existsById(empId)) {
+        // 세션 현재 법인 사원만. 다른 법인 사원은 404(#125). 휴일 달력·근무유형도 그 법인 것을 쓴다.
+        if (employees.findByEnterCdAndEmpId(enterCd, empId).isEmpty()) {
             throw AttendanceException.notFound("사원이 없어요: " + empId);
         }
         LocalDate weekStart = from.with(DayOfWeek.MONDAY);
         LocalDate weekEnd = to.with(DayOfWeek.SUNDAY);
-        Set<LocalDate> holidayDates = holidays.holidayDates(weekStart, weekEnd.plusDays(2));
+        Set<LocalDate> holidayDates = holidays.holidayDates(enterCd, weekStart, weekEnd.plusDays(2));
         Map<LocalDate, WorkHoursLegalRules.Applied> appliedByDate = new HashMap<>();
-        List<DailyWorkSummaryRow> rows = compute(empId, weekStart, weekEnd, holidayDates, appliedByDate, actor);
+        List<DailyWorkSummaryRow> rows = compute(enterCd, empId, weekStart, weekEnd, holidayDates, appliedByDate,
+                actor);
         mapper.deleteRange(empId, weekStart, weekEnd);
         for (DailyWorkSummaryRow row : rows) {
             mapper.insert(row);
@@ -102,43 +105,47 @@ public class WorkHoursService {
         return rows;
     }
 
-    /** 여러 사원의 같은 주 계산에 함께 쓰는 자료(휴일 달력·legal_rate 기준값). {@link #weekInputs}로 만든다. */
-    public record WeekInputs(LocalDate monday, Set<LocalDate> holidayDates,
+    /**
+     * 같은 법인 여러 사원의 같은 주 계산에 함께 쓰는 자료(휴일 달력·legal_rate 기준값). {@link #weekInputs}로 만든다.
+     * 휴일 달력은 법인마다 다르므로 enterCd 법인 사원에게만 쓴다(#125).
+     */
+    public record WeekInputs(String enterCd, LocalDate monday, Set<LocalDate> holidayDates,
             Map<LocalDate, WorkHoursLegalRules.Applied> appliedByDate) {
     }
 
-    /** {@code date}가 속한 주(월~일)의 공유 자료를 한 번 읽는다. 기준값이 없으면 LegalRateException(409). */
+    /** {@code date}가 속한 주(월~일)의 enterCd 법인 공유 자료를 한 번 읽는다. 기준값이 없으면 LegalRateException(409). */
     @Transactional(readOnly = true)
-    public WeekInputs weekInputs(LocalDate date) {
+    public WeekInputs weekInputs(String enterCd, LocalDate date) {
         LocalDate monday = date.with(DayOfWeek.MONDAY);
         Map<LocalDate, WorkHoursLegalRules.Applied> applied = new HashMap<>();
         for (int i = 0; i < 7; i++) {
             applied.put(monday.plusDays(i), legalRules.asOf(monday.plusDays(i)));
         }
-        return new WeekInputs(monday, holidays.holidayDates(monday, monday.plusDays(8)), Map.copyOf(applied));
+        return new WeekInputs(enterCd, monday, holidays.holidayDates(enterCd, monday, monday.plusDays(8)),
+                Map.copyOf(applied));
     }
 
     /**
      * 한 사원의 한 주를 저장하지 않고 계산한다(#31 주 52시간 모니터링 — 아직 재계산하지 않은 오늘까지의 기록도 반영).
-     * 계산 규칙은 {@link #recalculate}와 같다.
+     * 계산 규칙은 {@link #recalculate}와 같다. 사원은 week.enterCd() 법인 사원이어야 한다(호출하는 쪽이 확인).
      */
     @Transactional(readOnly = true)
     public List<DailyWorkSummaryRow> computeWeek(long empId, WeekInputs week) {
-        return compute(empId, week.monday(), week.monday().plusDays(6), week.holidayDates(),
+        return compute(week.enterCd(), empId, week.monday(), week.monday().plusDays(6), week.holidayDates(),
                 new HashMap<>(week.appliedByDate()), PREVIEW_ACTOR);
     }
 
     /** 저장하지 않는 계산 결과의 calculatedBy 값. */
     static final String PREVIEW_ACTOR = "PREVIEW";
 
-    private List<DailyWorkSummaryRow> compute(long empId, LocalDate weekStart, LocalDate weekEnd,
+    private List<DailyWorkSummaryRow> compute(String enterCd, long empId, LocalDate weekStart, LocalDate weekEnd,
             Set<LocalDate> holidayDates, Map<LocalDate, WorkHoursLegalRules.Applied> appliedByDate, String actor) {
         // 다음 근무일 첫 출근까지 봐야 마지막 날 야간 근무의 퇴근을 찾는다.
         List<PunchRecord> punchList = mapper.findPunches(empId, weekStart, weekEnd.plusDays(2));
-        List<EmpWorkPattern> assignList = assignments.findByEmpIdOrderByValidFromAsc(empId);
+        List<EmpWorkPattern> assignList = assignments.findByEnterCdAndEmpIdOrderByValidFromAsc(enterCd, empId);
         Map<Long, WorkPattern> patternById = new HashMap<>();
         for (EmpWorkPattern a : assignList) {
-            patternById.computeIfAbsent(a.getPatternId(), id -> patterns.findById(id).orElseThrow(
+            patternById.computeIfAbsent(a.getPatternId(), id -> patterns.findByEnterCdAndPatternId(enterCd, id).orElseThrow(
                     () -> new IllegalStateException("배정된 근무유형이 없어요: " + id)));
         }
         Map<LocalDate, Leave> leaveByDate = leaves.approvedLeaves(empId, weekStart, weekEnd);

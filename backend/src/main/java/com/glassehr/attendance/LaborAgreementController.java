@@ -71,14 +71,14 @@ public class LaborAgreementController {
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping
-    public List<AgreementView> list() {
-        return service.list();
+    public List<AgreementView> list(AuthUser user) {
+        return service.list(user.enterCd());
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/expiring")
-    public ExpiringView expiring(@RequestParam(name = "days", required = false) Integer days) {
-        return service.expiring(days);
+    public ExpiringView expiring(@RequestParam(name = "days", required = false) Integer days, AuthUser user) {
+        return service.expiring(user.enterCd(), days);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
@@ -86,14 +86,15 @@ public class LaborAgreementController {
     public CheckResult check(@RequestParam("type") AgreementType type,
             @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(name = "until", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate until,
-            @RequestParam(name = "siteCode", required = false) String siteCode) {
-        return guard.check(type, from, until, siteCode == null || siteCode.isBlank() ? null : siteCode.trim());
+            @RequestParam(name = "siteCode", required = false) String siteCode, AuthUser user) {
+        return guard.check(user.enterCd(), type, from, until,
+                siteCode == null || siteCode.isBlank() ? null : siteCode.trim());
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/{agreementId}")
-    public AgreementDetail get(@PathVariable long agreementId) {
-        return service.get(agreementId);
+    public AgreementDetail get(@PathVariable long agreementId, AuthUser user) {
+        return service.get(user.enterCd(), agreementId);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
@@ -115,13 +116,15 @@ public class LaborAgreementController {
     @ResponseStatus(HttpStatus.CREATED)
     public AgreementFileView upload(@PathVariable long agreementId, @RequestParam("file") MultipartFile file,
             AuthUser user) throws IOException {
-        return service.addFile(agreementId, file.getOriginalFilename(), file.getBytes(), user.loginId());
+        return service.addFile(user.enterCd(), agreementId, file.getOriginalFilename(), file.getBytes(),
+                user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/{agreementId}/files/{fileId}")
-    public ResponseEntity<byte[]> download(@PathVariable long agreementId, @PathVariable long fileId) {
-        LaborAgreementFile f = service.file(agreementId, fileId);
+    public ResponseEntity<byte[]> download(@PathVariable long agreementId, @PathVariable long fileId,
+            AuthUser user) {
+        LaborAgreementFile f = service.file(user.enterCd(), agreementId, fileId);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(f.getContentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -134,7 +137,7 @@ public class LaborAgreementController {
     @RequiresPermission(Permission.EMP_WRITE)
     @DeleteMapping("/{agreementId}/files/{fileId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteFile(@PathVariable long agreementId, @PathVariable long fileId) {
-        service.deleteFile(agreementId, fileId);
+    public void deleteFile(@PathVariable long agreementId, @PathVariable long fileId, AuthUser user) {
+        service.deleteFile(user.enterCd(), agreementId, fileId);
     }
 }
