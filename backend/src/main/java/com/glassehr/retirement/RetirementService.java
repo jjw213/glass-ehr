@@ -303,8 +303,8 @@ public class RetirementService {
 
     // ---------------------------------------------------------------- 공통
 
-    private Employee loadEmployee(long empId) {
-        return employees.findById(empId)
+    private Employee loadEmployee(String enterCd, long empId) {
+        return employees.findByEnterCdAndEmpId(enterCd, empId)
                 .orElseThrow(() -> RetirementException.notFound("사원을 찾을 수 없어요: " + empId));
     }
 
