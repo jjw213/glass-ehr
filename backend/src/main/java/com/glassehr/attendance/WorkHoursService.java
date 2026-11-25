@@ -75,9 +75,17 @@ public class WorkHoursService {
     }
 
     @Transactional(readOnly = true)
-    public List<DailyWorkSummaryRow> find(long empId, LocalDate from, LocalDate to) {
+    public List<DailyWorkSummaryRow> find(String enterCd, long empId, LocalDate from, LocalDate to) {
         checkRange(from, to);
-        return mapper.findRange(empId, from, to);
+        requireEmployee(enterCd, empId);
+        return mapper.findRange(enterCd, empId, from, to);
+    }
+
+    /** 세션 현재 법인 사원만. 다른 법인 사원은 존재 여부를 드러내지 않고 404(#125·#126). */
+    private void requireEmployee(String enterCd, long empId) {
+        if (employees.findByEnterCdAndEmpId(enterCd, empId).isEmpty()) {
+            throw AttendanceException.notFound("사원이 없어요: " + empId);
+        }
     }
 
     /**
@@ -88,19 +96,17 @@ public class WorkHoursService {
     public List<DailyWorkSummaryRow> recalculate(String enterCd, long empId, LocalDate from, LocalDate to,
             String actor) {
         checkRange(from, to);
-        // 세션 현재 법인 사원만. 다른 법인 사원은 404(#125). 휴일 달력·근무유형도 그 법인 것을 쓴다.
-        if (employees.findByEnterCdAndEmpId(enterCd, empId).isEmpty()) {
-            throw AttendanceException.notFound("사원이 없어요: " + empId);
-        }
+        // 휴일 달력·근무유형·출퇴근 기록·집계 행도 그 법인 것만 쓴다.
+        requireEmployee(enterCd, empId);
         LocalDate weekStart = from.with(DayOfWeek.MONDAY);
         LocalDate weekEnd = to.with(DayOfWeek.SUNDAY);
         Set<LocalDate> holidayDates = holidays.holidayDates(enterCd, weekStart, weekEnd.plusDays(2));
         Map<LocalDate, WorkHoursLegalRules.Applied> appliedByDate = new HashMap<>();
         List<DailyWorkSummaryRow> rows = compute(enterCd, empId, weekStart, weekEnd, holidayDates, appliedByDate,
                 actor);
-        mapper.deleteRange(empId, weekStart, weekEnd);
+        mapper.deleteRange(enterCd, empId, weekStart, weekEnd);
         for (DailyWorkSummaryRow row : rows) {
-            mapper.insert(row);
+            mapper.insert(enterCd, row);
         }
         return rows;
     }
@@ -141,7 +147,7 @@ public class WorkHoursService {
     private List<DailyWorkSummaryRow> compute(String enterCd, long empId, LocalDate weekStart, LocalDate weekEnd,
             Set<LocalDate> holidayDates, Map<LocalDate, WorkHoursLegalRules.Applied> appliedByDate, String actor) {
         // 다음 근무일 첫 출근까지 봐야 마지막 날 야간 근무의 퇴근을 찾는다.
-        List<PunchRecord> punchList = mapper.findPunches(empId, weekStart, weekEnd.plusDays(2));
+        List<PunchRecord> punchList = mapper.findPunches(enterCd, empId, weekStart, weekEnd.plusDays(2));
         List<EmpWorkPattern> assignList = assignments.findByEnterCdAndEmpIdOrderByValidFromAsc(enterCd, empId);
         Map<Long, WorkPattern> patternById = new HashMap<>();
         for (EmpWorkPattern a : assignList) {

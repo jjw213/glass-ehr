@@ -42,8 +42,8 @@ public class WorkHoursController {
     @GetMapping
     public List<DailyWorkSummaryRow> find(@RequestParam long empId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return service.find(empId, from, to);
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to, AuthUser user) {
+        return service.find(user.enterCd(), empId, from, to);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)

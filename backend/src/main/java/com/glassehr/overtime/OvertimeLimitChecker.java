@@ -67,7 +67,7 @@ public class OvertimeLimitChecker {
     }
 
     /** 승인 직전에 부른다. 한도를 넘으면 422, 기준값이 없으면 409를 던져 승인 트랜잭션을 되돌린다. */
-    public Result check(OvertimeRequest target) {
+    public Result check(String enterCd, OvertimeRequest target) {
         LocalDate workDate = target.getWorkDate();
         LocalDate monday = workDate.with(DayOfWeek.MONDAY);
         LocalDate sunday = monday.plusDays(6);
@@ -76,7 +76,7 @@ public class OvertimeLimitChecker {
 
         Map<LocalDate, Integer> actual = new HashMap<>();
         List<DailyWorkSummaryRow> actualRows = new ArrayList<>();
-        for (DailyWorkSummaryRow r : summaries.findRange(target.getEmpId(), monday.minusDays(1), sunday)) {
+        for (DailyWorkSummaryRow r : summaries.findRange(enterCd, target.getEmpId(), monday.minusDays(1), sunday)) {
             if (r.workedMinutes() != null && r.workedMinutes() > 0) {
                 actualRows.add(r);
                 if (!r.workDate().isBefore(monday)) {

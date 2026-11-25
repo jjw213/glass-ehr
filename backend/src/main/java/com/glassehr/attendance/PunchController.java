@@ -37,12 +37,12 @@ public class PunchController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public PunchView punch(@Valid @RequestBody PunchRequest req, AuthUser user) {
-        return service.punch(user.empId(), user.loginId(), req);
+        return service.punch(user.enterCd(), user.empId(), user.loginId(), req);
     }
 
     @RequiresPermission
     @GetMapping("/today")
     public TodayView today(AuthUser user) {
-        return service.today(user.empId());
+        return service.today(user.enterCd(), user.empId());
     }
 }

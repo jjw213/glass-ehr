@@ -56,9 +56,10 @@ public class PunchService {
 
     /** 출근·퇴근 한 건 추가. 같은 사원의 기록은 사원 행 잠금으로 줄 세워 판정이 엇갈리지 않게 한다. */
     @Transactional
-    public PunchView punch(Long empId, String loginId, PunchRequest req) {
+    public PunchView punch(String enterCd, Long empId, String loginId, PunchRequest req) {
         long id = requireEmployee(empId);
-        Employee e = employees.findForUpdate(id)
+        // 세션 현재 법인 사원만(#126). 그룹 관리자가 다른 법인으로 전환한 세션은 본인 사원이 없어 404.
+        Employee e = employees.findForUpdate(enterCd, id)
                 .orElseThrow(() -> AttendanceException.notFound("사원을 찾을 수 없어요: " + id));
         // 잠금을 잡은 뒤의 서버 시각으로 기록한다(먼저 온 요청보다 이른 시각이 저장되지 않게).
         LocalDateTime now = now();
@@ -68,21 +69,23 @@ public class PunchService {
         if (assignments.assignmentOn(id, today).empStatus() == EmpStatus.RETIRED) {
             throw AttendanceException.conflict("퇴직 처리된 사원은 출퇴근을 기록할 수 없어요");
         }
-        List<AttendancePunch> sameDay = punches.findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(id, today);
+        List<AttendancePunch> sameDay = punches.findByEnterCdAndEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(enterCd,
+                id, today);
         AttendancePunch.Check check = PunchRules.check(sameDay, req.type());
         LocalDateTime client = req.clientTime() == null ? null
                 : req.clientTime().atZoneSameInstant(PunchDtos.SEOUL).toLocalDateTime().truncatedTo(ChronoUnit.MICROS);
-        AttendancePunch saved = punches.save(
-                new AttendancePunch(id, req.type(), now, client, check, AttendancePunch.Source.WEB, loginId));
+        AttendancePunch saved = punches.save(new AttendancePunch(enterCd, id, req.type(), now, client, check,
+                AttendancePunch.Source.WEB, loginId));
         return PunchView.of(saved);
     }
 
-    /** 오늘(서버 날짜) 내 기록과 요약. */
+    /** 오늘(서버 날짜) 내 기록과 요약. 세션 현재 법인 기록만 본다(#126). */
     @Transactional(readOnly = true)
-    public TodayView today(Long empId) {
+    public TodayView today(String enterCd, Long empId) {
         long id = requireEmployee(empId);
         LocalDateTime now = now();
-        List<AttendancePunch> list = punches.findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(id, now.toLocalDate());
+        List<AttendancePunch> list = punches.findByEnterCdAndEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(enterCd, id,
+                now.toLocalDate());
         PunchRules.Summary s = PunchRules.summarize(list, now);
         return new TodayView(PunchDtos.seoul(now), now.toLocalDate(), PunchDtos.seoul(s.firstInAt()),
                 PunchDtos.seoul(s.lastOutAt()), s.working(), s.elapsedMinutes(),
