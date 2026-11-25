@@ -1,0 +1,20 @@
+item_code,기준일,기대일수,출처,검증일
+MATERNITY_LEAVE_PAID_DAYS,2012-08-02,60,근로기준법 제74조제4항 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=001872&lsRvsGubun=all,2026-11-25
+MATERNITY_LEAVE_PAID_DAYS,2024-02-29,60,근로기준법 제74조제4항 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=001872&lsRvsGubun=all,2026-11-25
+MATERNITY_LEAVE_MULTIPLE_PAID_DAYS,2014-06-30,60,근로기준법 제74조제4항 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=001872&lsRvsGubun=all,2026-11-25
+MATERNITY_LEAVE_MULTIPLE_PAID_DAYS,2014-07-01,75,근로기준법 제74조제4항 및 법률 제12325호 부칙 제1조·제2조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=001872&lsRvsGubun=all,2026-11-25
+SPOUSE_MATERNITY_LEAVE_PAID_DAYS,2013-02-02,3,남녀고용평등법 제18조의2제1항 및 법률 제11274호 부칙 제1조·제2조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+SPOUSE_MATERNITY_LEAVE_PAID_DAYS,2019-09-30,3,남녀고용평등법 제18조의2제1항 및 법률 제11274호 부칙 제1조·제2조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+SPOUSE_MATERNITY_LEAVE_PAID_DAYS,2019-10-01,10,남녀고용평등법 제18조의2제1항 및 법률 제16558호 부칙 제3조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+SPOUSE_MATERNITY_LEAVE_PAID_DAYS,2025-02-22,10,남녀고용평등법 제18조의2제1항 및 법률 제16558호 부칙 제3조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+SPOUSE_MATERNITY_LEAVE_PAID_DAYS,2025-02-23,20,남녀고용평등법 제18조의2제1항 및 법률 제20521호 부칙 제2조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+INFERTILITY_TREATMENT_LEAVE_DAYS_PER_YEAR,2018-05-29,3,남녀고용평등법 제18조의3제1항 및 법률 제15109호 부칙 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+INFERTILITY_TREATMENT_LEAVE_DAYS_PER_YEAR,2025-02-22,3,남녀고용평등법 제18조의3제1항 및 법률 제15109호 부칙 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+INFERTILITY_TREATMENT_LEAVE_DAYS_PER_YEAR,2025-02-23,6,남녀고용평등법 제18조의3제1항 및 법률 제20521호 부칙 제3조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+INFERTILITY_TREATMENT_LEAVE_DAYS_PER_YEAR,2026-11-27,6,남녀고용평등법 제18조의3제1항 및 법률 제20521호 부칙 제3조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+INFERTILITY_TREATMENT_LEAVE_PAID_DAYS,2018-05-29,1,남녀고용평등법 제18조의3제1항 및 법률 제15109호 부칙 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+INFERTILITY_TREATMENT_LEAVE_PAID_DAYS,2025-02-22,1,남녀고용평등법 제18조의3제1항 및 법률 제15109호 부칙 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+INFERTILITY_TREATMENT_LEAVE_PAID_DAYS,2025-02-23,2,남녀고용평등법 제18조의3제1항 및 법률 제20521호 부칙 제3조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+INFERTILITY_TREATMENT_LEAVE_PAID_DAYS,2026-11-26,2,남녀고용평등법 제18조의3제1항 및 법률 제20521호 부칙 제3조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+INFERTILITY_TREATMENT_LEAVE_PAID_DAYS,2026-11-27,4,남녀고용평등법 제18조의3제1항 및 법률 제21700호 부칙 제1조·제2조 https://law.go.kr/LSW/lsRvsDocListP.do?lsId=000130,2026-11-25
+FAMILY_CARE_LEAVE_PAID_DAYS,2026-11-25,,남녀고용평등법 제22조의2제2항·제4항제2호 https://www.law.go.kr/LSW/lsLinkCommonInfo.do?chrClsCd=010202&lsJoLnkSeq=1030171145,2026-11-25
