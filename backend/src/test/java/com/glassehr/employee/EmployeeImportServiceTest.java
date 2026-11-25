@@ -31,7 +31,7 @@ class EmployeeImportServiceTest {
 
     private static final String HEADER = new String(EmployeeImportCsv.template(), StandardCharsets.UTF_8)
             .replace("﻿", "").strip();
-    private static final RequestActor ACTOR = new RequestActor("hr1", RequestActor.Role.HR, "127.0.0.1");
+    private static final RequestActor ACTOR = new RequestActor("hr1", RequestActor.Role.HR, "127.0.0.1", "C001");
 
     private EmployeeService employees;
     private RrnService rrns;
@@ -92,7 +92,7 @@ class EmployeeImportServiceTest {
 
     @Test
     void 행마다_오류를_보이고_값은_되돌려주지_않는다() {
-        when(rrns.isRegistered(Rrn.parse("000000-0000009"))).thenReturn(true);
+        when(rrns.isRegistered("C001", Rrn.parse("000000-0000009"))).thenReturn(true);
         doThrow(EmployeeException.badRequest("없는 고용형태 코드예요: NOPE")).when(employees)
                 .checkCreate(org.mockito.ArgumentMatchers.eq("C001"), org.mockito.ArgumentMatchers.argThat(r -> r != null && "NOPE".equals(r.employmentTypeCode())));
         Preview p = svc.preview("C001",file(

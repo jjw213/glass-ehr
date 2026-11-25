@@ -73,15 +73,16 @@ public class EmployeeService {
 
     // ---------------------------------------------------------------- 조회
 
-    public List<EmployeeSummary> list(boolean includeRetired) {
-        List<Employee> rows = includeRetired ? employees.findAllByOrderByEmpNoAsc()
-                : employees.findByRetireDateIsNullOrderByEmpNoAsc();
+    /** enterCd 는 세션의 현재 법인. 다른 법인 사원은 보이지 않는다(#123). */
+    public List<EmployeeSummary> list(String enterCd, boolean includeRetired) {
+        List<Employee> rows = includeRetired ? employees.findByEnterCdOrderByEmpNoAsc(enterCd)
+                : employees.findByEnterCdAndRetireDateIsNullOrderByEmpNoAsc(enterCd);
         return rows.stream().map(EmployeeSummary::of).toList();
     }
 
-    public EmployeeView get(long empId) {
-        Employee e = load(empId);
-        return EmployeeView.of(e, rrns.masked(empId).orElse(null));
+    public EmployeeView get(String enterCd, long empId) {
+        Employee e = load(enterCd, empId);
+        return EmployeeView.of(e, rrns.masked(enterCd, empId).orElse(null));
     }
 
     // ---------------------------------------------------------------- 등록
@@ -108,7 +109,7 @@ public class EmployeeService {
         Employee e = employees.saveAndFlush(new Employee(enterCd, empNo, req.siteCode(), req.hireDate(), info, first, now()));
         String masked = null;
         if (req.rrn() != null) {
-            masked = rrns.save(e.getEmpId(), req.rrn(), actor);
+            masked = rrns.save(enterCd, e.getEmpId(), req.rrn(), actor);
         }
         return EmployeeView.of(e, masked);
     }
@@ -138,8 +139,8 @@ public class EmployeeService {
 
     /** 명부 기본정보 수정. 소속·직급·직책·사번·입사일·퇴직 정보는 바꾸지 않는다. */
     @Transactional
-    public EmployeeView update(long empId, EmployeeUpdateRequest req) {
-        Employee e = loadForUpdate(empId);
+    public EmployeeView update(String enterCd, long empId, EmployeeUpdateRequest req) {
+        Employee e = loadForUpdate(enterCd, empId);
         BasicInfo info = basicInfo(req.name(), req.gender(), req.birthDate(), req.address(), req.careerHistory(),
                 req.jobDescription(), req.jobFamilyCode(), req.renewalDate(), req.contractStartDate(),
                 req.contractEndDate(), req.employmentTypeCode(), req.weeklyContractMinutes(), req.workLocationCode(),
@@ -147,7 +148,7 @@ public class EmployeeService {
         validate(e.getEnterCd(), info, e.getHireDate());
         e.updateBasicInfo(info, now());
         employees.saveAndFlush(e);
-        return EmployeeView.of(e, rrns.masked(empId).orElse(null));
+        return EmployeeView.of(e, rrns.masked(enterCd, empId).orElse(null));
     }
 
     // ---------------------------------------------------------------- 퇴직
@@ -157,8 +158,8 @@ public class EmployeeService {
      * 근로기준법 제42조 보존기한을 계산해 저장한다. 한 번 퇴직 처리한 사원은 다시 처리하지 않는다(정정은 후속 이슈).
      */
     @Transactional
-    public EmployeeView retire(long empId, RetirementRequest req) {
-        Employee e = loadForUpdate(empId);
+    public EmployeeView retire(String enterCd, long empId, RetirementRequest req) {
+        Employee e = loadForUpdate(enterCd, empId);
         if (e.isRetired()) {
             throw EmployeeException.conflict("이미 퇴직 처리된 사원이에요(퇴직일 " + e.getRetireDate() + ")");
         }
@@ -177,18 +178,19 @@ public class EmployeeService {
         }
         e.retire(req.retireDate(), reason, blankToNull(req.reasonDetail()), until, now());
         employees.saveAndFlush(e);
-        return EmployeeView.of(e, rrns.masked(empId).orElse(null));
+        return EmployeeView.of(e, rrns.masked(enterCd, empId).orElse(null));
     }
 
     // ---------------------------------------------------------------- 검사
 
-    Employee load(long empId) {
-        return employees.findById(empId).orElseThrow(() -> EmployeeException.notFound(empId));
+    /** 그 법인 사원만. 다른 법인 사원 ID 는 없는 사원과 같은 404(존재 여부를 드러내지 않음, docs/tenant-design.md 5.2). */
+    Employee load(String enterCd, long empId) {
+        return employees.findByEnterCdAndEmpId(enterCd, empId).orElseThrow(() -> EmployeeException.notFound(empId));
     }
 
-    /** 쓰기용: 행을 잠가 읽는다(수정과 퇴직 처리가 서로의 결과를 덮어쓰지 않게). */
-    private Employee loadForUpdate(long empId) {
-        return employees.findForUpdate(empId).orElseThrow(() -> EmployeeException.notFound(empId));
+    /** 쓰기용: 행을 잠가 읽는다(수정과 퇴직 처리가 서로의 결과를 덮어쓰지 않게). 그 법인 사원만. */
+    private Employee loadForUpdate(String enterCd, long empId) {
+        return employees.findForUpdate(enterCd, empId).orElseThrow(() -> EmployeeException.notFound(empId));
     }
 
     private static BasicInfo basicInfo(String name, String gender, LocalDate birthDate, String address,

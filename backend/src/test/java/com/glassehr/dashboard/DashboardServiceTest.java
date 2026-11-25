@@ -32,7 +32,7 @@ class DashboardServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(employees.list(true)).thenReturn(List.of(
+        when(employees.list(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(true))).thenReturn(List.of(
                 emp(1, 10L, LocalDate.of(2099, 3, 1), null),          // 이번 달 입사, 부서장 범위
                 emp(2, 11L, LocalDate.of(2090, 1, 1), null),          // 하위부서, 오늘 출근
                 emp(3, 20L, LocalDate.of(2098, 4, 30), null),         // 다른 부서, 12개월 전 달(4월)

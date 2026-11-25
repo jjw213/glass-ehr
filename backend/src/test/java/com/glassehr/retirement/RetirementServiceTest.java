@@ -170,10 +170,10 @@ class RetirementServiceTest {
     @Test
     void 자진퇴사는_사직서와_공통_항목_체크리스트를_만든다() {
         emp(1, RETIRE, "VOLUNTARY", RETIRE.plusYears(1));
-        RetirementView v = service.register(req(" VOLUNTARY ", null, null, null), "hr1");
+        RetirementView v = service.register("C001", req(" VOLUNTARY ", null, null, null), "hr1");
 
         ArgumentCaptor<EmployeeDtos.RetirementRequest> sent = ArgumentCaptor.forClass(EmployeeDtos.RetirementRequest.class);
-        verify(employeeService).retire(eq(1L), sent.capture());
+        verify(employeeService).retire(eq("C001"), eq(1L), sent.capture());
         assertThat(sent.getValue().reasonCode()).isEqualTo("VOLUNTARY");
         assertThat(sent.getValue().retireDate()).isEqualTo(RETIRE);
         verify(checker, never()).check(any(), any(), any(), any());
@@ -203,7 +203,7 @@ class RetirementServiceTest {
     @Test
     void 체크리스트_완료_표시와_해제() {
         emp(1, RETIRE, "VOLUNTARY", RETIRE.plusYears(1));
-        service.register(req("VOLUNTARY", null, null, null), "hr1");
+        service.register("C001", req("VOLUNTARY", null, null, null), "hr1");
         RetirementView v = service.updateChecklist(1, "HANDOVER", new ChecklistUpdateRequest(true, " 인계 완료 "), "hr2");
         ChecklistItemView h = v.checklist().stream().filter(i -> i.itemCode().equals("HANDOVER")).findFirst().orElseThrow();
         assertThat(h.done()).isTrue();
@@ -226,29 +226,29 @@ class RetirementServiceTest {
     @Test
     void 해고는_예고일이_없으면_400이고_퇴직_기록을_하지_않는다() {
         emp(1, RETIRE, "DISMISSAL", RETIRE.plusYears(1));
-        assertStatus(() -> service.register(req("DISMISSAL", null, RETIRE.minusDays(1), null), "hr1"),
+        assertStatus(() -> service.register("C001", req("DISMISSAL", null, RETIRE.minusDays(1), null), "hr1"),
                 HttpStatus.BAD_REQUEST);
-        assertStatus(() -> service.register(req("DISMISSAL", RETIRE.minusDays(1), null, null), "hr1"),
+        assertStatus(() -> service.register("C001", req("DISMISSAL", RETIRE.minusDays(1), null, null), "hr1"),
                 HttpStatus.BAD_REQUEST);
-        verify(employeeService, never()).retire(anyLong(), any());
+        verify(employeeService, never()).retire(any(), anyLong(), any());
     }
 
     @Test
     void 해고_예고일과_서면통지일은_해고일보다_늦을_수_없다() {
         emp(1, RETIRE, "DISMISSAL", RETIRE.plusYears(1));
-        assertStatus(() -> service.register(req("DISMISSAL", RETIRE.plusDays(1), RETIRE, null), "hr1"),
+        assertStatus(() -> service.register("C001", req("DISMISSAL", RETIRE.plusDays(1), RETIRE, null), "hr1"),
                 HttpStatus.BAD_REQUEST);
-        assertStatus(() -> service.register(req("DISMISSAL", RETIRE, RETIRE.plusDays(1), null), "hr1"),
+        assertStatus(() -> service.register("C001", req("DISMISSAL", RETIRE, RETIRE.plusDays(1), null), "hr1"),
                 HttpStatus.BAD_REQUEST);
-        verify(employeeService, never()).retire(anyLong(), any());
+        verify(employeeService, never()).retire(any(), anyLong(), any());
     }
 
     @Test
     void 해고가_아니면_예고_항목을_보낼_수_없다() {
         emp(1, RETIRE, "VOLUNTARY", RETIRE.plusYears(1));
-        assertStatus(() -> service.register(req("VOLUNTARY", RETIRE.minusDays(1), null, null), "hr1"),
+        assertStatus(() -> service.register("C001", req("VOLUNTARY", RETIRE.minusDays(1), null, null), "hr1"),
                 HttpStatus.BAD_REQUEST);
-        assertStatus(() -> service.register(req("VOLUNTARY", null, null, Exemption.UNAVOIDABLE), "hr1"),
+        assertStatus(() -> service.register("C001", req("VOLUNTARY", null, null, Exemption.UNAVOIDABLE), "hr1"),
                 HttpStatus.BAD_REQUEST);
     }
 
@@ -258,10 +258,10 @@ class RetirementServiceTest {
         LocalDate notice = RETIRE.minusDays(3);
         when(checker.check(HIRE, notice, RETIRE, null)).thenReturn(
                 new Result(NoticeCheck.SHORT, 10, 3, 7, List.of("해고 예고 기간이 7일 모자라요")));
-        RetirementView v = service.register(req("DISMISSAL", notice, RETIRE.minusDays(2), null), "hr1");
+        RetirementView v = service.register("C001", req("DISMISSAL", notice, RETIRE.minusDays(2), null), "hr1");
 
         InOrder order = inOrder(employeeService, checker);
-        order.verify(employeeService).retire(eq(1L), any());
+        order.verify(employeeService).retire(eq("C001"), eq(1L), any());
         order.verify(checker).check(HIRE, notice, RETIRE, null);
         assertThat(v.notice().check()).isEqualTo(NoticeCheck.SHORT);
         assertThat(v.notice().shortfallDays()).isEqualTo(7);
@@ -284,7 +284,7 @@ class RetirementServiceTest {
     void 해고_예고_충족이면_수당_검토_항목이_없다() {
         emp(1, RETIRE, "DISMISSAL", RETIRE.plusYears(1));
         when(checker.check(any(), any(), any(), any())).thenReturn(new Result(NoticeCheck.OK, 10, 12, null, List.of()));
-        RetirementView v = service.register(req("DISMISSAL", RETIRE.minusDays(12), RETIRE.minusDays(12), null), "hr1");
+        RetirementView v = service.register("C001", req("DISMISSAL", RETIRE.minusDays(12), RETIRE.minusDays(12), null), "hr1");
         assertThat(v.checklist()).extracting(ChecklistItemView::itemCode).doesNotContain("NOTICE_ALLOWANCE");
         assertThat(v.warnings()).isEmpty();
     }
@@ -292,8 +292,8 @@ class RetirementServiceTest {
     @Test
     void 이미_퇴직_처리가_있으면_409() {
         emp(1, RETIRE, "VOLUNTARY", RETIRE.plusYears(1));
-        service.register(req("VOLUNTARY", null, null, null), "hr1");
-        assertStatus(() -> service.register(req("VOLUNTARY", null, null, null), "hr1"), HttpStatus.CONFLICT);
+        service.register("C001", req("VOLUNTARY", null, null, null), "hr1");
+        assertStatus(() -> service.register("C001", req("VOLUNTARY", null, null, null), "hr1"), HttpStatus.CONFLICT);
     }
 
     @Test

@@ -39,7 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 class ApprovalOracleTest {
 
     private static final String TYPE = "IT_SAMPLE";
-    private static final RequestActor HR = new RequestActor("it-hr", RequestActor.Role.HR, "127.0.0.1");
+    private static final RequestActor HR = new RequestActor("it-hr", RequestActor.Role.HR, "127.0.0.1", "C001");
 
     /** 핸들러 호출 기록(테스트마다 비운다). */
     static final List<String> CALLS = new ArrayList<>();

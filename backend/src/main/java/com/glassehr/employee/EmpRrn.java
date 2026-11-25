@@ -18,6 +18,10 @@ public class EmpRrn {
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
+    /** 사원 법인(#123). PK 는 DB 에서 (enter_cd, emp_id). emp_id 는 전체에서 유일하므로 JPA 식별자는 emp_id 로 둔다. */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "rrn_enc", nullable = false)
     private byte[] rrnEnc;
 
@@ -42,7 +46,9 @@ public class EmpRrn {
     protected EmpRrn() {
     }
 
-    EmpRrn(long empId, RrnCrypto.Sealed sealed, String masked, byte[] hash, String actorId, LocalDateTime now) {
+    EmpRrn(String enterCd, long empId, RrnCrypto.Sealed sealed, String masked, byte[] hash, String actorId,
+            LocalDateTime now) {
+        this.enterCd = enterCd;
         this.empId = empId;
         this.createdAt = now;
         replace(sealed, masked, hash, actorId, now);
@@ -59,6 +65,10 @@ public class EmpRrn {
 
     public Long getEmpId() {
         return empId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public byte[] getRrnEnc() {

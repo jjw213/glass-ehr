@@ -29,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 @EnabledIfEnvironmentVariable(named = "ORACLE_IT", matches = "true")
 class MessageOracleTest {
 
-    private static final RequestActor HR = new RequestActor("it-hr", RequestActor.Role.HR, "127.0.0.1");
+    private static final RequestActor HR = new RequestActor("it-hr", RequestActor.Role.HR, "127.0.0.1", "C001");
 
     @Autowired
     private MessageService service;
@@ -51,10 +51,10 @@ class MessageOracleTest {
     }
 
     private long thread(long... members) {
-        jdbc.update("INSERT INTO msg_thread (created_at) VALUES (SYSTIMESTAMP)");
+        jdbc.update("INSERT INTO msg_thread (enter_cd, created_at) VALUES ('C001', SYSTIMESTAMP)");
         Long id = jdbc.queryForObject("SELECT MAX(thread_id) FROM msg_thread", Long.class);
         for (long m : members) {
-            jdbc.update("INSERT INTO msg_thread_member (thread_id, emp_id) VALUES (?, ?)", id, m);
+            jdbc.update("INSERT INTO msg_thread_member (enter_cd, thread_id, emp_id) VALUES ('C001', ?, ?)", id, m);
         }
         return id;
     }

@@ -40,7 +40,7 @@ class OrgTenantOracleTest {
     private static final String A = "C001";
     private static final String B = "ZZIT1";
     private static final LocalDate D0 = LocalDate.of(1902, 1, 1);
-    private static final RequestActor HR = new RequestActor("it-hr", RequestActor.Role.HR, "127.0.0.1");
+    private static final RequestActor HR = new RequestActor("it-hr", RequestActor.Role.HR, "127.0.0.1", "C001");
 
     @Autowired
     private OrgDeptService org;

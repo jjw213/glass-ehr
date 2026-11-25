@@ -50,7 +50,7 @@ class RetirementControllerTest {
 
     @Test
     void 등록은_201이고_예고_미달_경고를_돌려준다() throws Exception {
-        when(service.register(any(), eq("hr1"))).thenReturn(view(NoticeCheck.SHORT, List.of("7일 모자라요")));
+        when(service.register(eq("C001"), any(), eq("hr1"))).thenReturn(view(NoticeCheck.SHORT, List.of("7일 모자라요")));
         mvc.perform(post("/api/retirements").contentType(MediaType.APPLICATION_JSON).content("""
                         {"empId":1,"retireDate":"2026-11-30","reasonCode":"DISMISSAL",
                          "dismissalNoticeDate":"2026-11-27","writtenNoticeDate":"2026-11-27"}"""))
@@ -69,12 +69,12 @@ class RetirementControllerTest {
         mvc.perform(post("/api/retirements").contentType(MediaType.APPLICATION_JSON).content("""
                         {"empId":1,"retireDate":"2026-11-30","reasonCode":"DISMISSAL","noticeExempt":"NOPE"}"""))
                 .andExpect(status().isBadRequest());
-        verify(service, never()).register(any(), any());
+        verify(service, never()).register(any(), any(), any());
     }
 
     @Test
     void 서비스_오류와_명부_오류는_상태와_메시지로() throws Exception {
-        when(service.register(any(), any())).thenThrow(
+        when(service.register(any(), any(), any())).thenThrow(
                 new RetirementException(HttpStatus.BAD_REQUEST, "해고는 해고 예고일을 입력해야 해요(근로기준법 제26조)"));
         mvc.perform(post("/api/retirements").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"empId\":1,\"retireDate\":\"2026-11-30\",\"reasonCode\":\"DISMISSAL\"}"))
