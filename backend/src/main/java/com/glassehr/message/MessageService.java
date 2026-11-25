@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 사내 메시지(#80). Node {@code /api/threads} 를 대신한다.
  * 참여자는 사원 기준이라 사원과 연결되지 않은 계정은 대화방이 없고, 대화방 API 는 403 이다.
  * 참여자가 아닌 사원이 남의 대화방을 읽거나 쓰거나 읽음 처리하면 403, 없는 대화방은 404.
+ * 법인은 세션의 현재 법인({@link AuthUser#enterCd()})만 쓴다. 다른 법인 대화방은 없는 대화방과 같이 404(#128).
  */
 @Service
 public class MessageService {
@@ -52,8 +53,8 @@ public class MessageService {
             return List.of();
         }
         long me = user.empId();
-        Map<Long, List<Member>> others = repo.othersInThreadsOf(me);
-        return repo.threadsOf(me).stream()
+        Map<Long, List<Member>> others = repo.othersInThreadsOf(user.enterCd(), me);
+        return repo.threadsOf(user.enterCd(), me).stream()
                 .map(t -> new ThreadSummary(t.threadId(), others.getOrDefault(t.threadId(), List.of()),
                         t.preview() == null ? "" : t.preview(), t.lastSentAt(), t.unread()))
                 .toList();
@@ -66,7 +67,7 @@ public class MessageService {
         if (n < 1 || n > MAX_PAGE_SIZE) {
             throw MessageException.badRequest("한 번에 1~" + MAX_PAGE_SIZE + "건까지 볼 수 있어요");
         }
-        List<MessageRow> rows = repo.messagesBefore(threadId, beforeId, n + 1);
+        List<MessageRow> rows = repo.messagesBefore(user.enterCd(), threadId, beforeId, n + 1);
         boolean hasMore = rows.size() > n;
         List<MessageView> page = new ArrayList<>();
         for (MessageRow r : rows.subList(0, Math.min(n, rows.size()))) {
@@ -87,21 +88,21 @@ public class MessageService {
             throw MessageException.badRequest("메시지는 " + MAX_TEXT_LENGTH + "자까지 보낼 수 있어요");
         }
         LocalDateTime now = LocalDateTime.now(clock);
-        long id = repo.insertMessage(threadId, me, body, now);
+        long id = repo.insertMessage(user.enterCd(), threadId, me, body, now);
         return new MessageView(id, me, true, body, now);
     }
 
     @Transactional
     public void markRead(AuthUser user, long threadId) {
         long me = memberOrThrow(user, threadId);
-        repo.markRead(threadId, me, LocalDateTime.now(clock));
+        repo.markRead(user.enterCd(), threadId, me, LocalDateTime.now(clock));
     }
 
     private long memberOrThrow(AuthUser user, long threadId) {
-        if (!repo.threadExists(threadId)) {
+        if (!repo.threadExists(user.enterCd(), threadId)) {
             throw MessageException.notFound();
         }
-        if (user.empId() == null || !repo.isMember(threadId, user.empId())) {
+        if (user.empId() == null || !repo.isMember(user.enterCd(), threadId, user.empId())) {
             throw MessageException.forbidden();
         }
         return user.empId();
