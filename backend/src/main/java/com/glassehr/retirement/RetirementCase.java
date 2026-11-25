@@ -26,6 +26,10 @@ public class RetirementCase {
     @Column(name = "case_id", nullable = false, updatable = false)
     private Long caseId;
 
+    /** 사원 법인(#124). PK 는 DB 에서 (enter_cd, case_id). case_id 는 전체에서 유일하므로 JPA 식별자는 그대로 둔다. */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
@@ -64,9 +68,10 @@ public class RetirementCase {
     protected RetirementCase() {
     }
 
-    RetirementCase(long empId, String retireReasonCode, LocalDate retireDate, LocalDate dismissalNoticeDate,
-            LocalDate writtenNoticeDate, Exemption noticeExempt, NoticeCheck noticeCheck, Integer noticeDays,
-            Integer noticeShortfallDays, String createdBy, LocalDateTime createdAt) {
+    RetirementCase(String enterCd, long empId, String retireReasonCode, LocalDate retireDate,
+            LocalDate dismissalNoticeDate, LocalDate writtenNoticeDate, Exemption noticeExempt, NoticeCheck noticeCheck,
+            Integer noticeDays, Integer noticeShortfallDays, String createdBy, LocalDateTime createdAt) {
+        this.enterCd = enterCd;
         this.empId = empId;
         this.retireReasonCode = retireReasonCode;
         this.retireDate = retireDate;
@@ -82,6 +87,10 @@ public class RetirementCase {
 
     public Long getCaseId() {
         return caseId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public Long getEmpId() {

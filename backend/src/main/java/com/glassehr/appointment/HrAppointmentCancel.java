@@ -18,6 +18,13 @@ public class HrAppointmentCancel {
     @Column(name = "cancel_appt_id", nullable = false, updatable = false)
     private Long cancelApptId;
 
+    /**
+     * 발령 법인(#124). PK 는 DB 에서 (enter_cd, cancel_appt_id), 두 발령 FK 는 (enter_cd, 발령) 복합이라
+     * 다른 법인 발령과 연결할 수 없다. appt_id 는 전체에서 유일하므로 JPA 식별자는 그대로 둔다.
+     */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "original_appt_id", nullable = false, updatable = false)
     private Long originalApptId;
 
@@ -27,7 +34,8 @@ public class HrAppointmentCancel {
     protected HrAppointmentCancel() {
     }
 
-    HrAppointmentCancel(long cancelApptId, long originalApptId, LocalDateTime now) {
+    HrAppointmentCancel(String enterCd, long cancelApptId, long originalApptId, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.cancelApptId = cancelApptId;
         this.originalApptId = originalApptId;
         this.createdAt = now;
