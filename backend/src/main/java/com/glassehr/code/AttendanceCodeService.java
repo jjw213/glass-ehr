@@ -35,12 +35,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AttendanceCodeService {
 
-    /** 그룹별 처리방식. DB CHECK(ck_common_code_process, V038)와 같다. 로직은 코드값이 아니라 처리방식을 본다. */
+    /** 그룹별 처리방식. DB CHECK(ck_common_code_process, V041)와 같다. 로직은 코드값이 아니라 처리방식을 본다. */
     public static final Map<String, List<String>> PROCESS_TYPES = Map.of(
             CodeGroups.LEAVE_TYPE, List.of("ANNUAL", "STATUTORY", "COMPANY", "UNPAID"),
             CodeGroups.ATTENDANCE_TYPE, List.of("BUSINESS_TRIP", "OUTSIDE_WORK", "REMOTE", "EDUCATION"));
 
-    /** 화면에서 추가할 수 있는 휴가 처리방식. 연차·법정휴가는 법이 정하므로 기본 코드(V038)만 둔다. */
+    /** 화면에서 추가할 수 있는 휴가 처리방식. 연차·법정휴가는 법이 정하므로 기본 코드(V041)만 둔다. */
     static final Set<String> USER_LEAVE_PROCESS_TYPES = Set.of("COMPANY", "UNPAID");
 
     static final String UNPAID = "UNPAID";

@@ -48,7 +48,7 @@ public class CommonCode {
     @Column(name = "system_yn", nullable = false, updatable = false)
     private Boolean system = Boolean.FALSE;
 
-    /** 근태코드 그룹(LEAVE_TYPE·ATTENDANCE_TYPE)의 처리방식(V038, #143). 다른 그룹은 null. */
+    /** 근태코드 그룹(LEAVE_TYPE·ATTENDANCE_TYPE)의 처리방식(V041, #143). 다른 그룹은 null. */
     @Column(name = "process_type")
     private String processType;
 

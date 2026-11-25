@@ -9,7 +9,7 @@
 -- 3. 연차·법정휴가 6개는 기본 코드(system_yn='Y', 삭제 불가). 일수·유급 기간은 legal_rate 에서 읽고 화면에서 고치지 않는다.
 --    회사 약정휴가 예시(경조사·병가·창립기념일)와 근태 구분 4개는 삭제할 수 있다.
 -- 4. attendance_leave_type: 휴가 종류별 상세 설정(사용 단위·유급·증빙·연간 한도·성별 제한·법정 근거 문구).
--- 5. 법정휴가 유급 일수·난임치료휴가 일수 legal_rate_item 은 V039 에서 등록한다. 값은 법령 데이터 작업으로 넣는다
+-- 5. 법정휴가 유급 일수·난임치료휴가 일수 legal_rate_item 은 V042 에서 등록한다. 값은 법령 데이터 작업으로 넣는다
 --    (AGENTS.md 법령 규칙). 코드 목록은 com.glassehr.legalrate.LegalRateItem 과 같아야 한다.
 
 ALTER TABLE common_code ADD (

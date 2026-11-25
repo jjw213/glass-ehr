@@ -2,7 +2,7 @@
 
 휴가 종류와 근태 구분을 **근태코드**로 관리한다. 저장은 공통코드(`common_code_group`·`common_code`)에 하고 규칙(법인별, 기본 코드, 삭제·사용처, 참조 목록)은 `docs/common-code-design.md`를 그대로 따른다. 설정 칸이 많아 편집 화면은 **근태관리 > 근태코드 관리**(`attendanceCodes`)에 따로 둔다.
 
-## 그룹 (V038, 시스템 그룹, `edit_page = 'attendanceCodes'`)
+## 그룹 (V041, 시스템 그룹, `edit_page = 'attendanceCodes'`)
 
 | 그룹 | 이름 | 처리방식(`common_code.process_type`) |
 |---|---|---|
@@ -47,7 +47,8 @@
 | FAMILY_CARE | `FAMILY_CARE_LEAVE_DAYS_PER_YEAR`, `FAMILY_CARE_LEAVE_PAID_DAYS`* |
 | INFERTILITY_TREATMENT | `INFERTILITY_TREATMENT_LEAVE_DAYS_PER_YEAR`*, `INFERTILITY_TREATMENT_LEAVE_PAID_DAYS`* |
 
-\* V039에서 항목만 등록했다. 값은 법령 데이터 작업(Codex, law.go.kr 원문 확인)으로 `seed/legal_rate_*.sql`에 넣는다.
+\* V042에서 항목을 등록하고, 값은 법령 데이터 작업(#148, law.go.kr 원문 확인)으로 `seed/legal_rate_statutory_leave.sql`에 넣었다(시드 주석의 'V039'는 V042로 바뀐 번호다). 정답은 `tests/legal-fixtures/statutory-leave-rate-boundaries.csv`이고 `StatutoryLeaveRateFixtureTest`가 시드를 이 화면 조회 경로로 읽어 비교한다.
+`FAMILY_CARE_LEAVE_PAID_DAYS`는 법정 유급 규정이 없어(남녀고용평등법 제22조의2 제2항·제4항 제2호) 값 행이 없고 화면에 '기준값 미등록'으로 보인다.
 
 ## API (`AttendanceCodeController`)
 

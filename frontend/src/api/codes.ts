@@ -226,7 +226,7 @@ export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boo
   };
 }
 
-/** 데모는 근태코드 그룹(V038)도 보기 전용으로 보인다. 근태코드 관리 화면의 데모 수정은 여기 반영되지 않는다(따로 시드). */
+/** 데모는 근태코드 그룹(V041)도 보기 전용으로 보인다. 근태코드 관리 화면의 데모 수정은 여기 반영되지 않는다(따로 시드). */
 export const codeApi: CodeApi = import.meta.env.VITE_API === 'mock'
   ? createMockCodeApi({
     groups: [...CODE_GROUPS, ...ATTENDANCE_CODE_GROUPS],

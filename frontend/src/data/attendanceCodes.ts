@@ -1,5 +1,5 @@
 /**
- * 데모(VITE_API=mock)용 근태코드 시드(#143). 백엔드 V038__attendance_code.sql 과 같게 유지한다
+ * 데모(VITE_API=mock)용 근태코드 시드(#143). 백엔드 V041__attendance_code.sql 과 같게 유지한다
  * (src/api/attendanceCodes.test.ts 가 SQL 파일과 비교한다).
  * 법정 기준값(legal_rate)은 데모에 두지 않는다(값은 서버 기준값 테이블에서만 읽는다). 데모 화면은 '기준값 미등록'으로 보인다.
  */

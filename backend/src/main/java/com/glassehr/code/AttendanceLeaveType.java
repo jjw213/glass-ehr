@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 휴가 종류 상세 설정(V038 attendance_leave_type, #143). 휴가 종류 코드(common_code LEAVE_TYPE)와 1:1이며
+ * 휴가 종류 상세 설정(V041 attendance_leave_type, #143). 휴가 종류 코드(common_code LEAVE_TYPE)와 1:1이며
  * 코드를 지울 때 함께 지운다. 법정휴가·연차(기본 코드)의 일수·유급 기간은 이 테이블이 아니라 legal_rate 에서 읽는다.
  */
 @Entity

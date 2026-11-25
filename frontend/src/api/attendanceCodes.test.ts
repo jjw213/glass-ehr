@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import v038 from '../../../backend/src/main/resources/db/oracle/V038__attendance_code.sql?raw';
+import v041 from '../../../backend/src/main/resources/db/oracle/V041__attendance_code.sql?raw';
 import { ATTENDANCE_CODE_GROUPS, ATTENDANCE_CODES } from '../data/attendanceCodes';
 import { createMockAttendanceCodeApi, PROCESS_TYPES, validateLeave, type AttendanceCodeCreate } from './attendanceCodes';
 import { createMockCodeApi } from './codes';
 import { ApiError } from './types';
 
-const sql = v038.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
+const sql = v041.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
 type Val = string | number | null;
 /** `INSERT INTO <table> (enter_cd, ...) SELECT enter_cd, ... FROM enter_company;` 행을 열 이름 → 값으로 */
 function rows(table: string): Record<string, Val>[] {
@@ -18,7 +18,7 @@ function rows(table: string): Record<string, Val>[] {
 }
 const yn = (v: Val) => (v === null ? null : v === 'Y');
 
-describe('데모 근태코드는 백엔드 V038 과 같다', () => {
+describe('데모 근태코드는 백엔드 V041 과 같다', () => {
   it('그룹', () => {
     const groups = rows('common_code_group');
     expect(groups.length).toBe(2);
