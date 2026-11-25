@@ -100,7 +100,7 @@ class FamilyLeaveServiceTest {
         when(requests.findEmpIdByReqId(anyLong())).thenReturn(Optional.of(1L));
         when(requests.findForUpdate(anyLong())).thenAnswer(i -> store.stream()
                 .filter(r -> r.getReqId() == (long) i.getArgument(0)).findFirst());
-        when(appointments.create(eq(1L), any())).thenAnswer(i -> appt(apptIds.getAndIncrement(), i.getArgument(1)));
+        when(appointments.create(eq("C001"), eq(1L), any())).thenAnswer(i -> appt(apptIds.getAndIncrement(), i.getArgument(1)));
 
         // 테스트용 임의 기준값(법령 정답 아님)
         rate(LegalRateItem.PARENTAL_LEAVE_MAX_MONTHS, 10);
@@ -154,7 +154,7 @@ class FamilyLeaveServiceTest {
                 .map(r -> new LeavePeriodView(1, r.getLeaveApptId(), r.getStartDate(), r.getEndDate(), r.getEndDate(),
                         null, "r"))
                 .toList();
-        when(appointments.leavePeriods(eq(1L), any(), any())).thenReturn(periods);
+        when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenReturn(periods);
         return v;
     }
 
@@ -171,7 +171,7 @@ class FamilyLeaveServiceTest {
         assertThat(v.status()).isEqualTo(Status.REQUESTED);
         assertThat(v.requestedBy()).isEqualTo("hr1");
         assertThat(v.warnings()).singleElement().asString().contains("만 7세", "만 5세", "학년");
-        verify(appointments, never()).create(anyLong(), any());
+        verify(appointments, never()).create(eq("C001"), anyLong(), any());
     }
 
     @Test
@@ -289,10 +289,10 @@ class FamilyLeaveServiceTest {
         InOrder order = inOrder(orgLock, employees, appointments);
         order.verify(orgLock).acquire();
         order.verify(employees).findForUpdate(1L);
-        order.verify(appointments).create(eq(1L), captor.capture());
-        order.verify(appointments).confirm(100L);
-        order.verify(appointments).create(eq(1L), captor.capture());
-        verify(appointments, never()).confirm(101L);
+        order.verify(appointments).create(eq("C001"), eq(1L), captor.capture());
+        order.verify(appointments).confirm(eq("C001"), 100L);
+        order.verify(appointments).create(eq("C001"), eq(1L), captor.capture());
+        verify(appointments, never()).confirm(eq("C001"), 101L);
 
         AppointmentRequest leave = captor.getAllValues().get(0);
         assertThat(leave.apptTypeCode()).isEqualTo("LEAVE");
@@ -330,7 +330,7 @@ class FamilyLeaveServiceTest {
         // 반려된 신청은 겹침 검사에서 빠진다
         long id2 = service.create(1L, care(START, START.plusDays(29)), "hr1").reqId();
         assertThat(service.cancel(id2, null, "hr1").status()).isEqualTo(Status.CANCELLED);
-        verify(appointments, never()).create(anyLong(), any());
+        verify(appointments, never()).create(eq("C001"), anyLong(), any());
     }
 
     // ---------------------------------------------------------------- 육아기 근로시간 단축
@@ -372,7 +372,7 @@ class FamilyLeaveServiceTest {
         assertThat(captor.getAllValues().get(1).validFrom()).isEqualTo(end.plusDays(1));
         assertThat(v.reducedAssignId()).isEqualTo(50L);
         assertThat(v.restoreAssignId()).isEqualTo(51L);
-        verify(appointments, never()).create(anyLong(), any());
+        verify(appointments, never()).create(eq("C001"), anyLong(), any());
     }
 
     @Test
@@ -478,11 +478,11 @@ class FamilyLeaveServiceTest {
         approvedLeave(parental("첫째", null, START, START.plusMonths(6).minusDays(1)));
         FamilyLeaveRequest r = store.get(0);
         // 3개월 만에 복직 발령으로 끝남
-        when(appointments.leavePeriods(eq(1L), any(), any())).thenReturn(List.of(new LeavePeriodView(1,
+        when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenReturn(List.of(new LeavePeriodView(1,
                 r.getLeaveApptId(), START, r.getEndDate(), START.plusMonths(3).minusDays(1), 999L, "r")));
         assertThat(service.balance(1L, START).children().get(0).parentalLeave().usedMonths()).isEqualTo(3);
         // 발령 취소로 이력에 없음
-        when(appointments.leavePeriods(eq(1L), any(), any())).thenReturn(List.of());
+        when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenReturn(List.of());
         assertThat(service.balance(1L, START).children().get(0).parentalLeave().usedMonths()).isZero();
     }
 
@@ -491,13 +491,13 @@ class FamilyLeaveServiceTest {
         patternsForReduced(20);
         approvedLeave(parental("첫째", null, START, START.plusMonths(6).minusDays(1)));
         FamilyLeaveRequest r = store.get(0);
-        when(appointments.leavePeriods(eq(1L), any(), any())).thenReturn(List.of(new LeavePeriodView(1,
+        when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenReturn(List.of(new LeavePeriodView(1,
                 r.getLeaveApptId(), START, r.getEndDate(), START.plusMonths(3).minusDays(1), 999L, "조기 복직")));
 
         service.create(1L, reduced(START.plusMonths(4), START.plusMonths(6).minusDays(1), 10L), "hr1");
 
         store.remove(1);
-        when(appointments.leavePeriods(eq(1L), any(), any())).thenReturn(List.of());
+        when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenReturn(List.of());
         service.create(1L, care(START.plusMonths(1), START.plusMonths(2).minusDays(1)), "hr1");
     }
 

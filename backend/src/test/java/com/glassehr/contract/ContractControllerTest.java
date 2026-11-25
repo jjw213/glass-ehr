@@ -54,7 +54,7 @@ class ContractControllerTest {
 
     @Test
     void 등록은_201이고_누락_경고를_함께_돌려준다() throws Exception {
-        when(service.create(anyLong(), any())).thenReturn(
+        when(service.create(eq("C001"), anyLong(), any())).thenReturn(
                 view(List.of(new MissingTerm("WAGE", "임금(금액·지급 단위)", "근로기준법 제17조 제1항 제1호"))));
         mvc.perform(post("/api/employees/1/contracts").contentType(MediaType.APPLICATION_JSON)
                         .content(BODY.formatted(",\"wageAmount\":2500000,\"wageUnitCode\":\"MONTHLY\"")))
@@ -63,7 +63,7 @@ class ContractControllerTest {
                 .andExpect(jsonPath("$.missingTerms[0].code").value("WAGE"))
                 .andExpect(jsonPath("$.missingTerms[0].basis").value("근로기준법 제17조 제1항 제1호"));
         ArgumentCaptor<ContractRequest> req = ArgumentCaptor.forClass(ContractRequest.class);
-        verify(service).create(eq(1L), req.capture());
+        verify(service).create(eq("C001"), eq(1L), req.capture());
         assertThat(req.getValue().wageAmount()).isEqualTo(2_500_000L);
     }
 
@@ -82,12 +82,12 @@ class ContractControllerTest {
         mvc.perform(post("/api/employees/1/contracts").contentType(MediaType.APPLICATION_JSON)
                         .content(BODY.formatted(",\"wageAmount\":-1")))
                 .andExpect(status().isBadRequest());
-        verify(service, never()).create(anyLong(), any());
+        verify(service, never()).create(eq("C001"), anyLong(), any());
     }
 
     @Test
     void 서비스_오류는_상태와_메시지로_돌려준다() throws Exception {
-        when(service.update(anyLong(), any())).thenThrow(new ContractException(HttpStatus.CONFLICT, "고칠 수 없어요"));
+        when(service.update(eq("C001"), anyLong(), any())).thenThrow(new ContractException(HttpStatus.CONFLICT, "고칠 수 없어요"));
         mvc.perform(put("/api/contracts/7").contentType(MediaType.APPLICATION_JSON).content(BODY.formatted("")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("고칠 수 없어요"));
@@ -95,7 +95,7 @@ class ContractControllerTest {
 
     @Test
     void 교부일_기록() throws Exception {
-        when(service.recordDelivery(anyLong(), any())).thenReturn(view(List.of()));
+        when(service.recordDelivery(eq("C001"), anyLong(), any())).thenReturn(view(List.of()));
         mvc.perform(post("/api/contracts/7/delivery").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"deliveredDate\":\"2026-03-02\"}"))
                 .andExpect(status().isOk());
@@ -106,23 +106,23 @@ class ContractControllerTest {
 
     @Test
     void 알림은_기준일을_받고_없으면_null로_넘긴다() throws Exception {
-        when(service.alerts(any())).thenReturn(List.of(new AlertRow(AlertType.CONTRACT_EXPIRING, 1, "S01-2026-001",
+        when(service.alerts(eq("C001"), any())).thenReturn(List.of(new AlertRow(AlertType.CONTRACT_EXPIRING, 1, "S01-2026-001",
                 "예시사원", 7, D, null, D, 3L)));
         mvc.perform(get("/api/contracts/alerts").param("asOf", "2026-02-27"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].type").value("CONTRACT_EXPIRING"))
                 .andExpect(jsonPath("$[0].daysLeft").value(3));
-        verify(service).alerts(LocalDate.of(2026, 2, 27));
+        verify(service).alerts(eq("C001"), LocalDate.of(2026, 2, 27));
         mvc.perform(get("/api/contracts/alerts")).andExpect(status().isOk());
-        verify(service).alerts(isNull());
+        verify(service).alerts(eq("C001"), isNull());
         mvc.perform(get("/api/contracts/alerts").param("asOf", "2026/02/27")).andExpect(status().isBadRequest());
     }
 
     @Test
     void 미교부_목록과_이력() throws Exception {
-        when(service.undelivered()).thenReturn(List.of());
+        when(service.undelivered(eq("C001"))).thenReturn(List.of());
         mvc.perform(get("/api/contracts/undelivered")).andExpect(status().isOk()).andExpect(jsonPath("$").isArray());
-        when(service.list(1)).thenReturn(List.of(view(List.of())));
+        when(service.list(eq("C001"), 1)).thenReturn(List.of(view(List.of())));
         mvc.perform(get("/api/employees/1/contracts")).andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].contractId").value(7));
     }

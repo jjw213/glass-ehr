@@ -57,8 +57,9 @@ class PunchServiceTest {
         employees = mock(EmployeeRepository.class);
         emp = mock(Employee.class);
         assignments = mock(AppointmentService.class);
-        when(assignments.assignmentOn(org.mockito.ArgumentMatchers.anyLong(), any()))
+        when(assignments.assignmentOn(any(), org.mockito.ArgumentMatchers.anyLong(), any()))
                 .thenReturn(new AssignmentView(5L, TODAY, null, "STAFF", null, EmpStatus.ACTIVE));
+        when(emp.getEnterCd()).thenReturn("C001");
         when(emp.getHireDate()).thenReturn(LocalDate.of(2099, 1, 1));
         when(employees.findForUpdate(5L)).thenReturn(Optional.of(emp));
         when(punches.findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(any(), any()))
@@ -131,9 +132,11 @@ class PunchServiceTest {
 
     @Test
     void 입사_전이나_퇴직일_다음_날부터는_기록하지_않는다() {
+        when(emp.getEnterCd()).thenReturn("C001");
         when(emp.getHireDate()).thenReturn(TODAY.plusDays(1));
         assertThatThrownBy(() -> service.punch(5L, "emp1", new PunchRequest(Type.IN, null)))
                 .isInstanceOfSatisfying(AttendanceException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
+        when(emp.getEnterCd()).thenReturn("C001");
         when(emp.getHireDate()).thenReturn(TODAY);
         when(emp.getRetireDate()).thenReturn(TODAY.minusDays(1));
         assertThatThrownBy(() -> service.punch(5L, "emp1", new PunchRequest(Type.IN, null)))
@@ -147,7 +150,7 @@ class PunchServiceTest {
     @Test
     void 오늘_퇴직발령은_현재값_반영_배치_전에도_기록을_거부한다() {
         when(emp.getEmpStatus()).thenReturn("ACTIVE");
-        when(assignments.assignmentOn(5L, TODAY))
+        when(assignments.assignmentOn("C001", 5L, TODAY))
                 .thenReturn(new AssignmentView(5L, TODAY, null, "STAFF", null, EmpStatus.RETIRED));
         assertThatThrownBy(() -> service.punch(5L, "emp1", new PunchRequest(Type.IN, null)))
                 .isInstanceOfSatisfying(AttendanceException.class,

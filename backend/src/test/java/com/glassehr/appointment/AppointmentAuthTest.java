@@ -2,6 +2,7 @@ package com.glassehr.appointment;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -60,7 +61,7 @@ class AppointmentAuthTest {
 
     @Test
     void 일반_사원은_본인의_확정_발령만_본다() throws Exception {
-        when(service.listByEmployee(TestAuthUsers.EMP_EMP)).thenReturn(List.of(view(1, true), view(2, false)));
+        when(service.listByEmployee(eq("C001"), TestAuthUsers.EMP_EMP)).thenReturn(List.of(view(1, true), view(2, false)));
         mvc.perform(as(get("/api/employees/" + TestAuthUsers.EMP_EMP + "/appointments"), "emp1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -74,13 +75,13 @@ class AppointmentAuthTest {
                 .andExpect(jsonPath("$.error").value("본인 발령 이력만 볼 수 있어요"));
         mvc.perform(as(get("/api/employees/5/appointments"), "head1")).andExpect(status().isForbidden());
         mvc.perform(as(get("/api/appointments"), "emp1")).andExpect(status().isForbidden());
-        verify(service, never()).listByEmployee(anyLong());
-        verify(service, never()).search(any(), any(), any(), any(), any());
+        verify(service, never()).listByEmployee(eq("C001"), anyLong());
+        verify(service, never()).search(eq("C001"), any(), any(), any(), any(), any());
     }
 
     @Test
     void 인사담당은_다른_사원의_미확정_발령까지_본다() throws Exception {
-        when(service.listByEmployee(TestAuthUsers.EMP_EMP)).thenReturn(List.of(view(1, true), view(2, false)));
+        when(service.listByEmployee(eq("C001"), TestAuthUsers.EMP_EMP)).thenReturn(List.of(view(1, true), view(2, false)));
         mvc.perform(as(get("/api/employees/" + TestAuthUsers.EMP_EMP + "/appointments"), "hr1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2));
@@ -97,14 +98,14 @@ class AppointmentAuthTest {
             mvc.perform(as(post("/api/appointments/bulk"), who).contentType(MediaType.APPLICATION_JSON)
                     .content(BULK)).andExpect(status().isForbidden());
         }
-        verify(service, never()).create(anyLong(), any());
-        verify(service, never()).confirm(anyLong());
-        verify(bulk, never()).createAll(any());
+        verify(service, never()).create(eq("C001"), anyLong(), any());
+        verify(service, never()).confirm(eq("C001"), anyLong());
+        verify(bulk, never()).createAll(eq("C001"), any());
     }
 
     @Test
     void 인사담당의_일괄_발령은_사원별_결과를_돌려준다() throws Exception {
-        when(bulk.createAll(any())).thenReturn(new BulkAppointmentResult(1, 1, List.of(
+        when(bulk.createAll(eq("C001"), any())).thenReturn(new BulkAppointmentResult(1, 1, List.of(
                 new BulkItemResult(1, true, view(1, true), null),
                 new BulkItemResult(2, false, null, "퇴직한 사원이에요"))));
         mvc.perform(as(post("/api/appointments/bulk"), "hr1").contentType(MediaType.APPLICATION_JSON).content(BULK))
@@ -124,6 +125,6 @@ class AppointmentAuthTest {
                         .content(BULK.replace("조직 개편", " ")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("발령 사유를 입력해 주세요(근로기준법 제23조)"));
-        verify(bulk, never()).createAll(any());
+        verify(bulk, never()).createAll(eq("C001"), any());
     }
 }

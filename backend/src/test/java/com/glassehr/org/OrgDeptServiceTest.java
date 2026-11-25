@@ -348,14 +348,14 @@ class OrgDeptServiceTest {
         assertThat(deptStore.get(a).getCloseReason()).isEqualTo("통폐합");
         assertThat(codes(service.tree(E,d.minusDays(1)).roots())).containsExactly("A");
         assertThat(service.tree(E,d).roots()).isEmpty();
-        verify(members).countMembersOnOrAfter(a, d);
+        verify(members).countMembersOnOrAfter(E, a, d);
     }
 
     @Test
     void 재직자가_남아_있으면_폐지를_거부하고_아무것도_바꾸지_않는다() {
         long a = create("A", "가", null, 0, D0);
         LocalDate d = LocalDate.of(2026, 9, 1);
-        when(members.countMembersOnOrAfter(a, d)).thenReturn(3L);
+        when(members.countMembersOnOrAfter(E, a, d)).thenReturn(3L);
 
         expectStatus(() -> service.close(E,a, new DeptCloseRequest(d, null)), HttpStatus.CONFLICT,
                 m -> assertThat(m).contains("재직자").contains("3명"));

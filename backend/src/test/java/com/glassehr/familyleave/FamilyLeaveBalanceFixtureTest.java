@@ -197,9 +197,9 @@ class FamilyLeaveBalanceFixtureTest {
         });
 
         AppointmentService appointments = mock(AppointmentService.class);
-        when(appointments.create(eq(1L), any())).thenAnswer(i -> appt(refIds.getAndIncrement(), i.getArgument(1)));
+        when(appointments.create(eq("C001"), eq(1L), any())).thenAnswer(i -> appt(refIds.getAndIncrement(), i.getArgument(1)));
         // 휴직 발령 이력은 신청 기간 그대로 둔다(조기 복직 없음).
-        when(appointments.leavePeriods(eq(1L), any(), any())).thenAnswer(i -> store.stream()
+        when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenAnswer(i -> store.stream()
                 .filter(r -> r.getLeaveApptId() != null)
                 .map(r -> new LeavePeriodView(1, r.getLeaveApptId(), r.getStartDate(), r.getEndDate(), r.getEndDate(),
                         null, "r"))

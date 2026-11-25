@@ -108,7 +108,7 @@ class RetirementServiceTest {
     void setUp() {
         employeeService = mock(EmployeeService.class);
         employees = mock(EmployeeRepository.class);
-        when(employees.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(0))));
+        when(employees.findByEnterCdAndEmpId(any(), anyLong())).thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(1))));
 
         RetirementCaseRepository cases = mock(RetirementCaseRepository.class);
         when(cases.saveAndFlush(any())).thenAnswer(inv -> {
@@ -117,8 +117,8 @@ class RetirementServiceTest {
             caseStore.put(c.getEmpId(), c);
             return c;
         });
-        when(cases.findByEmpId(anyLong())).thenAnswer(inv -> Optional.ofNullable(caseStore.get(inv.<Long>getArgument(0))));
-        when(cases.existsByEmpId(anyLong())).thenAnswer(inv -> caseStore.containsKey(inv.<Long>getArgument(0)));
+        when(cases.findByEnterCdAndEmpId(any(), anyLong())).thenAnswer(inv -> Optional.ofNullable(caseStore.get(inv.<Long>getArgument(1))));
+        when(cases.existsByEnterCdAndEmpId(any(), anyLong())).thenAnswer(inv -> caseStore.containsKey(inv.<Long>getArgument(1)));
 
         RetirementChecklistItemRepository checklist = mock(RetirementChecklistItemRepository.class);
         when(checklist.saveAll(any())).thenAnswer(inv -> {
@@ -126,10 +126,10 @@ class RetirementServiceTest {
             it.forEach(itemStore::add);
             return List.copyOf(itemStore);
         });
-        when(checklist.findByCaseIdOrderBySortOrderAsc(anyLong())).thenAnswer(inv -> itemStore.stream()
-                .filter(i -> i.getCaseId().equals(inv.<Long>getArgument(0))).toList());
-        when(checklist.findByCaseIdAndItemCode(anyLong(), any())).thenAnswer(inv -> itemStore.stream()
-                .filter(i -> i.getCaseId().equals(inv.<Long>getArgument(0)) &&i.getItemCode().equals(inv.getArgument(1)))
+        when(checklist.findByEnterCdAndCaseIdOrderBySortOrderAsc(any(), anyLong())).thenAnswer(inv -> itemStore.stream()
+                .filter(i -> i.getCaseId().equals(inv.<Long>getArgument(1))).toList());
+        when(checklist.findByEnterCdAndCaseIdAndItemCode(any(), anyLong(), any())).thenAnswer(inv -> itemStore.stream()
+                .filter(i -> i.getCaseId().equals(inv.<Long>getArgument(1)) &&i.getItemCode().equals(inv.getArgument(2)))
                 .findFirst());
 
         EmploymentCertificateRepository certs = mock(EmploymentCertificateRepository.class);
@@ -142,8 +142,8 @@ class RetirementServiceTest {
         when(certs.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(certStore.get(inv.<Long>getArgument(0))));
 
         EmploymentContractRepository contracts = mock(EmploymentContractRepository.class);
-        when(contracts.findByEmpIdOrderByStartDateAsc(anyLong())).thenAnswer(inv -> contractStore.stream()
-                .filter(c -> c.getEmpId().equals(inv.<Long>getArgument(0))).toList());
+        when(contracts.findByEnterCdAndEmpIdOrderByStartDateAsc(any(), anyLong())).thenAnswer(inv -> contractStore.stream()
+                .filter(c -> c.getEmpId().equals(inv.<Long>getArgument(1))).toList());
 
         CommonCodeRepository codes = mock(CommonCodeRepository.class);
         when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(
@@ -204,20 +204,20 @@ class RetirementServiceTest {
     void 체크리스트_완료_표시와_해제() {
         emp(1, RETIRE, "VOLUNTARY", RETIRE.plusYears(1));
         service.register("C001", req("VOLUNTARY", null, null, null), "hr1");
-        RetirementView v = service.updateChecklist(1, "HANDOVER", new ChecklistUpdateRequest(true, " 인계 완료 "), "hr2");
+        RetirementView v = service.updateChecklist("C001", 1, "HANDOVER", new ChecklistUpdateRequest(true, " 인계 완료 "), "hr2");
         ChecklistItemView h = v.checklist().stream().filter(i -> i.itemCode().equals("HANDOVER")).findFirst().orElseThrow();
         assertThat(h.done()).isTrue();
         assertThat(h.doneBy()).isEqualTo("hr2");
         assertThat(h.note()).isEqualTo("인계 완료");
 
-        v = service.updateChecklist(1, "HANDOVER", new ChecklistUpdateRequest(false, null), "hr2");
+        v = service.updateChecklist("C001", 1, "HANDOVER", new ChecklistUpdateRequest(false, null), "hr2");
         h = v.checklist().stream().filter(i -> i.itemCode().equals("HANDOVER")).findFirst().orElseThrow();
         assertThat(h.done()).isFalse();
         assertThat(h.doneBy()).isNull();
 
-        assertStatus(() -> service.updateChecklist(1, "NOPE", new ChecklistUpdateRequest(true, null), "hr2"),
+        assertStatus(() -> service.updateChecklist("C001", 1, "NOPE", new ChecklistUpdateRequest(true, null), "hr2"),
                 HttpStatus.NOT_FOUND);
-        assertStatus(() -> service.updateChecklist(9, "HANDOVER", new ChecklistUpdateRequest(true, null), "hr2"),
+        assertStatus(() -> service.updateChecklist("C001", 9, "HANDOVER", new ChecklistUpdateRequest(true, null), "hr2"),
                 HttpStatus.NOT_FOUND);
     }
 
@@ -275,7 +275,7 @@ class RetirementServiceTest {
                 .singleElement().matches(i -> !i.done());
 
         // 다시 조회하면 저장된 값이 나오고 경고는 등록 응답에만 있다
-        RetirementView again = service.get(1);
+        RetirementView again = service.get("C001", 1);
         assertThat(again.notice().check()).isEqualTo(NoticeCheck.SHORT);
         assertThat(again.warnings()).isEmpty();
     }
@@ -298,7 +298,7 @@ class RetirementServiceTest {
 
     @Test
     void 퇴직_처리_기록이_없으면_404() {
-        assertStatus(() -> service.get(1), HttpStatus.NOT_FOUND);
+        assertStatus(() -> service.get("C001", 1), HttpStatus.NOT_FOUND);
     }
 
     // ------------------------------------------------------------ 보존기한
@@ -307,9 +307,9 @@ class RetirementServiceTest {
     void 보존기한_다음_날부터_경과_목록에_나온다() {
         LocalDate asOf = LocalDate.of(2026, 11, 16);
         Employee e = emp(5, LocalDate.of(2023, 11, 15), "VOLUNTARY", LocalDate.of(2026, 11, 10));
-        when(employees.findByRecordRetentionUntilBeforeOrderByRecordRetentionUntilAscEmpNoAsc(asOf))
+        when(employees.findByEnterCdAndRecordRetentionUntilBeforeOrderByRecordRetentionUntilAscEmpNoAsc("C001", asOf))
                 .thenReturn(List.of(e));
-        List<RetentionExpiredRow> rows = service.retentionExpired(null); // 기본 = 오늘(서울)
+        List<RetentionExpiredRow> rows = service.retentionExpired("C001", null); // 기본 = 오늘(서울)
         assertThat(rows).singleElement().satisfies(r -> {
             assertThat(r.empId()).isEqualTo(5);
             assertThat(r.recordRetentionUntil()).isEqualTo(LocalDate.of(2026, 11, 10));
@@ -323,7 +323,7 @@ class RetirementServiceTest {
     void 사용증명서는_요구한_항목만_적는다() {
         emp(1, RETIRE, "VOLUNTARY", RETIRE.plusYears(1));
         contract(1, HIRE, 3_000_000L);
-        CertificateView v = service.issueCertificate(1,
+        CertificateView v = service.issueCertificate("C001", 1,
                 new CertificateRequest(LocalDate.of(2026, 12, 1), EnumSet.of(CertificateItem.USE_PERIOD), " 이직 "),
                 "hr1");
         assertThat(v.items()).containsExactly(CertificateItem.USE_PERIOD);
@@ -349,7 +349,7 @@ class RetirementServiceTest {
         contract(1, HIRE, 2_800_000L);
         contract(1, LocalDate.of(2025, 1, 1), 3_100_000L);
         contract(1, LocalDate.of(2027, 1, 1), 9_999_999L); // 퇴직일 뒤 시작 계약은 쓰지 않음
-        CertificateView v = service.issueCertificate(1, new CertificateRequest(LocalDate.of(2026, 12, 1),
+        CertificateView v = service.issueCertificate("C001", 1, new CertificateRequest(LocalDate.of(2026, 12, 1),
                 EnumSet.allOf(CertificateItem.class), null), "hr1");
         assertThat(v.items()).containsExactly(CertificateItem.values());
         assertThat(v.jobType()).isEqualTo("백엔드 개발");
@@ -357,7 +357,7 @@ class RetirementServiceTest {
         assertThat(v.wageAmount()).isEqualTo(3_100_000L);
         assertThat(v.wageUnitCode()).isEqualTo("MONTHLY");
         assertThat(v.retireReason()).isEqualTo("자발적 퇴사(개인 사정)");
-        assertThat(service.certificate(v.certId())).isEqualTo(v);
+        assertThat(service.certificate("C001", v.certId())).isEqualTo(v);
     }
 
     @Test
@@ -366,7 +366,7 @@ class RetirementServiceTest {
         emp(1, futureRetire, "VOLUNTARY", futureRetire.plusYears(3));
         contract(1, HIRE, 2_800_000L);
         contract(1, LocalDate.of(2026, 12, 1), 3_300_000L); // 청구일 뒤·퇴직일 전에 시작하는 계약은 아직 쓰지 않음
-        CertificateView v = service.issueCertificate(1, new CertificateRequest(LocalDate.of(2026, 11, 17),
+        CertificateView v = service.issueCertificate("C001", 1, new CertificateRequest(LocalDate.of(2026, 11, 17),
                 EnumSet.of(CertificateItem.WAGE), null), "hr1");
         assertThat(v.wageAmount()).isEqualTo(2_800_000L);
     }
@@ -374,10 +374,10 @@ class RetirementServiceTest {
     @Test
     void 재직자는_사용기간_끝이_비고_퇴직사유를_요구하면_400() {
         emp(1, null, null, null);
-        CertificateView v = service.issueCertificate(1, new CertificateRequest(LocalDate.of(2026, 11, 16),
+        CertificateView v = service.issueCertificate("C001", 1, new CertificateRequest(LocalDate.of(2026, 11, 16),
                 EnumSet.of(CertificateItem.USE_PERIOD), null), "hr1");
         assertThat(v.useTo()).isNull();
-        assertStatus(() -> service.issueCertificate(1, new CertificateRequest(LocalDate.of(2026, 11, 16),
+        assertStatus(() -> service.issueCertificate("C001", 1, new CertificateRequest(LocalDate.of(2026, 11, 16),
                 EnumSet.of(CertificateItem.RETIRE_REASON), null), "hr1"), HttpStatus.BAD_REQUEST);
     }
 
@@ -385,14 +385,14 @@ class RetirementServiceTest {
     void 임금이_적힌_계약이_없으면_409() {
         emp(1, RETIRE, "VOLUNTARY", RETIRE.plusYears(1));
         contract(1, HIRE, null);
-        assertStatus(() -> service.issueCertificate(1, new CertificateRequest(LocalDate.of(2026, 12, 1),
+        assertStatus(() -> service.issueCertificate("C001", 1, new CertificateRequest(LocalDate.of(2026, 12, 1),
                 EnumSet.of(CertificateItem.WAGE), null), "hr1"), HttpStatus.CONFLICT);
     }
 
     @Test
     void 없는_사원이나_증명서는_404() {
-        assertStatus(() -> service.issueCertificate(9, new CertificateRequest(LocalDate.of(2026, 12, 1),
+        assertStatus(() -> service.issueCertificate("C001", 9, new CertificateRequest(LocalDate.of(2026, 12, 1),
                 EnumSet.of(CertificateItem.USE_PERIOD), null), "hr1"), HttpStatus.NOT_FOUND);
-        assertStatus(() -> service.certificate(99), HttpStatus.NOT_FOUND);
+        assertStatus(() -> service.certificate("C001", 99), HttpStatus.NOT_FOUND);
     }
 }

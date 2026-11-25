@@ -53,19 +53,19 @@ class ContractOracleTest {
     @Test
     void 저장_조회_교부가_된다() {
         long emp = employee();
-        ContractView v = service.create(emp, req("FIXED_TERM", D0, D0.plusMonths(6)));
-        service.recordDelivery(v.contractId(), new DeliveryRequest(D0));
-        assertThat(service.list(emp)).singleElement().satisfies(c -> {
+        ContractView v = service.create("C001", emp, req("FIXED_TERM", D0, D0.plusMonths(6)));
+        service.recordDelivery("C001", v.contractId(), new DeliveryRequest(D0));
+        assertThat(service.list("C001", emp)).singleElement().satisfies(c -> {
             assertThat(c.wageAmount()).isEqualTo(2_500_000L);
             assertThat(c.writtenDeliveredDate()).isEqualTo(D0);
         });
-        assertThat(service.undelivered()).noneMatch(r -> r.contractId() == v.contractId());
+        assertThat(service.undelivered("C001")).noneMatch(r -> r.contractId() == v.contractId());
     }
 
     @Test
     void DB는_종료일_없는_기간제와_체결일_전_교부일을_거부한다() {
         long emp = employee();
-        ContractView v = service.create(emp, req("FIXED_TERM", D0, D0.plusMonths(6)));
+        ContractView v = service.create("C001", emp, req("FIXED_TERM", D0, D0.plusMonths(6)));
         assertThatThrownBy(() -> jdbc.update("UPDATE employment_contract SET end_date = NULL WHERE contract_id = ?",
                 v.contractId())).isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update(
