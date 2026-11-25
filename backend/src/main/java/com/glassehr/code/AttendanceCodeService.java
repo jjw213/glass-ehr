@@ -193,10 +193,12 @@ public class AttendanceCodeService {
         requireAttendanceGroup(enterCd, groupCode);
         CommonCode c = common.findCode(enterCd, groupCode, code);
         common.requireDeletable(enterCd, c);
-        leaves.findByEnterCdAndCode(enterCd, code).ifPresent(d -> {
-            leaves.delete(d);
-            leaves.flush();
-        });
+        if (isLeave(groupCode)) {
+            leaves.findByEnterCdAndCode(enterCd, code).ifPresent(d -> {
+                leaves.delete(d);
+                leaves.flush();
+            });
+        }
         codes.delete(c);
         codes.flush();
     }

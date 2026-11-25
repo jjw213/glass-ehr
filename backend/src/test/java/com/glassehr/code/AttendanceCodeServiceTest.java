@@ -177,6 +177,20 @@ class AttendanceCodeServiceTest {
     }
 
     @Test
+    void 같은_코드의_근태_구분을_삭제해도_휴가_상세_설정은_보존한다() {
+        CommonCode c = new CommonCode(E, CodeGroups.ATTENDANCE_TYPE, "REFRESH", "리프레시 근무", null, 1, true,
+                "WORK", T0);
+        when(codes.findByEnterCdAndGroupCodeAndCode(E, CodeGroups.ATTENDANCE_TYPE, "REFRESH"))
+                .thenReturn(Optional.of(c));
+
+        service.delete(E, CodeGroups.ATTENDANCE_TYPE, "REFRESH");
+
+        verify(leaves, never()).findByEnterCdAndCode(any(), any());
+        verify(leaves, never()).delete(any());
+        verify(codes).delete(c);
+    }
+
+    @Test
     void 법정휴가_기본_코드는_삭제할_수_없다() {
         when(codes.findByEnterCdAndGroupCodeAndCode(E, LEAVE, "MATERNITY"))
                 .thenReturn(Optional.of(stored("MATERNITY", "STATUTORY", true)));
