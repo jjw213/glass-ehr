@@ -200,7 +200,7 @@ public class OrgDeptService {
                     .collect(Collectors.joining(", "));
             throw OrgException.conflict("폐지일 이후에도 하위 부서가 있어요: " + codes + ". 하위 부서를 먼저 옮기거나 폐지해 주세요");
         }
-        long count = members.countMembersOnOrAfter(deptId, d);
+        long count = members.countMembersOnOrAfter(enterCd, deptId, d);
         if (count > 0) {
             throw OrgException.conflict("폐지일 이후에도 소속 재직자가 " + count + "명 있어요. 인사발령으로 먼저 옮겨 주세요");
         }

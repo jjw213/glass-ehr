@@ -108,22 +108,22 @@ public class RetirementService {
         // 근로자 명부 퇴직일·사유·보존기한(근로기준법 제42조) — 사원 잠금·중복 퇴직·사유 코드 검사 포함
         employeeService.retire(enterCd, req.empId(),
                 new EmployeeDtos.RetirementRequest(req.retireDate(), reason, req.reasonDetail()));
-        if (cases.existsByEmpId(req.empId())) {
+        if (cases.existsByEnterCdAndEmpId(enterCd, req.empId())) {
             throw RetirementException.conflict("이미 퇴직 처리가 등록된 사원이에요");
         }
-        Employee e = employees.findById(req.empId())
+        Employee e = employees.findByEnterCdAndEmpId(enterCd, req.empId())
                 .orElseThrow(() -> RetirementException.notFound("사원을 찾을 수 없어요: " + req.empId()));
 
         Result notice = dismissal
                 ? noticeChecker.check(e.getHireDate(), req.dismissalNoticeDate(), req.retireDate(), req.noticeExempt())
                 : new Result(NoticeCheck.NOT_APPLICABLE, null, null, null, List.of());
         LocalDateTime now = now();
-        RetirementCase c = cases.saveAndFlush(new RetirementCase(req.empId(), reason, req.retireDate(),
+        RetirementCase c = cases.saveAndFlush(new RetirementCase(e.getEnterCd(), req.empId(), reason, req.retireDate(),
                 req.dismissalNoticeDate(), req.writtenNoticeDate(), req.noticeExempt(), notice.check(),
                 notice.noticeDays(), notice.shortfallDays(), actor, now));
         List<RetirementChecklistItem> items = new ArrayList<>();
         for (RetirementChecklist.Item t : RetirementChecklist.forReason(reason, notice.check())) {
-            RetirementChecklistItem i = new RetirementChecklistItem(c.getCaseId(), t);
+            RetirementChecklistItem i = new RetirementChecklistItem(c.getEnterCd(), c.getCaseId(), t);
             if (RetirementChecklist.autoDone(t.code())) {
                 i.mark(true, "등록 시 입력(예고일·서면통지일)", actor, now);
             }
@@ -156,23 +156,25 @@ public class RetirementService {
         }
     }
 
-    public RetirementView get(long empId) {
-        RetirementCase c = cases.findByEmpId(empId)
+    /** 법인 조건(#124): 그 법인 사원의 퇴직 처리만. 다른 법인 사원은 404. */
+    public RetirementView get(String enterCd, long empId) {
+        RetirementCase c = cases.findByEnterCdAndEmpId(enterCd, empId)
                 .orElseThrow(() -> RetirementException.notFound("퇴직 처리 기록이 없어요: 사원 " + empId));
-        Employee e = loadEmployee(empId);
-        return view(c, e, checklist.findByCaseIdOrderBySortOrderAsc(c.getCaseId()), List.of());
+        Employee e = loadEmployee(enterCd, empId);
+        return view(c, e, checklist.findByEnterCdAndCaseIdOrderBySortOrderAsc(enterCd, c.getCaseId()), List.of());
     }
 
     @Transactional
-    public RetirementView updateChecklist(long empId, String itemCode, ChecklistUpdateRequest req, String actor) {
-        RetirementCase c = cases.findByEmpId(empId)
+    public RetirementView updateChecklist(String enterCd, long empId, String itemCode, ChecklistUpdateRequest req,
+            String actor) {
+        RetirementCase c = cases.findByEnterCdAndEmpId(enterCd, empId)
                 .orElseThrow(() -> RetirementException.notFound("퇴직 처리 기록이 없어요: 사원 " + empId));
-        RetirementChecklistItem item = checklist.findByCaseIdAndItemCode(c.getCaseId(), itemCode)
+        RetirementChecklistItem item = checklist.findByEnterCdAndCaseIdAndItemCode(enterCd, c.getCaseId(), itemCode)
                 .orElseThrow(() -> RetirementException.notFound("체크리스트 항목이 없어요: " + itemCode));
         String note = req.note() == null || req.note().isBlank() ? null : req.note().strip();
         item.mark(req.done(), note, actor, now());
         checklist.saveAndFlush(item);
-        return get(empId);
+        return get(enterCd, empId);
     }
 
     private RetirementView view(RetirementCase c, Employee e, List<RetirementChecklistItem> items,
@@ -193,9 +195,10 @@ public class RetirementService {
      * 보존기한이 지난 퇴직자 서류 목록. 보존기한(근로기준법 제42조, employee.record_retention_until)은 그날까지 보존하는
      * 마지막 날이라 {@code asOf}보다 앞선 사원만 담는다. 파기는 이 목록을 보고 사람이 한다(자동 삭제 없음).
      */
-    public List<RetentionExpiredRow> retentionExpired(LocalDate asOf) {
+    public List<RetentionExpiredRow> retentionExpired(String enterCd, LocalDate asOf) {
         LocalDate day = asOf == null ? today() : asOf;
-        return employees.findByRecordRetentionUntilBeforeOrderByRecordRetentionUntilAscEmpNoAsc(day).stream()
+        return employees.findByEnterCdAndRecordRetentionUntilBeforeOrderByRecordRetentionUntilAscEmpNoAsc(enterCd, day)
+                .stream()
                 .map(e -> new RetentionExpiredRow(e.getEmpId(), e.getEmpNo(), e.getName(), e.getRetireDate(),
                         e.getRetireReasonCode(), e.getRecordRetentionUntil(),
                         ChronoUnit.DAYS.between(e.getRecordRetentionUntil(), day)))
@@ -210,8 +213,8 @@ public class RetirementService {
      * 성명은 증명 대상을 가리키려고 항상 적는다.
      */
     @Transactional
-    public CertificateView issueCertificate(long empId, CertificateRequest req, String actor) {
-        Employee e = loadEmployee(empId);
+    public CertificateView issueCertificate(String enterCd, long empId, CertificateRequest req, String actor) {
+        Employee e = loadEmployee(enterCd, empId);
         Set<CertificateItem> items = EnumSet.copyOf(req.items());
         LocalDate useFrom = null;
         LocalDate useTo = null;
@@ -237,22 +240,23 @@ public class RetirementService {
         }
         String itemsText = items.stream().map(Enum::name).collect(Collectors.joining(","));
         String purpose = req.purpose() == null || req.purpose().isBlank() ? null : req.purpose().strip();
-        EmploymentCertificate cert = certificates.saveAndFlush(new EmploymentCertificate(empId, req.requestedOn(),
+        EmploymentCertificate cert = certificates.saveAndFlush(new EmploymentCertificate(e.getEnterCd(), empId, req.requestedOn(),
                 itemsText, purpose, new EmploymentCertificate.Content(e.getName(), useFrom, useTo, jobType, position,
                         wage, wageUnit, retireReason), actor, now()));
         return view(cert, e.getEmpNo());
     }
 
-    public List<CertificateView> certificates(long empId) {
-        Employee e = loadEmployee(empId);
-        return certificates.findByEmpIdOrderByIssuedAtDescCertIdDesc(empId).stream()
+    public List<CertificateView> certificates(String enterCd, long empId) {
+        Employee e = loadEmployee(enterCd, empId);
+        return certificates.findByEnterCdAndEmpIdOrderByIssuedAtDescCertIdDesc(enterCd, empId).stream()
                 .map(c -> view(c, e.getEmpNo())).toList();
     }
 
-    public CertificateView certificate(long certId) {
-        EmploymentCertificate c = certificates.findById(certId)
+    /** 다른 법인 사용증명서 ID 는 404(존재 여부를 드러내지 않음, #124). */
+    public CertificateView certificate(String enterCd, long certId) {
+        EmploymentCertificate c = certificates.findByEnterCdAndCertId(enterCd, certId)
                 .orElseThrow(() -> RetirementException.notFound("사용증명서를 찾을 수 없어요: " + certId));
-        return view(c, loadEmployee(c.getEmpId()).getEmpNo());
+        return view(c, loadEmployee(enterCd, c.getEmpId()).getEmpNo());
     }
 
     /** 지위: 직급·직책 이름. 둘 다 없으면 409. */
@@ -277,7 +281,7 @@ public class RetirementService {
     private EmploymentContract.Terms latestWageTerms(Employee e, LocalDate requestedOn) {
         LocalDate retire = e.getRetireDate();
         LocalDate asOf = retire != null && !retire.isAfter(requestedOn) ? retire : requestedOn;
-        return contracts.findByEmpIdOrderByStartDateAsc(e.getEmpId()).stream()
+        return contracts.findByEnterCdAndEmpIdOrderByStartDateAsc(e.getEnterCd(), e.getEmpId()).stream()
                 .map(EmploymentContract::terms)
                 .filter(t -> t.wageAmount() != null && !t.startDate().isAfter(asOf))
                 .reduce((a, b) -> b)

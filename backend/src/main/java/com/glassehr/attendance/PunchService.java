@@ -65,7 +65,7 @@ public class PunchService {
         LocalDate today = now.toLocalDate();
         requireEmployed(e, today);
         // #59의 오늘 기준 이력을 사용한다. 매일 반영 배치 전에도 미래 퇴직 발령이 적용된다.
-        if (assignments.assignmentOn(id, today).empStatus() == EmpStatus.RETIRED) {
+        if (assignments.assignmentOn(e.getEnterCd(), id, today).empStatus() == EmpStatus.RETIRED) {
             throw AttendanceException.conflict("퇴직 처리된 사원은 출퇴근을 기록할 수 없어요");
         }
         List<AttendancePunch> sameDay = punches.findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(id, today);
