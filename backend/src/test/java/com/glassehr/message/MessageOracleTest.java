@@ -51,10 +51,10 @@ class MessageOracleTest {
     }
 
     private long thread(long... members) {
-        jdbc.update("INSERT INTO msg_thread (created_at) VALUES (SYSTIMESTAMP)");
+        jdbc.update("INSERT INTO msg_thread (enter_cd, created_at) VALUES ('C001', SYSTIMESTAMP)");
         Long id = jdbc.queryForObject("SELECT MAX(thread_id) FROM msg_thread", Long.class);
         for (long m : members) {
-            jdbc.update("INSERT INTO msg_thread_member (thread_id, emp_id) VALUES (?, ?)", id, m);
+            jdbc.update("INSERT INTO msg_thread_member (enter_cd, thread_id, emp_id) VALUES ('C001', ?, ?)", id, m);
         }
         return id;
     }
