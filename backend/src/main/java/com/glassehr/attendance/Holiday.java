@@ -23,6 +23,10 @@ public class Holiday {
     @Column(name = "holiday_id", nullable = false, updatable = false)
     private Long holidayId;
 
+    /** 법인 코드(#125). 휴일 달력은 법인마다 따로 둔다. PK 는 DB 에서 (enter_cd, holiday_id). */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "holiday_date", nullable = false, updatable = false)
     private LocalDate holidayDate;
 
@@ -61,9 +65,10 @@ public class Holiday {
     protected Holiday() {
     }
 
-    private Holiday(LocalDate date, String name, HolidayKind kind, boolean paid, Long replacesHolidayId,
-            Long agreementId, String sourceRef, LocalDate verifiedDate, String note, String createdBy,
-            LocalDateTime now) {
+    private Holiday(String enterCd, LocalDate date, String name, HolidayKind kind, boolean paid,
+            Long replacesHolidayId, Long agreementId, String sourceRef, LocalDate verifiedDate, String note,
+            String createdBy, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.holidayDate = date;
         this.holidayName = name;
         this.kind = kind;
@@ -78,28 +83,31 @@ public class Holiday {
     }
 
     /** 사람이 넣은 공휴일 자료의 한 행. 근로기준법 제55조 제2항 본문: 관공서 공휴일은 유급휴일. */
-    public static Holiday statutory(LocalDate date, String name, HolidayKind kind, String sourceRef,
+    public static Holiday statutory(String enterCd, LocalDate date, String name, HolidayKind kind, String sourceRef,
             LocalDate verifiedDate, String createdBy, LocalDateTime now) {
         if (!kind.isStatutory()) {
             throw new IllegalArgumentException("공휴일 자료에는 법정공휴일·대체공휴일만 넣을 수 있습니다: " + kind);
         }
-        return new Holiday(date, name, kind, true, null, null, sourceRef, verifiedDate, null, createdBy, now);
+        return new Holiday(enterCd, date, name, kind, true, null, null, sourceRef, verifiedDate, null, createdBy,
+                now);
     }
 
     /** 회사휴일(취업규칙·단체협약). 유급 여부는 회사가 정한다. */
-    public static Holiday company(LocalDate date, String name, boolean paid, String note, String createdBy,
-            LocalDateTime now) {
-        return new Holiday(date, name, HolidayKind.COMPANY, paid, null, null, null, null, note, createdBy, now);
+    public static Holiday company(String enterCd, LocalDate date, String name, boolean paid, String note,
+            String createdBy, LocalDateTime now) {
+        return new Holiday(enterCd, date, name, HolidayKind.COMPANY, paid, null, null, null, null, note, createdBy,
+                now);
     }
 
     /** 근로기준법 제55조 제2항 단서: 서면합의로 공휴일을 특정 근로일로 대체. 대체된 날이 유급휴일이 된다. */
-    public static Holiday replacement(LocalDate date, String name, long replacesHolidayId, long agreementId,
-            String note, String createdBy, LocalDateTime now) {
-        return new Holiday(date, name, HolidayKind.REPLACEMENT, true, replacesHolidayId, agreementId, null, null,
-                note, createdBy, now);
+    public static Holiday replacement(String enterCd, LocalDate date, String name, long replacesHolidayId,
+            long agreementId, String note, String createdBy, LocalDateTime now) {
+        return new Holiday(enterCd, date, name, HolidayKind.REPLACEMENT, true, replacesHolidayId, agreementId, null,
+                null, note, createdBy, now);
     }
 
     public Long getHolidayId() { return holidayId; }
+    public String getEnterCd() { return enterCd; }
     public LocalDate getHolidayDate() { return holidayDate; }
     public String getHolidayName() { return holidayName; }
     public HolidayKind getKind() { return kind; }

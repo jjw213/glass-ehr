@@ -233,6 +233,14 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V037__common_code_system_edit_page.sql"))
                     .execute(dataSource);
         }
+        Integer patternKeyCols = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_WORK_PATTERN'", Integer.class);
+        if (patternKeyCols == null || patternKeyCols < 2) {
+            // #125: 근무유형·배정·휴일·서면합의·첨부 키와 참조 FK 에 법인
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V039__work_pattern_holiday_agreement_enter_cd.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
