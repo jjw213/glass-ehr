@@ -45,26 +45,26 @@ class LaborAgreementOracleTest {
     @Test
     void 저장_첨부_확인이_된다() {
         AgreementView v = create(AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1));
-        AgreementFileView f = service.addFile(v.agreementId(), "a.pdf", "%PDF-1.7 it".getBytes(), "it-hr");
-        assertThat(service.get(v.agreementId()).files()).singleElement()
+        AgreementFileView f = service.addFile("C001", v.agreementId(), "a.pdf", "%PDF-1.7 it".getBytes(), "it-hr");
+        assertThat(service.get("C001", v.agreementId()).files()).singleElement()
                 .satisfies(x -> assertThat(x.fileId()).isEqualTo(f.fileId()));
-        assertThat(service.file(v.agreementId(), f.fileId()).getContent()).isEqualTo("%PDF-1.7 it".getBytes());
-        assertThat(guard.check(AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1), null).agreementId())
+        assertThat(service.file("C001", v.agreementId(), f.fileId()).getContent()).isEqualTo("%PDF-1.7 it".getBytes());
+        assertThat(guard.check("C001", AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1), null).agreementId())
                 .isEqualTo(v.agreementId());
-        assertThat(guard.check(AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1).plusDays(1), null).ok())
+        assertThat(guard.check("C001", AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1).plusDays(1), null).ok())
                 .isFalse();
         // 저장은 V017 형식 그대로 배타 종료일(마지막 유효일 다음 날)이고, API 는 마지막 유효일을 돌려준다.
         assertThat(jdbc.queryForObject("SELECT effective_to FROM worker_rep_agreement WHERE agreement_id = ?",
                 java.sql.Date.class, v.agreementId()).toLocalDate()).isEqualTo(D0.plusMonths(1).plusDays(1));
-        assertThat(service.get(v.agreementId()).agreement().validUntil()).isEqualTo(D0.plusMonths(1));
+        assertThat(service.get("C001", v.agreementId()).agreement().validUntil()).isEqualTo(D0.plusMonths(1));
     }
 
     @Test
     void 저장된_휴일대체를_무효화하는_합의서_수정은_거부한다() {
         AgreementView v = create(AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1));
-        Holiday original = holidays.saveAndFlush(Holiday.statutory(D0, "IT 시험 공휴일", HolidayKind.PUBLIC,
+        Holiday original = holidays.saveAndFlush(Holiday.statutory("C001", D0,"IT 시험 공휴일", HolidayKind.PUBLIC,
                 "IT 가상 자료", D0, "it-hr", D0.atStartOfDay()));
-        holidays.saveAndFlush(Holiday.replacement(D0.plusDays(2), "IT 시험 대체", original.getHolidayId(),
+        holidays.saveAndFlush(Holiday.replacement("C001", D0.plusDays(2),"IT 시험 대체", original.getHolidayId(),
                 v.agreementId(), null, "it-hr", D0.atStartOfDay()));
         AgreementRequest shorter = new AgreementRequest(AgreementType.HOLIDAY_SUBSTITUTION, "IT 변경 합의서",
                 D0, D0, D0.plusDays(1), LaborAgreement.Scope.ALL, null, "IT 대상",
