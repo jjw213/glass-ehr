@@ -119,7 +119,7 @@ class AttendanceBaseTenantOracleTest {
         // LaborAgreementGuard 는 같은 법인 합의만 인정한다.
         assertThat(guard.check(B, AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1), null).ok()).isTrue();
         assertThat(guard.check(A, AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1), null).agreementId())
-                .isNotEqualTo(id);
+                .isNull();
         assertThatThrownBy(() -> guard.requireLinked(A, id, AgreementType.HOLIDAY_SUBSTITUTION, D0, D0.plusMonths(1),
                 null)).isInstanceOfSatisfying(AttendanceException.class,
                         e -> assertThat(e.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
