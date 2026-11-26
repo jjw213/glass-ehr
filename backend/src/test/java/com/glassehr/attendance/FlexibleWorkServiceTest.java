@@ -360,7 +360,7 @@ class FlexibleWorkServiceTest {
     void 다른_법인_세션은_배정_조회_계획_정산_배정_모두_404() {
         // C002 로 전환한 인사담당: C001 배정·사원은 그 법인에 없다(#126). 존재 여부를 드러내지 않는다.
         stored(WorkSystem.SELECTIVE, "GENERAL", null, null, null);
-        AuthUser otherHr = new AuthUser("C001", "C002", "hr1", 100L, Set.of("HR"),
+        AuthUser otherHr = new AuthUser("C002", "C001", "hr1", 100L, Set.of("HR"),
                 Set.of(Permission.EMP_WRITE, Permission.EMP_READ_ALL), Set.of(), "127.0.0.1");
         for (org.assertj.core.api.ThrowableAssert.ThrowingCallable call : List.<org.assertj.core.api.ThrowableAssert.ThrowingCallable>of(
                 () -> service.detail(1L, otherHr),
