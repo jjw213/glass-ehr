@@ -233,6 +233,43 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V037__common_code_system_edit_page.sql"))
                     .execute(dataSource);
         }
+        Integer patternKeyCols = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_WORK_PATTERN'", Integer.class);
+        if (patternKeyCols == null || patternKeyCols < 2) {
+            // #125: 근무유형·배정·휴일·서면합의·첨부 키와 참조 FK 에 법인
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V039__work_pattern_holiday_agreement_enter_cd.sql"))
+                    .execute(dataSource);
+        }
+        Integer msgKeyCols = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_MSG_THREAD'", Integer.class);
+        if (msgKeyCols == null || msgKeyCols < 2) {
+            // #128: 사내 메시지 키와 메시지 FK 에 법인
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V040__message_enter_cd.sql"))
+                    .execute(dataSource);
+        }
+        Integer leaveTypeTables = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'ATTENDANCE_LEAVE_TYPE'", Integer.class);
+        if (leaveTypeTables == null || leaveTypeTables == 0) {
+            // #143: 근태코드 그룹·처리방식(common_code.process_type)·기본 코드, 휴가 종류 상세 설정
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V041__attendance_code.sql"))
+                    .execute(dataSource);
+        }
+        Integer statutoryLeaveItems = jdbc.queryForObject("SELECT COUNT(*) FROM legal_rate_item"
+                + " WHERE item_code = 'MATERNITY_LEAVE_PAID_DAYS'", Integer.class);
+        if (statutoryLeaveItems == null || statutoryLeaveItems == 0) {
+            // #143: 법정휴가 유급 일수·난임치료휴가 legal_rate_item 항목
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V042__legal_rate_items_statutory_leave.sql")).execute(dataSource);
+        }
+        Integer punchKeyCols = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_ATTENDANCE_PUNCH'", Integer.class);
+        if (punchKeyCols == null || punchKeyCols < 2) {
+            // #126: 출퇴근·일별 집계·유연근무 배정·계획 키와 계획 FK 에 법인
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V043__attendance_record_flex_enter_cd.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

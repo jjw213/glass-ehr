@@ -111,7 +111,7 @@ public class FlexibleWorkService {
 
     /** 인사담당 배정. 법정 단위기간 한도·대상 업무·서면합의를 검사한다. */
     @Transactional
-    public AssignView assign(AssignRequest req, String actor) {
+    public AssignView assign(String enterCd, AssignRequest req, String actor) {
         if (req == null || req.empId() == null || req.workSystem() == null || req.periodStart() == null
                 || req.periodEnd() == null) {
             throw AttendanceException.badRequest("사원·근무제·기간은 필수예요");
@@ -119,7 +119,8 @@ public class FlexibleWorkService {
         if (req.periodEnd().isBefore(req.periodStart())) {
             throw AttendanceException.badRequest("기간 종료일은 시작일 이후여야 해요");
         }
-        Employee e = employees.findForUpdate(req.empId())
+        // 세션 현재 법인 사원만(#126). 다른 법인 사원은 404.
+        Employee e = employees.findForUpdate(enterCd, req.empId())
                 .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + req.empId()));
         if (e.getHireDate().isAfter(req.periodEnd())
                 || (e.getRetireDate() != null && e.getRetireDate().isBefore(req.periodStart()))) {
@@ -153,7 +154,7 @@ public class FlexibleWorkService {
                 throw unprocessable(planMessage(check, sys, l));
             }
         }
-        for (FlexWorkAssign a : assigns.findByEmpIdOrderByPeriodStartAsc(e.getEmpId())) {
+        for (FlexWorkAssign a : assigns.findByEnterCdAndEmpIdOrderByPeriodStartAsc(enterCd, e.getEmpId())) {
             if (a.overlaps(req.periodStart(), req.periodEnd())) {
                 throw AttendanceException.conflict("기간이 겹치는 유연근무 배정이 있어요: " + a.getPeriodStart() + " ~ "
                         + a.getPeriodEnd());
@@ -162,26 +163,27 @@ public class FlexibleWorkService {
         Long agreementId = null;
         AgreementType type = sys.requiredAgreement();
         if (type != null) {
-            agreementId = guard.requireValid(type, req.periodStart(), req.periodEnd(), e.getSiteCode())
+            // 사원과 같은 법인 서면합의만 인정한다(#125).
+            agreementId = guard.requireValid(e.getEnterCd(), type, req.periodStart(), req.periodEnd(), e.getSiteCode())
                     .getAgreementId();
         }
-        FlexWorkAssign saved = assigns.save(new FlexWorkAssign(e.getEmpId(), sys, req.periodStart(),
+        FlexWorkAssign saved = assigns.save(new FlexWorkAssign(enterCd, e.getEmpId(), sys, req.periodStart(),
                 req.periodEnd(), job, minuteOfDay(coreStart), minuteOfDay(coreEnd), deemed, agreementId,
                 blankToNull(req.note()), actor, now()));
         return view(saved);
     }
 
     @Transactional(readOnly = true)
-    public List<AssignView> list(Long empId) {
-        List<FlexWorkAssign> all = empId == null ? assigns.findAllByOrderByPeriodStartDesc()
-                : assigns.findByEmpIdOrderByPeriodStartAsc(empId);
+    public List<AssignView> list(String enterCd, Long empId) {
+        List<FlexWorkAssign> all = empId == null ? assigns.findByEnterCdOrderByPeriodStartDesc(enterCd)
+                : assigns.findByEnterCdAndEmpIdOrderByPeriodStartAsc(enterCd, empId);
         return all.stream().map(FlexibleWorkService::view).toList();
     }
 
-    /** 로그인 사원 본인의 배정. */
+    /** 로그인 사원 본인의 배정(세션 현재 법인). */
     @Transactional(readOnly = true)
     public List<AssignView> mine(AuthUser user) {
-        return list(selfEmpId(user));
+        return list(user.enterCd(), selfEmpId(user));
     }
 
     @Transactional(readOnly = true)
@@ -190,7 +192,7 @@ public class FlexibleWorkService {
         int limit = a.getWorkSystem() == WorkSystem.DISCRETIONARY ? 0
                 : FlexibleWorkCalculator.totalLimit(a.getPeriodStart(), a.getPeriodEnd(),
                         limitsFor(a.getWorkSystem(), a.getJobCode(), a.getPeriodStart()).weeklyStandard());
-        List<PlanView> plan = plans.findByFlexIdOrderByWorkDateAsc(flexId).stream()
+        List<PlanView> plan = plans.findByEnterCdAndFlexIdOrderByWorkDateAsc(a.getEnterCd(), flexId).stream()
                 .map(p -> new PlanView(p.getWorkDate(), p.getPlanStart(), p.getPlanEnd(), p.getPlanMinutes()))
                 .toList();
         return new Detail(view(a), limit, plan);
@@ -204,7 +206,7 @@ public class FlexibleWorkService {
      */
     @Transactional
     public Detail savePlan(long flexId, List<PlanInput> input, AuthUser user) {
-        FlexWorkAssign a = assigns.findForUpdate(flexId)
+        FlexWorkAssign a = assigns.findForUpdate(user.enterCd(), flexId)
                 .orElseThrow(() -> AttendanceException.notFound("유연근무 배정이 없어요: " + flexId));
         WorkSystem sys = a.getWorkSystem();
         boolean hr = user.has(Permission.EMP_WRITE);
@@ -217,7 +219,7 @@ public class FlexibleWorkService {
         if (sys == WorkSystem.SELECTIVE && !hr && !user.isSelf(a.getEmpId())) {
             throw forbidden("본인의 근무계획만 입력할 수 있어요");
         }
-        requireLinkedAgreement(a, employee(a.getEmpId()));
+        requireLinkedAgreement(a, employee(a));
         List<PlanDay> days = toPlanDays(a, input == null ? List.of() : input);
         Limits l = limitsFor(sys, a.getJobCode(), a.getPeriodStart());
         if (sys.isFlexible()) {
@@ -238,10 +240,10 @@ public class FlexibleWorkService {
                         + ")을 덮지 않는 근로일이 " + r.coreTimeMissDays() + "일 있어요(서면합의 근로기준법 제52조 제1항 제4호)");
             }
         }
-        plans.deleteAllOfAssign(flexId);
+        plans.deleteAllOfAssign(a.getEnterCd(), flexId);
         LocalDateTime now = now();
         plans.saveAll(days.stream()
-                .map(d -> new FlexWorkPlan(flexId, d.date(), d.start(), d.end(), d.minutes(), user.loginId(), now))
+                .map(d -> new FlexWorkPlan(a.getEnterCd(), flexId, d.date(), d.start(), d.end(), d.minutes(), user.loginId(), now))
                 .toList());
         return detail(flexId, user);
     }
@@ -290,14 +292,14 @@ public class FlexibleWorkService {
     @Transactional(readOnly = true)
     public Settlement settle(long flexId, AuthUser user) {
         FlexWorkAssign a = readable(flexId, user);
-        Employee e = employee(a.getEmpId());
+        Employee e = employee(a);
         requireLinkedAgreement(a, e);
         LocalDate workFrom = e.getHireDate().isAfter(a.getPeriodStart()) ? e.getHireDate() : a.getPeriodStart();
         LocalDate workTo = e.getRetireDate() != null && e.getRetireDate().isBefore(a.getPeriodEnd())
                 ? e.getRetireDate() : a.getPeriodEnd();
-        Map<LocalDate, DailyWorkSummaryRow> actual = actualDays(a.getEmpId(), workFrom, workTo);
+        Map<LocalDate, DailyWorkSummaryRow> actual = actualDays(e.getEnterCd(), a.getEmpId(), workFrom, workTo);
         Map<LocalDate, Integer> planMinutes = new HashMap<>();
-        for (FlexWorkPlan p : plans.findByFlexIdOrderByWorkDateAsc(flexId)) {
+        for (FlexWorkPlan p : plans.findByEnterCdAndFlexIdOrderByWorkDateAsc(a.getEnterCd(), flexId)) {
             planMinutes.put(p.getWorkDate(), p.getPlanMinutes());
         }
         int actualTotal = actual.values().stream().mapToInt(r -> nz(r.workedMinutes())).sum();
@@ -307,7 +309,7 @@ public class FlexibleWorkService {
 
         if (sys == WorkSystem.DISCRETIONARY) {
             // 1일 기준시간(근로기준법 제50조 제2항)은 배정 시작일 기준 legal_rate
-            WorkHoursCalculator.Rules base = workHours.weekInputs(a.getPeriodStart()).appliedByDate()
+            WorkHoursCalculator.Rules base = workHours.weekInputs(e.getEnterCd(), a.getPeriodStart()).appliedByDate()
                     .get(a.getPeriodStart()).rules();
             int recognized = 0;
             int overtime = 0;
@@ -369,13 +371,14 @@ public class FlexibleWorkService {
     }
 
     /** 집계 엔진으로 [from, to]의 날별 결과를 주 단위로 계산(저장하지 않음). 날짜 순. */
-    private Map<LocalDate, DailyWorkSummaryRow> actualDays(long empId, LocalDate from, LocalDate to) {
+    private Map<LocalDate, DailyWorkSummaryRow> actualDays(String enterCd, long empId, LocalDate from,
+            LocalDate to) {
         Map<LocalDate, DailyWorkSummaryRow> out = new java.util.TreeMap<>();
         if (to.isBefore(from)) {
             return out;
         }
         for (LocalDate d = from; !d.isAfter(to); d = d.plusWeeks(1)) {
-            for (DailyWorkSummaryRow r : workHours.computeWeek(empId, workHours.weekInputs(d))) {
+            for (DailyWorkSummaryRow r : workHours.computeWeek(empId, workHours.weekInputs(enterCd, d))) {
                 if (!r.workDate().isBefore(from) && !r.workDate().isAfter(to)) {
                     out.put(r.workDate(), r);
                 }
@@ -383,7 +386,7 @@ public class FlexibleWorkService {
         }
         // 마지막 주가 위 반복에서 빠지는 경우(시작 요일보다 앞선 요일로 끝날 때)
         if (!out.containsKey(to)) {
-            for (DailyWorkSummaryRow r : workHours.computeWeek(empId, workHours.weekInputs(to))) {
+            for (DailyWorkSummaryRow r : workHours.computeWeek(empId, workHours.weekInputs(enterCd, to))) {
                 if (!r.workDate().isBefore(from) && !r.workDate().isAfter(to)) {
                     out.put(r.workDate(), r);
                 }
@@ -415,21 +418,23 @@ public class FlexibleWorkService {
         }
     }
 
-    private Employee employee(long empId) {
-        return employees.findById(empId)
-                .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + empId));
+    /** 배정 사원. 복합 FK(fk_flex_work_assign_emp)로 배정과 같은 법인이다. */
+    private Employee employee(FlexWorkAssign a) {
+        return employees.findByEnterCdAndEmpId(a.getEnterCd(), a.getEmpId())
+                .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + a.getEmpId()));
     }
 
     private void requireLinkedAgreement(FlexWorkAssign assign, Employee employee) {
         AgreementType type = assign.getWorkSystem().requiredAgreement();
         if (type != null) {
-            guard.requireLinked(assign.getAgreementId(), type, assign.getPeriodStart(), assign.getPeriodEnd(),
+            guard.requireLinked(employee.getEnterCd(), assign.getAgreementId(), type, assign.getPeriodStart(), assign.getPeriodEnd(),
                     employee.getSiteCode());
         }
     }
 
     private FlexWorkAssign readable(long flexId, AuthUser user) {
-        FlexWorkAssign a = assigns.findById(flexId)
+        // 세션 현재 법인 배정만. 다른 법인 배정은 존재 여부를 드러내지 않고 404(#126).
+        FlexWorkAssign a = assigns.findByEnterCdAndFlexId(user.enterCd(), flexId)
                 .orElseThrow(() -> AttendanceException.notFound("유연근무 배정이 없어요: " + flexId));
         if (!user.has(Permission.EMP_READ_ALL) && !user.isSelf(a.getEmpId())) {
             throw forbidden("본인 배정만 볼 수 있어요");

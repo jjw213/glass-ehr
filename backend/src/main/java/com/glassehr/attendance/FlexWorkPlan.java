@@ -11,13 +11,18 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 /**
- * 유연근무제 날별 근로계획. 테이블: V029__flex_work_assign.sql.
+ * 유연근무제 날별 근로계획. 테이블: V029__flex_work_assign.sql, 법인 키 V043.
  * 탄력적은 사용자가 정한 근로일별 근로시간, 선택적은 사원이 입력한 시업·종업. 근로 없는 날은 시각 null·분 0.
  */
 @Entity
 @Table(name = "flex_work_plan")
 @IdClass(FlexWorkPlan.Key.class)
 public class FlexWorkPlan {
+
+    /** 법인 코드(#126). 배정과 같은 법인(복합 FK fk_flex_work_plan_assign). */
+    @Id
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
 
     @Id
     @Column(name = "flex_id", nullable = false, updatable = false)
@@ -45,8 +50,9 @@ public class FlexWorkPlan {
     protected FlexWorkPlan() {
     }
 
-    FlexWorkPlan(long flexId, LocalDate workDate, LocalDateTime planStart, LocalDateTime planEnd, int planMinutes,
-            String updatedBy, LocalDateTime now) {
+    FlexWorkPlan(String enterCd, long flexId, LocalDate workDate, LocalDateTime planStart, LocalDateTime planEnd,
+            int planMinutes, String updatedBy, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.flexId = flexId;
         this.workDate = workDate;
         this.planStart = planStart;
@@ -54,6 +60,10 @@ public class FlexWorkPlan {
         this.planMinutes = planMinutes;
         this.updatedBy = updatedBy;
         this.updatedAt = now;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public Long getFlexId() {
@@ -80,27 +90,30 @@ public class FlexWorkPlan {
         return updatedBy;
     }
 
-    /** 복합키 (flex_id, work_date). */
+    /** 복합키 (enter_cd, flex_id, work_date). */
     public static class Key implements Serializable {
+        private String enterCd;
         private Long flexId;
         private LocalDate workDate;
 
         protected Key() {
         }
 
-        public Key(Long flexId, LocalDate workDate) {
+        public Key(String enterCd, Long flexId, LocalDate workDate) {
+            this.enterCd = enterCd;
             this.flexId = flexId;
             this.workDate = workDate;
         }
 
         @Override
         public boolean equals(Object o) {
-            return o instanceof Key k && Objects.equals(flexId, k.flexId) && Objects.equals(workDate, k.workDate);
+            return o instanceof Key k && Objects.equals(enterCd, k.enterCd) && Objects.equals(flexId, k.flexId)
+                    && Objects.equals(workDate, k.workDate);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(flexId, workDate);
+            return Objects.hash(enterCd, flexId, workDate);
         }
     }
 }

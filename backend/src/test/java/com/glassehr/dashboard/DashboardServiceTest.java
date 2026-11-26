@@ -39,7 +39,7 @@ class DashboardServiceTest {
                 emp(4, 20L, LocalDate.of(2080, 1, 1), LocalDate.of(2099, 2, 28)), // 지난달 퇴직
                 emp(5, 10L, LocalDate.of(2098, 3, 31), null)));       // 12개월 범위 밖(13개월 전)
         // 퇴직자 4번의 출근 기록은 재직 인원 기준 오늘 출근에 넣지 않는다
-        when(punches.findEmpIdsByWorkDateAndType(TODAY, AttendancePunch.Type.IN)).thenReturn(List.of(2L, 3L, 4L));
+        when(punches.findEmpIdsByWorkDateAndType("C001", TODAY, AttendancePunch.Type.IN)).thenReturn(List.of(2L, 3L, 4L));
     }
 
     @Test

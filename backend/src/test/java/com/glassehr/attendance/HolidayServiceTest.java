@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -37,6 +38,7 @@ import org.springframework.http.HttpStatus;
  */
 class HolidayServiceTest {
 
+    private static final String ENTER = "C001";
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final LocalDate TODAY = LocalDate.of(2099, 1, 10);
     private static final LocalDateTime NOW = TODAY.atTime(9, 0);
@@ -68,35 +70,35 @@ class HolidayServiceTest {
         };
         when(holidays.save(any())).thenAnswer(store);
         when(holidays.saveAndFlush(any())).thenAnswer(store);
-        when(holidays.findById(anyLong())).thenAnswer(inv -> byId(inv.getArgument(0)));
-        when(holidays.findForUpdate(anyLong())).thenAnswer(inv -> byId(inv.getArgument(0)));
-        when(holidays.findAllById(any())).thenAnswer(inv -> {
-            Iterable<Long> ids = inv.getArgument(0);
+        when(holidays.findByEnterCdAndHolidayId(eq(ENTER), anyLong())).thenAnswer(inv -> byId(inv.getArgument(1)));
+        when(holidays.findForUpdate(eq(ENTER), anyLong())).thenAnswer(inv -> byId(inv.getArgument(1)));
+        when(holidays.findByEnterCdAndHolidayIdIn(eq(ENTER), any())).thenAnswer(inv -> {
+            Iterable<Long> ids = inv.getArgument(1);
             List<Holiday> out = new ArrayList<>();
             ids.forEach(id -> byId(id).ifPresent(out::add));
             return out;
         });
-        when(holidays.findByHolidayDate(any())).thenAnswer(inv ->
-                rows.stream().filter(h -> h.getHolidayDate().equals(inv.getArgument(0))).toList());
-        when(holidays.findByReplacesHolidayId(anyLong())).thenAnswer(inv ->
-                rows.stream().filter(h -> Long.valueOf((long) inv.getArgument(0)).equals(h.getReplacesHolidayId()))
+        when(holidays.findByEnterCdAndHolidayDate(eq(ENTER), any())).thenAnswer(inv ->
+                rows.stream().filter(h -> h.getHolidayDate().equals(inv.getArgument(1))).toList());
+        when(holidays.findByEnterCdAndReplacesHolidayId(eq(ENTER), anyLong())).thenAnswer(inv ->
+                rows.stream().filter(h -> Long.valueOf((long) inv.getArgument(1)).equals(h.getReplacesHolidayId()))
                         .findFirst());
-        when(holidays.findByReplacesHolidayIdIn(any())).thenAnswer(inv -> {
-            Collection<Long> ids = inv.getArgument(0);
+        when(holidays.findByEnterCdAndReplacesHolidayIdIn(eq(ENTER), any())).thenAnswer(inv -> {
+            Collection<Long> ids = inv.getArgument(1);
             return rows.stream().filter(h -> h.getReplacesHolidayId() != null && ids.contains(h.getReplacesHolidayId()))
                     .toList();
         });
-        when(holidays.findInRange(any(), any())).thenAnswer(inv -> {
-            LocalDate from = inv.getArgument(0);
-            LocalDate to = inv.getArgument(1);
+        when(holidays.findInRange(eq(ENTER), any(), any())).thenAnswer(inv -> {
+            LocalDate from = inv.getArgument(1);
+            LocalDate to = inv.getArgument(2);
             return rows.stream().filter(h -> !h.getHolidayDate().isBefore(from) && h.getHolidayDate().isBefore(to))
                     .sorted((a, b) -> a.getHolidayDate().compareTo(b.getHolidayDate())).toList();
         });
         org.mockito.Mockito.doAnswer(inv -> rows.remove((Holiday) inv.getArgument(0))).when(holidays).delete(any());
-        when(agreements.findForUpdate(anyLong())).thenAnswer(inv ->
-                agreementRows.stream().filter(a -> a.getAgreementId().equals(inv.getArgument(0))).findFirst());
-        when(agreements.findAllById(any())).thenAnswer(inv -> {
-            Iterable<Long> ids = inv.getArgument(0);
+        when(agreements.findForUpdate(eq(ENTER), anyLong())).thenAnswer(inv ->
+                agreementRows.stream().filter(a -> a.getAgreementId().equals(inv.getArgument(1))).findFirst());
+        when(agreements.findByEnterCdAndAgreementIdIn(eq(ENTER), any())).thenAnswer(inv -> {
+            Iterable<Long> ids = inv.getArgument(1);
             List<LaborAgreement> out = new ArrayList<>();
             ids.forEach(id -> agreementRows.stream().filter(a -> a.getAgreementId().equals(id)).forEach(out::add));
             return out;
@@ -149,14 +151,14 @@ class HolidayServiceTest {
         if (!errors.isEmpty()) {
             throw AttendanceException.badRequest(errors.get(0));
         }
-        LaborAgreement a = new LaborAgreement(type, f, "hr1", NOW);
+        LaborAgreement a = new LaborAgreement(ENTER, type, f, "hr1", NOW);
         setField(a, "agreementId", (long) agreementRows.size() + 1);
         agreementRows.add(a);
         return a.getAgreementId();
     }
 
     private long publicHolidayId() {
-        service.importPublicHolidays(CSV, "hr1");
+        service.importPublicHolidays(ENTER,CSV, "hr1");
         return rows.get(0).getHolidayId();
     }
 
@@ -168,14 +170,14 @@ class HolidayServiceTest {
 
     @Test
     void 공휴일_CSV를_불러오면_유급_공휴일로_저장하고_다시_불러오면_건너뛴다() {
-        ImportResult first = service.importPublicHolidays(CSV, "hr1");
+        ImportResult first = service.importPublicHolidays(ENTER,CSV, "hr1");
         assertThat(first.inserted()).isEqualTo(2);
         assertThat(first.rows()).extracting(HolidayView::kind).containsExactly("PUBLIC", "SUBSTITUTE");
         assertThat(first.rows()).allMatch(HolidayView::paid).allMatch(HolidayView::effective);
         assertThat(rows.get(0).getSourceRef()).isEqualTo("시험 규정 제1조");
         assertThat(rows.get(0).getCreatedBy()).isEqualTo("hr1");
 
-        ImportResult again = service.importPublicHolidays(CSV, "hr1");
+        ImportResult again = service.importPublicHolidays(ENTER,CSV, "hr1");
         assertThat(again.inserted()).isZero();
         assertThat(again.skipped()).isEqualTo(2);
         assertThat(rows).hasSize(2);
@@ -183,7 +185,7 @@ class HolidayServiceTest {
 
     @Test
     void 형식_오류는_400이고_아무것도_저장하지_않는다() {
-        assertThatThrownBy(() -> service.importPublicHolidays(CSV + "2099-13-01,잘못,법정공휴일,출처,2099-01-01\n", "hr1"))
+        assertThatThrownBy(() -> service.importPublicHolidays(ENTER,CSV + "2099-13-01,잘못,법정공휴일,출처,2099-01-01\n", "hr1"))
                 .isInstanceOf(AttendanceException.class)
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.BAD_REQUEST))
                 .hasMessageContaining("4번째 줄");
@@ -192,9 +194,9 @@ class HolidayServiceTest {
 
     @Test
     void 같은_날짜_이름인데_종류가_다르면_409() {
-        service.importPublicHolidays(CSV, "hr1");
+        service.importPublicHolidays(ENTER,CSV, "hr1");
         String other = "날짜,이름,종류,출처,검증일\n2099-03-01,시험 공휴일,대체공휴일,출처,2099-01-01\n";
-        assertThatThrownBy(() -> service.importPublicHolidays(other, "hr1"))
+        assertThatThrownBy(() -> service.importPublicHolidays(ENTER,other, "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT));
     }
 
@@ -202,7 +204,7 @@ class HolidayServiceTest {
     void 사업장_규모에_제55조_제2항이_시행되기_전_날짜가_있으면_422이고_아무것도_저장하지_않는다() {
         // 2098년: 가짜 적용 규모 하한 50명 > 이 사업장 30명
         String csv = CSV + "2098-12-31,시험 시행 전 공휴일,법정공휴일,시험 규정 제1조,2099-01-01\n";
-        assertThatThrownBy(() -> service.importPublicHolidays(csv, "hr1"))
+        assertThatThrownBy(() -> service.importPublicHolidays(ENTER,csv, "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY))
                 .hasMessageContaining("4번째 줄").hasMessageContaining("제55조 제2항");
         assertThat(rows).isEmpty();
@@ -211,14 +213,14 @@ class HolidayServiceTest {
     @Test
     void 적용_규모_기준값이_없는_날짜가_있으면_유급으로_저장하지_않는다() {
         String csv = CSV + "2097-12-31,시험 기준값 없는 공휴일,법정공휴일,시험 규정 제1조,2099-01-01\n";
-        assertThatThrownBy(() -> service.importPublicHolidays(csv, "hr1")).isInstanceOf(LegalRateException.class);
+        assertThatThrownBy(() -> service.importPublicHolidays(ENTER,csv, "hr1")).isInstanceOf(LegalRateException.class);
         assertThat(rows).isEmpty();
     }
 
     @Test
     void 적용_규모_하한이_바뀌는_날부터_유급_공휴일로_넣을_수_있다() {
         String csv = "날짜,이름,종류,출처,검증일\n2099-01-01,시험 신정,법정공휴일,시험 규정 제1조,2099-01-01\n";
-        assertThat(service.importPublicHolidays(csv, "hr1").inserted()).isEqualTo(1);
+        assertThat(service.importPublicHolidays(ENTER,csv, "hr1").inserted()).isEqualTo(1);
         assertThat(rows.get(0).isPaid()).isTrue();
     }
 
@@ -228,9 +230,9 @@ class HolidayServiceTest {
         reservedDateTaken = target;
         long agreementId = agreement(LocalDate.of(2099, 1, 1), LocalDate.of(2099, 1, 1), null);
         long id = publicHolidayId();
-        assertThatThrownBy(() -> service.substitute(new SubstitutionRequest(id, target, agreementId, null), "hr1"))
+        assertThatThrownBy(() -> service.substitute(ENTER, new SubstitutionRequest(id, target, agreementId, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT));
-        assertThatThrownBy(() -> service.createCompanyHoliday(
+        assertThatThrownBy(() -> service.createCompanyHoliday(ENTER,
                 new CompanyHolidayRequest(target, "창립기념일", null, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT));
     }
@@ -238,7 +240,7 @@ class HolidayServiceTest {
     @Test
     void 공휴일_행은_지울_수_없다() {
         long id = publicHolidayId();
-        assertThatThrownBy(() -> service.delete(id))
+        assertThatThrownBy(() -> service.delete(ENTER,id))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.BAD_REQUEST));
     }
 
@@ -246,13 +248,13 @@ class HolidayServiceTest {
 
     @Test
     void 회사휴일은_유급_여부를_고를_수_있고_기본은_유급() {
-        HolidayView paid = service.createCompanyHoliday(
+        HolidayView paid = service.createCompanyHoliday(ENTER,
                 new CompanyHolidayRequest(LocalDate.of(2099, 5, 10), " 창립기념일 ", null, null), "hr1");
         assertThat(paid.kind()).isEqualTo("COMPANY");
         assertThat(paid.kindLabel()).isEqualTo("회사휴일");
         assertThat(paid.name()).isEqualTo("창립기념일");
         assertThat(paid.paid()).isTrue();
-        HolidayView unpaid = service.createCompanyHoliday(
+        HolidayView unpaid = service.createCompanyHoliday(ENTER,
                 new CompanyHolidayRequest(LocalDate.of(2099, 5, 11), "무급 휴무", false, "노사 합의"), "hr1");
         assertThat(unpaid.paid()).isFalse();
     }
@@ -260,19 +262,19 @@ class HolidayServiceTest {
     @Test
     void 이미_휴일인_날에_회사휴일을_넣으면_409() {
         publicHolidayId();
-        assertThatThrownBy(() -> service.createCompanyHoliday(
+        assertThatThrownBy(() -> service.createCompanyHoliday(ENTER,
                 new CompanyHolidayRequest(LocalDate.of(2099, 3, 1), "겹침", true, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT));
     }
 
     @Test
     void 회사휴일은_내일부터만_지울_수_있다() {
-        long past = service.createCompanyHoliday(new CompanyHolidayRequest(TODAY, "오늘", true, null), "hr1").holidayId();
-        long future = service.createCompanyHoliday(
+        long past = service.createCompanyHoliday(ENTER, new CompanyHolidayRequest(TODAY, "오늘", true, null), "hr1").holidayId();
+        long future = service.createCompanyHoliday(ENTER,
                 new CompanyHolidayRequest(TODAY.plusDays(1), "내일", true, null), "hr1").holidayId();
-        assertThatThrownBy(() -> service.delete(past))
+        assertThatThrownBy(() -> service.delete(ENTER,past))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT));
-        service.delete(future);
+        service.delete(ENTER,future);
         assertThat(rows).extracting(Holiday::getHolidayName).containsExactly("오늘");
     }
 
@@ -282,7 +284,7 @@ class HolidayServiceTest {
     void 서면합의로_공휴일을_근로일로_대체하면_원래_날은_근로일_대체된_날은_유급휴일() {
         long original = publicHolidayId();
         long agreementId = agreement(LocalDate.of(2099, 1, 5), LocalDate.of(2099, 1, 1), null);
-        HolidayView r = service.substitute(
+        HolidayView r = service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 3, 5), agreementId, "생산 일정"), "hr1");
         assertThat(r.kind()).isEqualTo("REPLACEMENT");
         assertThat(r.kindLabel()).isEqualTo("대체된 휴일");
@@ -292,20 +294,20 @@ class HolidayServiceTest {
         assertThat(r.agreementId()).isEqualTo(agreementId);
         assertThat(r.agreementTitle()).isEqualTo("시험 휴일대체 합의");
 
-        List<HolidayView> year = service.year(2099);
+        List<HolidayView> year = service.year(ENTER,2099);
         HolidayView originalView = year.stream().filter(v -> v.holidayId() == original).findFirst().orElseThrow();
         assertThat(originalView.effective()).isFalse();
         assertThat(originalView.replacedBy().date()).isEqualTo(LocalDate.of(2099, 3, 5));
-        assertThat(service.isHoliday(LocalDate.of(2099, 3, 1))).isFalse();
-        assertThat(service.isHoliday(LocalDate.of(2099, 3, 5))).isTrue();
-        assertThat(service.isHoliday(LocalDate.of(2099, 3, 2))).isTrue();
-        assertThat(service.isHoliday(LocalDate.of(2099, 3, 6))).isFalse();
+        assertThat(service.isHoliday(ENTER,LocalDate.of(2099, 3, 1))).isFalse();
+        assertThat(service.isHoliday(ENTER,LocalDate.of(2099, 3, 5))).isTrue();
+        assertThat(service.isHoliday(ENTER,LocalDate.of(2099, 3, 2))).isTrue();
+        assertThat(service.isHoliday(ENTER,LocalDate.of(2099, 3, 6))).isFalse();
     }
 
     @Test
     void 서면합의가_없으면_대체할_수_없다() {
         long original = publicHolidayId();
-        assertThatThrownBy(() -> service.substitute(
+        assertThatThrownBy(() -> service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 3, 5), 99L, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.BAD_REQUEST))
                 .hasMessageContaining("서면합의");
@@ -317,28 +319,28 @@ class HolidayServiceTest {
         long original = publicHolidayId();
         // 유효기간 [2099-01-01, 2099-03-03): 원래 날(3/1)은 안, 대신 쉴 날(3/3)은 종료일이라 밖
         long shortTerm = agreement(LocalDate.of(2099, 1, 1), LocalDate.of(2099, 1, 1), LocalDate.of(2099, 3, 3));
-        assertThatThrownBy(() -> service.substitute(
+        assertThatThrownBy(() -> service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 3, 3), shortTerm, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY))
                 .hasMessageContaining("유효기간");
         // 대신 쉴 날이 원래 날보다 앞이면(2/27), 합의는 그보다 먼저 체결돼야 한다. 2/28 체결은 거부.
         long late = agreement(LocalDate.of(2099, 2, 28), LocalDate.of(2099, 1, 1), null);
-        assertThatThrownBy(() -> service.substitute(
+        assertThatThrownBy(() -> service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 2, 27), late, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY))
                 .hasMessageContaining("먼저 체결");
         // 같은 날 체결은 허용(경계)
-        assertThat(service.substitute(
+        assertThat(service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 2, 28), late, null), "hr1").kind())
                 .isEqualTo("REPLACEMENT");
     }
 
     @Test
     void 회사휴일은_휴일_대체_대상이_아니다() {
-        long company = service.createCompanyHoliday(
+        long company = service.createCompanyHoliday(ENTER,
                 new CompanyHolidayRequest(LocalDate.of(2099, 5, 10), "창립기념일", true, null), "hr1").holidayId();
         long agreementId = agreement(LocalDate.of(2099, 1, 1), LocalDate.of(2099, 1, 1), null);
-        assertThatThrownBy(() -> service.substitute(
+        assertThatThrownBy(() -> service.substitute(ENTER,
                 new SubstitutionRequest(company, LocalDate.of(2099, 5, 12), agreementId, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.BAD_REQUEST))
                 .hasMessageContaining("제55조 제2항");
@@ -348,15 +350,15 @@ class HolidayServiceTest {
     void 이미_휴일인_날이나_같은_날로는_대체할_수_없고_한_공휴일은_한_번만_대체한다() {
         long original = publicHolidayId();
         long agreementId = agreement(LocalDate.of(2099, 1, 1), LocalDate.of(2099, 1, 1), null);
-        assertThatThrownBy(() -> service.substitute(
+        assertThatThrownBy(() -> service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 3, 2), agreementId, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("근로일로만");
-        assertThatThrownBy(() -> service.substitute(
+        assertThatThrownBy(() -> service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 3, 1), agreementId, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.BAD_REQUEST));
-        service.substitute(new SubstitutionRequest(original, LocalDate.of(2099, 3, 5), agreementId, null), "hr1");
-        assertThatThrownBy(() -> service.substitute(
+        service.substitute(ENTER, new SubstitutionRequest(original, LocalDate.of(2099, 3, 5), agreementId, null), "hr1");
+        assertThatThrownBy(() -> service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 3, 6), agreementId, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("이미 다른 날로");
@@ -366,15 +368,15 @@ class HolidayServiceTest {
     void 휴일_대체는_두_날이_모두_내일_이후일_때만_취소한다() {
         long original = publicHolidayId();
         long agreementId = agreement(LocalDate.of(2099, 1, 1), LocalDate.of(2099, 1, 1), null);
-        long early = service.substitute(
+        long early = service.substitute(ENTER,
                 new SubstitutionRequest(original, TODAY, agreementId, null), "hr1").holidayId();
-        assertThatThrownBy(() -> service.delete(early))
+        assertThatThrownBy(() -> service.delete(ENTER,early))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.CONFLICT));
         rows.removeIf(h -> h.getHolidayId() == early);
-        long later = service.substitute(
+        long later = service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 3, 5), agreementId, null), "hr1").holidayId();
-        service.delete(later);
-        assertThat(service.isHoliday(LocalDate.of(2099, 3, 1))).isTrue();
+        service.delete(ENTER,later);
+        assertThat(service.isHoliday(ENTER,LocalDate.of(2099, 3, 1))).isTrue();
     }
 
     // ---- 서면합의 ----
@@ -390,13 +392,13 @@ class HolidayServiceTest {
         long original = publicHolidayId();
         long selective = agreement(AgreementType.SELECTIVE, LaborAgreement.Scope.ALL,
                 LocalDate.of(2099, 1, 1), LocalDate.of(2099, 1, 1), null);
-        assertThatThrownBy(() -> service.substitute(
+        assertThatThrownBy(() -> service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 3, 5), selective, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY))
                 .hasMessageContaining("휴일 대체에 관한 서면합의가 아니에요");
         long siteOnly = agreement(AgreementType.HOLIDAY_SUBSTITUTION, LaborAgreement.Scope.SITE,
                 LocalDate.of(2099, 1, 1), LocalDate.of(2099, 1, 1), null);
-        assertThatThrownBy(() -> service.substitute(
+        assertThatThrownBy(() -> service.substitute(ENTER,
                 new SubstitutionRequest(original, LocalDate.of(2099, 3, 5), siteOnly, null), "hr1"))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY))
                 .hasMessageContaining("회사 전체");
@@ -404,7 +406,7 @@ class HolidayServiceTest {
 
     @Test
     void 연도_범위를_벗어나면_400() {
-        assertThatThrownBy(() -> service.year(10000))
+        assertThatThrownBy(() -> service.year(ENTER,10000))
                 .satisfies(t -> assertThat(status(t)).isEqualTo(HttpStatus.BAD_REQUEST));
     }
 }

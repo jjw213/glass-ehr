@@ -54,6 +54,7 @@ import org.springframework.http.HttpStatus;
  */
 class FamilyLeaveServiceTest {
 
+    private static final String ENTER = "C001";
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final LocalDate HIRE = LocalDate.of(2020, 3, 2);
     private static final LocalDate START = LocalDate.of(2027, 3, 1);
@@ -84,7 +85,7 @@ class FamilyLeaveServiceTest {
 
         Employee e = mock(Employee.class);
         when(e.getEmpId()).thenReturn(1L);
-        when(e.getEnterCd()).thenReturn("C001");
+        when(e.getEnterCd()).thenReturn(ENTER);
         when(e.getHireDate()).thenReturn(HIRE);
         when(employees.findForUpdate(1L)).thenReturn(Optional.of(e));
         when(employees.existsById(1L)).thenReturn(true);
@@ -179,6 +180,7 @@ class FamilyLeaveServiceTest {
     void 계속근로가_기준보다_짧으면_거부하지_않고_경고만_남긴다() {
         Employee e = mock(Employee.class);
         when(e.getEmpId()).thenReturn(2L);
+        when(e.getEnterCd()).thenReturn(ENTER);
         when(e.getHireDate()).thenReturn(START.minusMonths(1));
         when(employees.findForUpdate(2L)).thenReturn(Optional.of(e));
         RequestView v = service.create(2L, care(START, START.plusDays(29)), "hr1");
@@ -340,20 +342,20 @@ class FamilyLeaveServiceTest {
         WorkPattern reducedPattern = mock(WorkPattern.class);
         when(reducedPattern.isActive()).thenReturn(true);
         when(reducedPattern.getWeeklyContractMinutes()).thenReturn(reducedWeeklyHours * 60);
-        when(patterns.findById(10L)).thenReturn(Optional.of(reducedPattern));
+        when(patterns.findByEnterCdAndPatternId(ENTER, 10L)).thenReturn(Optional.of(reducedPattern));
         WorkPattern standard = mock(WorkPattern.class);
         when(standard.getWeeklyContractMinutes()).thenReturn(40 * 60);
-        when(patterns.findById(20L)).thenReturn(Optional.of(standard));
-        when(workPatterns.effective(eq(1L), any())).thenReturn(
+        when(patterns.findByEnterCdAndPatternId(ENTER, 20L)).thenReturn(Optional.of(standard));
+        when(workPatterns.effective(eq(ENTER), eq(1L), any())).thenReturn(
                 Optional.of(new AssignmentView(5, 1, 20, "STD", "표준", HIRE, null, null)));
         AtomicLong assignIds = new AtomicLong(50);
-        when(workPatterns.assign(eq(1L), any(), anyString())).thenAnswer(i -> {
-            AssignRequest r = i.getArgument(1);
+        when(workPatterns.assign(eq(ENTER), eq(1L), any(), anyString())).thenAnswer(i -> {
+            AssignRequest r = i.getArgument(2);
             return new AssignmentView(assignIds.getAndIncrement(), 1, r.patternId(), "P", "P", r.validFrom(), null,
                     r.reason());
         });
-        when(workPatterns.replaceLatest(eq(1L), anyLong(), any())).thenAnswer(i -> {
-            AssignRequest r = i.getArgument(2);
+        when(workPatterns.replaceLatest(eq(ENTER), eq(1L), anyLong(), any())).thenAnswer(i -> {
+            AssignRequest r = i.getArgument(3);
             return new AssignmentView(51, 1, r.patternId(), "P", "P", r.validFrom(), null, r.reason());
         });
     }
@@ -366,7 +368,7 @@ class FamilyLeaveServiceTest {
         RequestView v = service.approve(id, "hr1");
 
         ArgumentCaptor<AssignRequest> captor = ArgumentCaptor.forClass(AssignRequest.class);
-        verify(workPatterns, org.mockito.Mockito.times(2)).assign(eq(1L), captor.capture(), eq("hr1"));
+        verify(workPatterns, org.mockito.Mockito.times(2)).assign(eq(ENTER), eq(1L), captor.capture(), eq("hr1"));
         assertThat(captor.getAllValues().get(0).patternId()).isEqualTo(10L);
         assertThat(captor.getAllValues().get(0).validFrom()).isEqualTo(START);
         assertThat(captor.getAllValues().get(1).patternId()).isEqualTo(20L);
@@ -385,7 +387,7 @@ class FamilyLeaveServiceTest {
 
         service.approve(service.create(1L, reduced(firstEnd.plusDays(1), secondEnd, 10L), "hr1").reqId(), "hr1");
 
-        verify(workPatterns).replaceLatest(eq(1L), eq(51L),
+        verify(workPatterns).replaceLatest(eq(ENTER), eq(1L), eq(51L),
                 org.mockito.ArgumentMatchers.argThat(r -> r.validFrom().equals(firstEnd.plusDays(1))));
     }
 

@@ -42,13 +42,13 @@ public class WorkHoursController {
     @GetMapping
     public List<DailyWorkSummaryRow> find(@RequestParam long empId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return service.find(empId, from, to);
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to, AuthUser user) {
+        return service.find(user.enterCd(), empId, from, to);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/recalculate")
     public List<DailyWorkSummaryRow> recalculate(@Valid @RequestBody RecalculateRequest req, AuthUser user) {
-        return service.recalculate(req.empId(), req.from(), req.to(), user.loginId());
+        return service.recalculate(user.enterCd(), req.empId(), req.from(), req.to(), user.loginId());
     }
 }

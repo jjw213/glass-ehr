@@ -22,6 +22,10 @@ public class EmpWorkPattern {
     @Column(name = "assign_id", nullable = false, updatable = false)
     private Long assignId;
 
+    /** 법인 코드(#125). PK 는 DB 에서 (enter_cd, assign_id). 사원·근무유형도 같은 법인이어야 한다(복합 FK). */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
@@ -46,8 +50,9 @@ public class EmpWorkPattern {
     protected EmpWorkPattern() {
     }
 
-    public EmpWorkPattern(long empId, long patternId, LocalDate validFrom, String assignReason, String createdBy,
-            LocalDateTime now) {
+    public EmpWorkPattern(String enterCd, long empId, long patternId, LocalDate validFrom, String assignReason,
+            String createdBy, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.empId = empId;
         this.patternId = patternId;
         this.validFrom = validFrom;
@@ -70,6 +75,10 @@ public class EmpWorkPattern {
 
     public Long getAssignId() {
         return assignId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public Long getEmpId() {

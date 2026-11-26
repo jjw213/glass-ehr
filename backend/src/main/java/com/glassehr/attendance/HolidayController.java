@@ -46,34 +46,35 @@ public class HolidayController {
 
     @RequiresPermission
     @GetMapping("/holidays")
-    public List<HolidayView> year(@RequestParam(name = "year", required = false) Integer year) {
-        return service.year(year != null ? year : service.today().getYear());
+    public List<HolidayView> year(@RequestParam(name = "year", required = false) Integer year, AuthUser user) {
+        return service.year(user.enterCd(), year != null ? year : service.today().getYear());
     }
 
+    /** 공휴일 CSV 는 세션의 현재 법인 달력에만 넣는다(#125). */
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping(value = "/holidays/import", consumes = {"text/csv", MediaType.TEXT_PLAIN_VALUE})
     public ImportResult importCsv(@RequestBody String csv, AuthUser user) {
-        return service.importPublicHolidays(csv, user.loginId());
+        return service.importPublicHolidays(user.enterCd(), csv, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/holidays/company")
     @ResponseStatus(HttpStatus.CREATED)
     public HolidayView company(@Valid @RequestBody CompanyHolidayRequest req, AuthUser user) {
-        return service.createCompanyHoliday(req, user.loginId());
+        return service.createCompanyHoliday(user.enterCd(), req, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/holidays/substitutions")
     @ResponseStatus(HttpStatus.CREATED)
     public HolidayView substitute(@Valid @RequestBody SubstitutionRequest req, AuthUser user) {
-        return service.substitute(req, user.loginId());
+        return service.substitute(user.enterCd(), req, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @DeleteMapping("/holidays/{holidayId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable long holidayId) {
-        service.delete(holidayId);
+    public void delete(@PathVariable long holidayId, AuthUser user) {
+        service.delete(user.enterCd(), holidayId);
     }
 }

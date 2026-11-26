@@ -8,6 +8,7 @@ import com.glassehr.code.CodeDtos.CodeGroupView;
 import com.glassehr.code.CodeDtos.CodeUpdateRequest;
 import com.glassehr.code.CodeDtos.CodeView;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +40,8 @@ class CommonCodeOracleTest {
 
     @Test
     void 시드_그룹이_정렬순서대로_조회된다() {
-        assertThat(service.listGroups(E)).extracting(CodeGroupView::groupCode).containsExactlyElementsOf(CodeGroups.ALL);
+        List<String> allSeedGroups = Stream.concat(CodeGroups.ALL.stream(), CodeGroups.ATTENDANCE.stream()).toList();
+        assertThat(service.listGroups(E)).extracting(CodeGroupView::groupCode).containsExactlyElementsOf(allSeedGroups);
     }
 
     @Test

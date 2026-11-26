@@ -25,15 +25,20 @@ public class LaborAgreementGuard {
         this.agreements = agreements;
     }
 
-    /** 적용 기간 전체를 덮는 유효한 합의서 확인. 없으면 ok=false 와 이유. */
+    /**
+     * 적용 기간 전체를 덮는 유효한 합의서 확인. 없으면 ok=false 와 이유.
+     * enterCd: 대상 법인(세션 현재 법인 또는 대상 사원 법인). 같은 법인 합의서만 인정한다(#125).
+     */
     @Transactional(readOnly = true)
-    public LaborAgreementDtos.CheckResult check(AgreementType type, LocalDate from, LocalDate until, String siteCode) {
+    public LaborAgreementDtos.CheckResult check(String enterCd, AgreementType type, LocalDate from, LocalDate until,
+            String siteCode) {
+        Objects.requireNonNull(enterCd, "enterCd");
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(from, "from");
         if (until != null && until.isBefore(from)) {
             throw AttendanceException.badRequest("적용 종료일은 시작일 이후여야 해요");
         }
-        List<LaborAgreement> all = agreements.findByAgreementType(type);
+        List<LaborAgreement> all = agreements.findByEnterCdAndAgreementType(enterCd, type);
         return LaborAgreementRules.pick(all, type, from, until, siteCode)
                 .map(a -> new LaborAgreementDtos.CheckResult(true, type, a.getAgreementId(), a.getTitle(),
                         a.getValidFrom(), a.getValidUntil(), null))
@@ -43,18 +48,20 @@ public class LaborAgreementGuard {
 
     /** {@link #check}가 실패하면 422 로 저장을 막는다. 성공하면 근거 합의서를 돌려준다. */
     @Transactional(readOnly = true)
-    public LaborAgreement requireValid(AgreementType type, LocalDate from, LocalDate until, String siteCode) {
-        LaborAgreementDtos.CheckResult r = check(type, from, until, siteCode);
+    public LaborAgreement requireValid(String enterCd, AgreementType type, LocalDate from, LocalDate until,
+            String siteCode) {
+        LaborAgreementDtos.CheckResult r = check(enterCd, type, from, until, siteCode);
         if (!r.ok()) {
             throw new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY, r.message(), List.of());
         }
-        return agreements.findById(r.agreementId()).orElseThrow();
+        return agreements.findByEnterCdAndAgreementId(enterCd, r.agreementId()).orElseThrow();
     }
 
-    /** 이미 배정에 연결된 합의서가 수정된 경우에도 현재 적용 범위와 기간을 확인한다. */
+    /** 이미 배정에 연결된 합의서가 수정된 경우에도 현재 적용 범위와 기간을 확인한다. 다른 법인 합의서는 없는 것으로 본다. */
     @Transactional(readOnly = true)
-    public void requireLinked(Long agreementId, AgreementType type, LocalDate from, LocalDate until, String siteCode) {
-        if (agreementId == null || agreements.findById(agreementId)
+    public void requireLinked(String enterCd, Long agreementId, AgreementType type, LocalDate from, LocalDate until,
+            String siteCode) {
+        if (agreementId == null || agreements.findByEnterCdAndAgreementId(enterCd, agreementId)
                 .filter(a -> LaborAgreementRules.covers(a, type, from, until, siteCode)).isEmpty()) {
             throw new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY,
                     missingMessage(type, from, until, false), List.of());

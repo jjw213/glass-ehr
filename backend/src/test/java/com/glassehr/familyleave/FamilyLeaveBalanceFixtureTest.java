@@ -184,16 +184,17 @@ class FamilyLeaveBalanceFixtureTest {
         WorkPatternRepository patterns = mock(WorkPatternRepository.class);
         WorkPattern current = pattern("FULL", CURRENT_WEEKLY_MINUTES);
         WorkPattern reduced = pattern("REDUCED", reducedWeeklyMinutes);
-        when(patterns.findById(CURRENT_PATTERN)).thenReturn(Optional.of(current));
-        when(patterns.findById(REDUCED_PATTERN)).thenReturn(Optional.of(reduced));
+        when(patterns.findByEnterCdAndPatternId("C001", CURRENT_PATTERN)).thenReturn(Optional.of(current));
+        when(patterns.findByEnterCdAndPatternId("C001", REDUCED_PATTERN)).thenReturn(Optional.of(reduced));
         WorkPatternService workPatterns = mock(WorkPatternService.class);
-        when(workPatterns.effective(eq(1L), any())).thenAnswer(i -> Optional.of(assignment(CURRENT_PATTERN, i.getArgument(1))));
-        when(workPatterns.assign(eq(1L), any(), anyString())).thenAnswer(i -> {
-            AssignRequest a = i.getArgument(1);
+        when(workPatterns.effective(eq("C001"), eq(1L), any()))
+                .thenAnswer(i -> Optional.of(assignment(CURRENT_PATTERN, i.getArgument(2))));
+        when(workPatterns.assign(eq("C001"), eq(1L), any(), anyString())).thenAnswer(i -> {
+            AssignRequest a = i.getArgument(2);
             return assignment(a.patternId(), a.validFrom());
         });
-        when(workPatterns.replaceLatest(eq(1L), anyLong(), any())).thenAnswer(i -> {
-            AssignRequest a = i.getArgument(2);
+        when(workPatterns.replaceLatest(eq("C001"), eq(1L), anyLong(), any())).thenAnswer(i -> {
+            AssignRequest a = i.getArgument(3);
             return assignment(a.patternId(), a.validFrom());
         });
 

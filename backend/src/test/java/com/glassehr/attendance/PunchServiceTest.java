@@ -43,6 +43,7 @@ class PunchServiceTest {
     /** 2099-03-02 09:00:30 KST = 00:00:30 UTC */
     private static final Instant NOW = Instant.parse("2099-03-02T00:00:30Z");
     private static final LocalDate TODAY = LocalDate.of(2099, 3, 2);
+    private static final String ENTER = "C001";
 
     private AttendancePunchRepository punches;
     private EmployeeRepository employees;
@@ -61,10 +62,11 @@ class PunchServiceTest {
                 .thenReturn(new AssignmentView(5L, TODAY, null, "STAFF", null, EmpStatus.ACTIVE));
         when(emp.getEnterCd()).thenReturn("C001");
         when(emp.getHireDate()).thenReturn(LocalDate.of(2099, 1, 1));
-        when(employees.findForUpdate(5L)).thenReturn(Optional.of(emp));
-        when(punches.findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(any(), any()))
+        when(employees.findForUpdate(ENTER, 5L)).thenReturn(Optional.of(emp));
+        when(punches.findByEnterCdAndEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(any(), any(), any()))
                 .thenAnswer(inv -> stored.stream()
-                        .filter(p -> p.getEmpId().equals(inv.getArgument(0)) && p.getWorkDate().equals(inv.getArgument(1)))
+                        .filter(p -> p.getEnterCd().equals(inv.getArgument(0))
+                                && p.getEmpId().equals(inv.getArgument(1)) && p.getWorkDate().equals(inv.getArgument(2)))
                         .toList());
         when(punches.save(any())).thenAnswer(inv -> {
             AttendancePunch p = inv.getArgument(0);
@@ -79,11 +81,12 @@ class PunchServiceTest {
     void 서버_시각으로_기록하고_단말_시각은_참고로만_남긴다() {
         // 단말 시계가 하루 늦게 맞춰져 있어도 기록 시각·근무일은 서버 기준(Asia/Seoul)이다.
         OffsetDateTime client = OffsetDateTime.parse("2099-03-01T08:00:00+09:00");
-        PunchView v = service.punch(5L, "emp1", new PunchRequest(Type.IN, client));
+        PunchView v = service.punch(ENTER, 5L, "emp1", new PunchRequest(Type.IN, client));
         assertThat(v.punchedAt()).isEqualTo(OffsetDateTime.parse("2099-03-02T09:00:30+09:00"));
         assertThat(v.workDate()).isEqualTo(TODAY);
         assertThat(v.check()).isNull();
         AttendancePunch saved = stored.get(0);
+        assertThat(saved.getEnterCd()).isEqualTo(ENTER);
         assertThat(saved.getPunchedAt()).isEqualTo(LocalDateTime.of(2099, 3, 2, 9, 0, 30));
         assertThat(saved.getClientTime()).isEqualTo(LocalDateTime.of(2099, 3, 1, 8, 0));
         assertThat(saved.getCreatedBy()).isEqualTo("emp1");
@@ -94,13 +97,13 @@ class PunchServiceTest {
     void 자정_직전_UTC_시각도_서울_날짜로_근무일을_정한다() {
         // 2099-03-01T15:30Z = 2099-03-02 00:30 KST
         service = new PunchService(punches, employees, assignments, Clock.fixed(Instant.parse("2099-03-01T15:30:00Z"), ZoneOffset.UTC));
-        assertThat(service.punch(5L, "emp1", new PunchRequest(Type.IN, null)).workDate()).isEqualTo(TODAY);
+        assertThat(service.punch(ENTER, 5L, "emp1", new PunchRequest(Type.IN, null)).workDate()).isEqualTo(TODAY);
     }
 
     @Test
     void 중복_출근도_저장하고_표시한다() {
-        service.punch(5L, "emp1", new PunchRequest(Type.IN, null));
-        PunchView second = service.punch(5L, "emp1", new PunchRequest(Type.IN, null));
+        service.punch(ENTER, 5L, "emp1", new PunchRequest(Type.IN, null));
+        PunchView second = service.punch(ENTER, 5L, "emp1", new PunchRequest(Type.IN, null));
         assertThat(second.check()).isEqualTo(Check.DUPLICATE_IN);
         assertThat(second.checkMessage()).contains("관리자 확인");
         assertThat(stored).hasSize(2);
@@ -108,25 +111,25 @@ class PunchServiceTest {
 
     @Test
     void 출근_없는_퇴근도_저장하고_표시한다() {
-        PunchView v = service.punch(5L, "emp1", new PunchRequest(Type.OUT, null));
+        PunchView v = service.punch(ENTER, 5L, "emp1", new PunchRequest(Type.OUT, null));
         assertThat(v.check()).isEqualTo(Check.OUT_WITHOUT_IN);
         assertThat(stored).hasSize(1);
     }
 
     @Test
     void 사원_행을_잠근_뒤_같은_날_기록을_읽는다() {
-        service.punch(5L, "emp1", new PunchRequest(Type.IN, null));
+        service.punch(ENTER, 5L, "emp1", new PunchRequest(Type.IN, null));
         InOrder o = inOrder(employees, punches);
-        o.verify(employees).findForUpdate(5L);
-        o.verify(punches).findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(5L, TODAY);
+        o.verify(employees).findForUpdate(ENTER, 5L);
+        o.verify(punches).findByEnterCdAndEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(ENTER, 5L, TODAY);
         o.verify(punches).save(any());
     }
 
     @Test
     void 사원과_연결되지_않은_계정은_403() {
-        assertThatThrownBy(() -> service.punch(null, "admin", new PunchRequest(Type.IN, null)))
+        assertThatThrownBy(() -> service.punch(ENTER, null, "admin", new PunchRequest(Type.IN, null)))
                 .isInstanceOfSatisfying(AttendanceException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.FORBIDDEN));
-        assertThatThrownBy(() -> service.today(null)).isInstanceOf(AttendanceException.class);
+        assertThatThrownBy(() -> service.today(ENTER, null)).isInstanceOf(AttendanceException.class);
         verify(punches, never()).save(any());
     }
 
@@ -134,17 +137,17 @@ class PunchServiceTest {
     void 입사_전이나_퇴직일_다음_날부터는_기록하지_않는다() {
         when(emp.getEnterCd()).thenReturn("C001");
         when(emp.getHireDate()).thenReturn(TODAY.plusDays(1));
-        assertThatThrownBy(() -> service.punch(5L, "emp1", new PunchRequest(Type.IN, null)))
+        assertThatThrownBy(() -> service.punch(ENTER, 5L, "emp1", new PunchRequest(Type.IN, null)))
                 .isInstanceOfSatisfying(AttendanceException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
         when(emp.getEnterCd()).thenReturn("C001");
         when(emp.getHireDate()).thenReturn(TODAY);
         when(emp.getRetireDate()).thenReturn(TODAY.minusDays(1));
-        assertThatThrownBy(() -> service.punch(5L, "emp1", new PunchRequest(Type.IN, null)))
+        assertThatThrownBy(() -> service.punch(ENTER, 5L, "emp1", new PunchRequest(Type.IN, null)))
                 .isInstanceOf(AttendanceException.class);
         verify(punches, never()).save(any());
         // 퇴직일 당일까지는 재직이다.
         when(emp.getRetireDate()).thenReturn(TODAY);
-        assertThat(service.punch(5L, "emp1", new PunchRequest(Type.OUT, null))).isNotNull();
+        assertThat(service.punch(ENTER, 5L, "emp1", new PunchRequest(Type.OUT, null))).isNotNull();
     }
 
     @Test
@@ -152,7 +155,7 @@ class PunchServiceTest {
         when(emp.getEmpStatus()).thenReturn("ACTIVE");
         when(assignments.assignmentOn("C001", 5L, TODAY))
                 .thenReturn(new AssignmentView(5L, TODAY, null, "STAFF", null, EmpStatus.RETIRED));
-        assertThatThrownBy(() -> service.punch(5L, "emp1", new PunchRequest(Type.IN, null)))
+        assertThatThrownBy(() -> service.punch(ENTER, 5L, "emp1", new PunchRequest(Type.IN, null)))
                 .isInstanceOfSatisfying(AttendanceException.class,
                         e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
         verify(punches, never()).save(any());
@@ -160,30 +163,40 @@ class PunchServiceTest {
 
     @Test
     void 없는_사원은_404() {
-        assertThatThrownBy(() -> service.punch(9L, "x", new PunchRequest(Type.IN, null)))
+        assertThatThrownBy(() -> service.punch(ENTER, 9L, "x", new PunchRequest(Type.IN, null)))
                 .isInstanceOfSatisfying(AttendanceException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
     @Test
+    void 다른_법인_세션은_사원을_찾지_못해_404이고_기록을_남기지_않는다() {
+        // 그룹 관리자가 C002 로 전환한 세션: 본인 사원(C001)은 그 법인에 없다(#126).
+        assertThatThrownBy(() -> service.punch("C002", 5L, "emp1", new PunchRequest(Type.IN, null)))
+                .isInstanceOfSatisfying(AttendanceException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));
+        verify(punches, never()).save(any());
+    }
+
+    @Test
     void 오늘_요약은_첫_출근_시각과_경과_시간을_준다() {
-        stored.add(new AttendancePunch(5L, Type.IN, LocalDateTime.of(2099, 3, 2, 7, 30), null, null,
+        stored.add(new AttendancePunch(ENTER, 5L, Type.IN, LocalDateTime.of(2099, 3, 2, 7, 30), null, null,
                 AttendancePunch.Source.WEB, "emp1"));
         ReflectionTestUtils.setField(stored.get(0), "punchId", 1L);
-        stored.add(new AttendancePunch(5L, Type.IN, LocalDateTime.of(2099, 3, 1, 9, 0), null, null,
+        stored.add(new AttendancePunch(ENTER, 5L, Type.IN, LocalDateTime.of(2099, 3, 1, 9, 0), null, null,
                 AttendancePunch.Source.WEB, "emp1"));
-        TodayView t = service.today(5L);
+        TodayView t = service.today(ENTER, 5L);
         assertThat(t.serverNow()).isEqualTo(OffsetDateTime.parse("2099-03-02T09:00:30+09:00"));
         assertThat(t.workDate()).isEqualTo(TODAY);
         assertThat(t.firstInAt()).isEqualTo(OffsetDateTime.parse("2099-03-02T07:30:00+09:00"));
         assertThat(t.working()).isTrue();
         assertThat(t.elapsedMinutes()).isEqualTo(90L);
         assertThat(t.punches()).hasSize(1);
+        // 다른 법인 세션에서는 이 기록이 보이지 않는다.
+        assertThat(service.today("C002", 5L).punches()).isEmpty();
     }
 
     @Test
     void 원시_기록은_추가만_된다_저장소에_삭제가_없고_엔티티는_고칠_수_없다() {
         assertThat(Arrays.stream(AttendancePunchRepository.class.getMethods()).map(Method::getName))
-                .containsExactlyInAnyOrder("save", "findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc")
+                .containsExactlyInAnyOrder("save", "findByEnterCdAndEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc")
                 .noneMatch(n -> n.startsWith("delete"));
         assertThat(Arrays.stream(AttendancePunch.class.getDeclaredMethods())
                 .filter(m -> Modifier.isPublic(m.getModifiers())).map(Method::getName))

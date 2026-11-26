@@ -37,6 +37,10 @@ public class LaborAgreement {
     @Column(name = "agreement_id", nullable = false, updatable = false)
     private Long agreementId;
 
+    /** 법인 코드(#125). 서면합의는 법인마다 따로 한다. PK 는 DB 에서 (enter_cd, agreement_id). */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "agreement_kind", nullable = false, updatable = false)
     private AgreementType agreementType;
@@ -96,7 +100,9 @@ public class LaborAgreement {
     protected LaborAgreement() {
     }
 
-    public LaborAgreement(AgreementType agreementType, LaborAgreementDtos.Fields f, String actor, LocalDateTime now) {
+    public LaborAgreement(String enterCd, AgreementType agreementType, LaborAgreementDtos.Fields f, String actor,
+            LocalDateTime now) {
+        this.enterCd = enterCd;
         this.agreementType = agreementType;
         this.createdBy = actor;
         this.createdAt = now;
@@ -127,6 +133,10 @@ public class LaborAgreement {
 
     public Long getAgreementId() {
         return agreementId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public AgreementType getAgreementType() {

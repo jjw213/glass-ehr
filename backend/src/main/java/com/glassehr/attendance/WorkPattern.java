@@ -23,6 +23,10 @@ public class WorkPattern {
     @Column(name = "pattern_id", nullable = false, updatable = false)
     private Long patternId;
 
+    /** 법인 코드(#125). PK 는 DB 에서 (enter_cd, pattern_id). pattern_id 는 전체에서 유일하므로 JPA 식별자는 pattern_id 로 둔다. */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "pattern_code", nullable = false, updatable = false)
     private String patternCode;
 
@@ -66,8 +70,9 @@ public class WorkPattern {
     protected WorkPattern() {
     }
 
-    public WorkPattern(String patternCode, String patternName, WorkPatternRules.Spec spec,
+    public WorkPattern(String enterCd, String patternCode, String patternName, WorkPatternRules.Spec spec,
             WorkPatternRules.Result computed, boolean active, String note, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.patternCode = patternCode;
         this.patternName = patternName;
         applySpec(spec, computed);
@@ -100,6 +105,10 @@ public class WorkPattern {
 
     public Long getPatternId() {
         return patternId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public String getPatternCode() {

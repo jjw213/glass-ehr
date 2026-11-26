@@ -4,8 +4,8 @@ import { setExpectedEnter, setUnauthorizedHandler } from '../api/http';
 
 const ENTER_SWITCH_CHANNEL = 'glass-ehr-enter-switch';
 
-export type PageId = 'home' | 'attendance' | 'flexWork' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'workPatterns' | 'holidays' | 'agreements' | 'familyLeaves' | 'retirements' | 'appointments' | 'privacyLogs' | 'overtime' | 'approvalInbox';
-export const PAGE_IDS: PageId[] = ['home', 'attendance', 'flexWork', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings', 'codes', 'workPatterns', 'holidays', 'agreements', 'familyLeaves', 'retirements', 'appointments', 'privacyLogs', 'overtime', 'approvalInbox'];
+export type PageId = 'home' | 'attendance' | 'flexWork' | 'payroll' | 'approvals' | 'messages' | 'people' | 'org' | 'settings' | 'codes' | 'workPatterns' | 'holidays' | 'agreements' | 'familyLeaves' | 'retirements' | 'appointments' | 'privacyLogs' | 'overtime' | 'approvalInbox' | 'attendanceCodes';
+export const PAGE_IDS: PageId[] = ['home', 'attendance', 'flexWork', 'payroll', 'approvals', 'messages', 'people', 'org', 'settings', 'codes', 'workPatterns', 'holidays', 'agreements', 'familyLeaves', 'retirements', 'appointments', 'privacyLogs', 'overtime', 'approvalInbox', 'attendanceCodes'];
 export type SceneId = 'sunset' | 'dawn' | 'night';
 
 interface Toast { id: number; text: string }

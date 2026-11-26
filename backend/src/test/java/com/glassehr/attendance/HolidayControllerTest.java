@@ -1,6 +1,7 @@
 package com.glassehr.attendance;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -32,6 +33,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(TestAuth.class)
 class HolidayControllerTest {
 
+    private static final String ENTER = "C001";
+
     private static final String SUBST = """
             {"originalHolidayId":1,"substituteDate":"2099-03-05","agreementId":3}""";
 
@@ -48,7 +51,7 @@ class HolidayControllerTest {
 
     @Test
     void 달력_조회는_일반_사원도_되고_연도를_넘긴다() throws Exception {
-        when(service.year(2099)).thenReturn(List.of(replacement()));
+        when(service.year(ENTER, 2099)).thenReturn(List.of(replacement()));
         mvc.perform(get("/api/attendance/holidays").param("year", "2099").header("X-Actor-Id", "emp1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].kind").value("REPLACEMENT"))
@@ -59,14 +62,14 @@ class HolidayControllerTest {
     @Test
     void 연도가_없으면_올해() throws Exception {
         when(service.today()).thenReturn(LocalDate.of(2099, 6, 1));
-        when(service.year(2099)).thenReturn(List.of());
+        when(service.year(ENTER, 2099)).thenReturn(List.of());
         mvc.perform(get("/api/attendance/holidays")).andExpect(status().isOk());
-        verify(service).year(2099);
+        verify(service).year(ENTER, 2099);
     }
 
     @Test
     void 휴일_대체_등록은_요청자를_서버에서_받는다() throws Exception {
-        when(service.substitute(any(), eq("hr1"))).thenReturn(replacement());
+        when(service.substitute(eq(ENTER), any(), eq("hr1"))).thenReturn(replacement());
         mvc.perform(post("/api/attendance/holidays/substitutions").contentType(MediaType.APPLICATION_JSON).content(SUBST))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.agreementId").value(3));
@@ -78,12 +81,12 @@ class HolidayControllerTest {
                         .content("{\"originalHolidayId\":1,\"substituteDate\":\"2099-03-05\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("근로자대표 서면합의 문서를 연결해 주세요(근로기준법 제55조 제2항 단서)"));
-        verify(service, never()).substitute(any(), anyString());
+        verify(service, never()).substitute(any(), any(), anyString());
     }
 
     @Test
     void 합의_요건_위반은_422() throws Exception {
-        when(service.substitute(any(), anyString())).thenThrow(
+        when(service.substitute(eq(ENTER), any(), anyString())).thenThrow(
                 new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY, "유효기간 밖", List.of()));
         mvc.perform(post("/api/attendance/holidays/substitutions").contentType(MediaType.APPLICATION_JSON).content(SUBST))
                 .andExpect(status().isUnprocessableEntity())
@@ -93,7 +96,7 @@ class HolidayControllerTest {
     @Test
     void 공휴일_CSV를_text_csv로_받는다() throws Exception {
         String csv = "날짜,이름,종류,출처,검증일\n2099-03-01,시험,법정공휴일,시험 출처,2099-01-01\n";
-        when(service.importPublicHolidays(csv, "hr1")).thenReturn(new ImportResult(1, 0, List.of()));
+        when(service.importPublicHolidays(ENTER, csv, "hr1")).thenReturn(new ImportResult(1, 0, List.of()));
         mvc.perform(post("/api/attendance/holidays/import").contentType("text/csv;charset=UTF-8").content(csv))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.inserted").value(1));
@@ -115,7 +118,7 @@ class HolidayControllerTest {
                 .andExpect(status().isForbidden());
         mvc.perform(delete("/api/attendance/holidays/1").header("X-Actor-Id", "emp1"))
                 .andExpect(status().isForbidden());
-        verify(service, never()).delete(1L);
+        verify(service, never()).delete(anyString(), anyLong());
     }
 
     @Test
@@ -127,6 +130,6 @@ class HolidayControllerTest {
     @Test
     void 취소는_204() throws Exception {
         mvc.perform(delete("/api/attendance/holidays/7")).andExpect(status().isNoContent());
-        verify(service).delete(7L);
+        verify(service).delete(ENTER, 7L);
     }
 }
