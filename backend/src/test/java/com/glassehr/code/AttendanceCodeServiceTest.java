@@ -136,6 +136,19 @@ class AttendanceCodeServiceTest {
     }
 
     @Test
+    void 근태_구분_단건_조회는_같은_코드의_휴가_설정을_조회하지_않는다() {
+        CommonCode attendanceType = new CommonCode(E, CodeGroups.ATTENDANCE_TYPE, "MATERNITY", "출산 근태", null,
+                1, true, "OTHER", T0);
+        when(codes.findByEnterCdAndGroupCodeAndCode(E, CodeGroups.ATTENDANCE_TYPE, "MATERNITY"))
+                .thenReturn(Optional.of(attendanceType));
+
+        AttendanceCodeView v = service.get(E, CodeGroups.ATTENDANCE_TYPE, "MATERNITY");
+
+        assertThat(v.leave()).isNull();
+        verify(leaves, never()).findByEnterCdAndCode(any(), any());
+    }
+
+    @Test
     void 근태코드_그룹이_아니면_404() {
         assertThatThrownBy(() -> service.list(E, "JOB_GRADE"))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));

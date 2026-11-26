@@ -115,7 +115,10 @@ public class AttendanceCodeService {
         requireAttendanceGroup(enterCd, groupCode);
         CommonCode c = common.findCode(enterCd, groupCode, code);
         long count = common.usageCounts(enterCd, groupCode).getOrDefault(code, 0L);
-        return view(c, count, leaves.findByEnterCdAndCode(enterCd, code).orElse(null), LocalDate.now(clock));
+        AttendanceLeaveType detail = isLeave(groupCode)
+                ? leaves.findByEnterCdAndCode(enterCd, code).orElse(null)
+                : null;
+        return view(c, count, detail, LocalDate.now(clock));
     }
 
     @Transactional
