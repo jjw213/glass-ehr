@@ -38,6 +38,10 @@ public class ApprovalDoc {
     @Column(name = "approval_id", nullable = false, updatable = false)
     private Long approvalId;
 
+    /** 문서 법인(신청자 법인, #127). 결재선·이력·핸들러 처리는 이 법인 안에서만 한다. */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "request_type", nullable = false, updatable = false)
     private String requestType;
 
@@ -74,8 +78,9 @@ public class ApprovalDoc {
     }
 
     /** 신청. 건너뛴 단계 다음의 첫 대기 단계부터 시작하고, 모두 건너뛰었으면 바로 승인된다. */
-    ApprovalDoc(String requestType, long requestRef, String title, long requesterEmpId, long templateId,
-            List<ApproverResolver.ResolvedStep> resolved, LocalDateTime now) {
+    ApprovalDoc(String enterCd, String requestType, long requestRef, String title, long requesterEmpId,
+            long templateId, List<ApproverResolver.ResolvedStep> resolved, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.requestType = requestType;
         this.requestRef = requestRef;
         this.title = title;
@@ -165,6 +170,10 @@ public class ApprovalDoc {
 
     public Long getApprovalId() {
         return approvalId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public String getRequestType() {

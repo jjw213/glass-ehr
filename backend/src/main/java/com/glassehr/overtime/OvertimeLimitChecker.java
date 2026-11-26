@@ -85,7 +85,7 @@ public class OvertimeLimitChecker {
             }
         }
         Map<LocalDate, Integer> planned = new HashMap<>();
-        List<OvertimeRequest> approved = requests.findByEmpIdAndWorkDateBetweenAndStatusIn(target.getEmpId(),
+        List<OvertimeRequest> approved = requests.findByEnterCdAndEmpIdAndWorkDateBetweenAndStatusIn(enterCd, target.getEmpId(),
                 monday, sunday, List.of(OvertimeRequest.Status.APPROVED));
         for (OvertimeRequest r : approved) {
             if (!r.getRequestId().equals(target.getRequestId())) {

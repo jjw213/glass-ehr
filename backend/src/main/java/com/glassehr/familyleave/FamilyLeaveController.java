@@ -45,50 +45,50 @@ public class FamilyLeaveController {
     @PostMapping("/api/employees/{empId}/family-leaves")
     @ResponseStatus(HttpStatus.CREATED)
     public RequestView create(@PathVariable long empId, @Valid @RequestBody CreateRequest req, AuthUser user) {
-        return service.create(empId, req, user.loginId());
+        return service.create(user.enterCd(), empId, req, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/employees/{empId}/family-leaves")
-    public List<RequestView> listByEmployee(@PathVariable long empId) {
-        return service.listByEmployee(empId);
+    public List<RequestView> listByEmployee(@PathVariable long empId, AuthUser user) {
+        return service.listByEmployee(user.enterCd(), empId);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/employees/{empId}/family-leave-balance")
     public BalanceView balance(@PathVariable long empId,
-            @RequestParam(name = "asOf", required = false) LocalDate asOf) {
-        return service.balance(empId, asOf);
+            @RequestParam(name = "asOf", required = false) LocalDate asOf, AuthUser user) {
+        return service.balance(user.enterCd(), empId, asOf);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/family-leaves")
-    public List<RequestView> search(@RequestParam(name = "status", required = false) Status status) {
-        return service.search(status);
+    public List<RequestView> search(@RequestParam(name = "status", required = false) Status status, AuthUser user) {
+        return service.search(user.enterCd(), status);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/family-leaves/{reqId}")
-    public RequestView get(@PathVariable long reqId) {
-        return service.get(reqId);
+    public RequestView get(@PathVariable long reqId, AuthUser user) {
+        return service.get(user.enterCd(), reqId);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/api/family-leaves/{reqId}/approve")
     public RequestView approve(@PathVariable long reqId, AuthUser user) {
-        return service.approve(reqId, user.loginId());
+        return service.approve(user.enterCd(), reqId, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/api/family-leaves/{reqId}/reject")
     public RequestView reject(@PathVariable long reqId, @Valid @RequestBody DecisionRequest req, AuthUser user) {
-        return service.reject(reqId, req.note(), user.loginId());
+        return service.reject(user.enterCd(), reqId, req.note(), user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/api/family-leaves/{reqId}/cancel")
     public RequestView cancel(@PathVariable long reqId, @Valid @RequestBody(required = false) DecisionRequest req,
             AuthUser user) {
-        return service.cancel(reqId, req == null ? null : req.note(), user.loginId());
+        return service.cancel(user.enterCd(), reqId, req == null ? null : req.note(), user.loginId());
     }
 }
