@@ -82,6 +82,9 @@ public final class WorkPolicyRules {
         checkAllowance(v, "연장근로", p.overtime());
         checkAllowance(v, "야간근로", p.night());
         checkAllowance(v, "휴일근로", p.holiday());
+        if (p.night().monthLimit() != null) {
+            v.add(invalid("야간근로 월 한도는 월 누계 집계를 지원한 뒤 설정할 수 있어요"));
+        }
         if (p.unitMinutes() < 1 || p.unitMinutes() > MAX_UNIT_MINUTES) {
             v.add(invalid("인정 단위는 1~" + MAX_UNIT_MINUTES + "분이어야 해요"));
         }
@@ -255,8 +258,10 @@ public final class WorkPolicyRules {
         // 근로기준법 제56조 제2항: 기준시간 이내·초과를 나눈다.
         int holWithin = Math.min(hol, holidayThresholdMinutes);
         int worked = r.workedMinutes() + (ot - overtime) + (hol - holidayTotal);
+        // 야간은 실근로와 겹치는 분류이므로 독립적으로 올림하더라도 실근로를 넘을 수 없다.
+        int night = Math.min(recognize(r.nightMinutes(), p), worked);
         return new DayResult(r.workDate(), r.dayKind(), r.contractMinutes(), r.leaveKind(), r.leaveMinutes(),
-                r.breakMinutes(), worked, r.regularMinutes(), extra, ot, recognize(r.nightMinutes(), p), holWithin,
+                r.breakMinutes(), worked, r.regularMinutes(), extra, ot, night, holWithin,
                 hol - holWithin);
     }
 

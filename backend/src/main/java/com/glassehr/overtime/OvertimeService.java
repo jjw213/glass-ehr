@@ -79,6 +79,9 @@ public class OvertimeService {
         if (planned <= 0) {
             throw bad("휴게시간을 빼면 근로시간이 남지 않아요");
         }
+        // 같은 사원의 신청 합계 조회와 저장을 직렬화해 동시 신청이 정책 한도를 우회하지 못하게 한다.
+        employees.findForUpdate(user.enterCd(), emp)
+                .orElseThrow(() -> new ApprovalException(HttpStatus.NOT_FOUND, "사원을 찾을 수 없어요"));
         checkPolicy(user.enterCd(), emp, req.workKind(), start.toLocalDate(), planned);
         if (!requests.findOverlapping(emp, start, end, ACTIVE).isEmpty()) {
             throw new ApprovalException(HttpStatus.CONFLICT, "같은 시간대에 결재 중이거나 승인된 신청이 있어요");

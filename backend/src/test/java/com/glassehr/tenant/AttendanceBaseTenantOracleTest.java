@@ -197,7 +197,11 @@ class AttendanceBaseTenantOracleTest {
 
     @Test
     void 근무_정책은_법인마다_따로이고_다른_법인_정책_근무유형은_404() {
-        WorkPolicyView b = policies.create(B, policyRequest(bPattern), "it-hr");
+        // 이 테스트는 법인 격리만 검증하므로 실행일의 legal_rate 시드에 의존하지 않게 정책 행을 직접 준비한다.
+        jdbc.update("INSERT INTO work_policy (enter_cd, pattern_id, policy_name, overtime_mode, night_mode,"
+                + " holiday_mode, created_by, created_at, updated_by, updated_at) VALUES (?, ?, 'IT 정책(예시)',"
+                + " 'DENY', 'UNLIMITED', 'UNLIMITED', 'it-hr', SYSTIMESTAMP, 'it-hr', SYSTIMESTAMP)", B, bPattern);
+        WorkPolicyView b = policies.list(B, true).getFirst();
         assertThat(policies.list(A, true)).extracting(WorkPolicyView::policyId).doesNotContain(b.policyId());
         assertStatus(() -> policies.update(A, b.policyId(), policyRequest(null), "it-hr"), HttpStatus.NOT_FOUND);
         assertStatus(() -> policies.delete(A, b.policyId(), "it-hr"), HttpStatus.NOT_FOUND);

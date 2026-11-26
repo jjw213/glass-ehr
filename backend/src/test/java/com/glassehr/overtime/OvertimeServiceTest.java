@@ -16,6 +16,7 @@ import com.glassehr.approval.ApprovalService;
 import com.glassehr.attendance.WorkPolicyRules;
 import com.glassehr.attendance.WorkPolicyService;
 import com.glassehr.auth.AuthUser;
+import com.glassehr.employee.Employee;
 import com.glassehr.employee.EmployeeRepository;
 import com.glassehr.overtime.OvertimeDtos.AuthRequest;
 import com.glassehr.overtime.OvertimeDtos.CreateRequest;
@@ -64,6 +65,7 @@ class OvertimeServiceTest {
         when(me.enterCd()).thenReturn("C001");
         when(me.empId()).thenReturn(EMP);
         when(me.loginId()).thenReturn("emp7");
+        when(employees.findForUpdate("C001", EMP)).thenReturn(Optional.of(mock(Employee.class)));
         when(requests.saveAndFlush(any())).thenAnswer(inv -> {
             OvertimeRequest r = inv.getArgument(0);
             ReflectionTestUtils.setField(r, "requestId", 11L);
@@ -86,6 +88,7 @@ class OvertimeServiceTest {
         assertThat(v.status()).isEqualTo(OvertimeRequest.Status.IN_PROGRESS);
         assertThat(v.reason()).isEqualTo("출시 대응");
         verify(approvals).submit("OVERTIME", 11L, "연장근로 2099-03-10 19:00~22:00", EMP);
+        verify(employees).findForUpdate("C001", EMP);
     }
 
     private static WorkPolicyRules.Policy overtimePolicy(WorkPolicyRules.Allowance overtime) {

@@ -7,6 +7,7 @@ import com.glassehr.attendance.WorkPolicyRules.Allowance;
 import com.glassehr.attendance.WorkPolicyRules.MissingOut;
 import com.glassehr.attendance.WorkPolicyRules.Policy;
 import com.glassehr.attendance.WorkPolicyRules.Rounding;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +39,26 @@ class WorkPolicyRulesTest {
         assertThat(WorkPolicyRules.recognize(9, min)).isZero();
         assertThat(WorkPolicyRules.recognize(10, min)).isEqualTo(15);
         assertThat(WorkPolicyRules.recognize(7, WorkPolicyRules.SYSTEM_DEFAULT)).isEqualTo(7);
+    }
+
+    @Test
+    void 야간_올림은_실근로시간을_넘지_않는다() {
+        Policy up = with(Allowance.UNLIMITED, Allowance.UNLIMITED, 15, 0, Rounding.UP);
+        WorkHoursCalculator.DayResult raw = new WorkHoursCalculator.DayResult(LocalDate.of(2099, 3, 4),
+                WorkHoursCalculator.DayKind.WORKDAY, 480, null, 0, 0, 7, 7, 0, 0, 7, 0, 0);
+
+        assertThat(WorkPolicyRules.recognizeDay(raw, up, 480).nightMinutes()).isEqualTo(7);
+    }
+
+    @Test
+    void 월_누계를_지원하지_않는_야간_월_한도는_거부한다() {
+        Policy d = WorkPolicyRules.SYSTEM_DEFAULT;
+        Policy p = new Policy(d.overtime(), limit(null, null, 600), d.holiday(), true, 1, 0, Rounding.UP,
+                0, 0, true, MissingOut.IN_ONLY, true);
+
+        assertThat(WorkPolicyRules.check(p, null, LIMITS, WEEKLY_OT))
+                .extracting(WorkPatternRules.Violation::message)
+                .containsExactly("야간근로 월 한도는 월 누계 집계를 지원한 뒤 설정할 수 있어요");
     }
 
     @Test
