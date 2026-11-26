@@ -13,8 +13,9 @@ import org.springframework.data.repository.query.Param;
  */
 public interface DashboardPunchQueries extends Repository<AttendancePunch, Long> {
 
-    /** 그날 해당 종류로 한 번이라도 기록한 사원 ID(중복 제거). */
-    @Query("select distinct p.empId from AttendancePunch p where p.workDate = :workDate and p.type = :type")
-    List<Long> findEmpIdsByWorkDateAndType(@Param("workDate") LocalDate workDate,
+    /** 그 법인에서 그날 해당 종류로 한 번이라도 기록한 사원 ID(중복 제거). 법인 조건 필수(#126). */
+    @Query("select distinct p.empId from AttendancePunch p"
+            + " where p.enterCd = :enterCd and p.workDate = :workDate and p.type = :type")
+    List<Long> findEmpIdsByWorkDateAndType(@Param("enterCd") String enterCd, @Param("workDate") LocalDate workDate,
             @Param("type") AttendancePunch.Type type);
 }

@@ -71,11 +71,11 @@ class PunchOracleTest {
     @Test
     void 출근_퇴근을_기록하고_오늘_요약을_읽는다() {
         long emp = employee();
-        PunchView in = service.punch(emp, "it-emp", new PunchRequest(AttendancePunch.Type.IN, null));
-        PunchView dup = service.punch(emp, "it-emp", new PunchRequest(AttendancePunch.Type.IN, null));
+        PunchView in = service.punch("C001", emp, "it-emp", new PunchRequest(AttendancePunch.Type.IN, null));
+        PunchView dup = service.punch("C001", emp, "it-emp", new PunchRequest(AttendancePunch.Type.IN, null));
         assertThat(in.check()).isNull();
         assertThat(dup.check()).isEqualTo(AttendancePunch.Check.DUPLICATE_IN);
-        TodayView t = service.today(emp);
+        TodayView t = service.today("C001", emp);
         assertThat(t.punches()).hasSize(2);
         assertThat(t.firstInAt()).isEqualTo(in.punchedAt());
         assertThat(t.working()).isTrue();
@@ -101,7 +101,7 @@ class PunchOracleTest {
             TimeZone.setDefault(TimeZone.getTimeZone(ZoneOffset.UTC));
             Clock clock = Clock.fixed(at, PunchDtos.SEOUL);
             PunchService fixed = new PunchService(punches, employeeRepository, assignments, clock);
-            PunchView in = fixed.punch(emp, "it-emp", new PunchRequest(AttendancePunch.Type.IN, null));
+            PunchView in = fixed.punch("C001", emp, "it-emp", new PunchRequest(AttendancePunch.Type.IN, null));
             em.flush();
 
             Map<String, Object> row = jdbc.queryForMap("SELECT TO_CHAR(punched_at, 'YYYY-MM-DD HH24:MI:SS.FF6') AS at,"
@@ -110,7 +110,7 @@ class PunchOracleTest {
             assertThat(row.get("WD")).isEqualTo(seoul.toLocalDate().toString());
 
             em.clear();
-            assertThat(punches.findByEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc(emp, seoul.toLocalDate()))
+            assertThat(punches.findByEnterCdAndEmpIdAndWorkDateOrderByPunchedAtAscPunchIdAsc("C001", emp, seoul.toLocalDate()))
                     .singleElement()
                     .satisfies(p -> assertThat(p.getPunchedAt()).isEqualTo(seoul));
         } finally {
@@ -121,11 +121,13 @@ class PunchOracleTest {
     @Test
     void DB는_근무일과_기록_날짜가_다르거나_판정과_종류가_맞지_않으면_거부한다() {
         long emp = employee();
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO attendance_punch (emp_id, punch_type, punched_at, work_date,"
-                + " source, created_by) VALUES (?, 'IN', TIMESTAMP '2099-03-02 00:30:00', DATE '2099-03-01', 'WEB', 'it')",
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO attendance_punch (enter_cd, emp_id, punch_type, punched_at,"
+                + " work_date, source, created_by) VALUES ('C001', ?, 'IN', TIMESTAMP '2099-03-02 00:30:00',"
+                + " DATE '2099-03-01', 'WEB', 'it')",
                 emp)).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO attendance_punch (emp_id, punch_type, punched_at, work_date,"
-                + " punch_check, source, created_by) VALUES (?, 'IN', TIMESTAMP '2099-03-02 09:00:00', DATE '2099-03-02',"
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO attendance_punch (enter_cd, emp_id, punch_type, punched_at,"
+                + " work_date, punch_check, source, created_by) VALUES ('C001', ?, 'IN', TIMESTAMP '2099-03-02 09:00:00',"
+                + " DATE '2099-03-02',"
                 + " 'OUT_WITHOUT_IN', 'WEB', 'it')", emp)).isInstanceOf(DataIntegrityViolationException.class);
     }
 }

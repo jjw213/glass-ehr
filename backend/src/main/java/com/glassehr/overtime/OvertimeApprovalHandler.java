@@ -58,9 +58,10 @@ public class OvertimeApprovalHandler implements ApprovalCompletionHandler {
     public void onApproved(long requestRef) {
         OvertimeRequest r = lock(requestRef);
         // 같은 사원의 최종 승인들을 공통 사원 행 잠금으로 직렬화한 뒤 승인 합계를 조회한다.
-        employees.findForUpdate(r.getEmpId())
-                .orElseThrow(() -> new IllegalStateException("사원이 없어요: " + r.getEmpId()));
-        limits.check(r);
+        String enterCd = employees.findForUpdate(r.getEmpId())
+                .orElseThrow(() -> new IllegalStateException("사원이 없어요: " + r.getEmpId())).getEnterCd();
+        // 집계 행은 사원 법인 것만 읽는다(#126).
+        limits.check(enterCd, r);
         r.decide(OvertimeRequest.Status.APPROVED, LocalDateTime.now(clock));
     }
 

@@ -64,7 +64,8 @@ public class DashboardService {
         long hired = active.stream()
                 .filter(e -> e.hireDate() != null && YearMonth.from(e.hireDate()).equals(thisMonth))
                 .count();
-        Set<Long> punchedIn = new HashSet<>(punches.findEmpIdsByWorkDateAndType(today, AttendancePunch.Type.IN));
+        Set<Long> punchedIn = new HashSet<>(punches.findEmpIdsByWorkDateAndType(user.enterCd(), today,
+AttendancePunch.Type.IN));
         long present = active.stream().filter(e -> punchedIn.contains(e.empId())).count();
 
         List<TrendPoint> trend = new ArrayList<>(TREND_MONTHS);

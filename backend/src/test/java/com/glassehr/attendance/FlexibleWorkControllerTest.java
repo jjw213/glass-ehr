@@ -47,7 +47,7 @@ class FlexibleWorkControllerTest {
 
     @Test
     void 배정은_인사가_하고_요청자를_서버가_정한다() throws Exception {
-        when(service.assign(any(), eq("hr1"))).thenReturn(view());
+        when(service.assign(eq("C001"), any(), eq("hr1"))).thenReturn(view());
         mvc.perform(post("/api/attendance/flex-work").contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.agreementId").value(7));
@@ -58,12 +58,12 @@ class FlexibleWorkControllerTest {
         mvc.perform(post("/api/attendance/flex-work").header("X-Actor-Id", "emp1")
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isForbidden());
-        verify(service, never()).assign(any(), any());
+        verify(service, never()).assign(any(), any(), any());
     }
 
     @Test
     void 서면합의가_없으면_422() throws Exception {
-        when(service.assign(any(), any())).thenThrow(new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY,
+        when(service.assign(any(), any(), any())).thenThrow(new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY,
                 "선택적 근로시간제는 근로자대표와의 서면합의가 있어야 해요(근로기준법 제52조).", List.of()));
         mvc.perform(post("/api/attendance/flex-work").contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isUnprocessableEntity());

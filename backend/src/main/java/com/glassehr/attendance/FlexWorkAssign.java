@@ -25,6 +25,10 @@ public class FlexWorkAssign {
     @Column(name = "flex_id", nullable = false, updatable = false)
     private Long flexId;
 
+    /** 법인 코드(#126). 사원과 같은 법인. PK 는 DB 에서 (enter_cd, flex_id). */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
@@ -65,9 +69,10 @@ public class FlexWorkAssign {
     protected FlexWorkAssign() {
     }
 
-    FlexWorkAssign(long empId, WorkSystem workSystem, LocalDate periodStart, LocalDate periodEnd, String jobCode,
-            Integer coreStartMin, Integer coreEndMin, Integer deemedMinutes, Long agreementId, String note,
-            String createdBy, LocalDateTime now) {
+    FlexWorkAssign(String enterCd, long empId, WorkSystem workSystem, LocalDate periodStart, LocalDate periodEnd,
+            String jobCode, Integer coreStartMin, Integer coreEndMin, Integer deemedMinutes, Long agreementId,
+            String note, String createdBy, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.empId = empId;
         this.workSystem = workSystem;
         this.periodStart = periodStart;
@@ -88,6 +93,10 @@ public class FlexWorkAssign {
 
     public Long getFlexId() {
         return flexId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public Long getEmpId() {
