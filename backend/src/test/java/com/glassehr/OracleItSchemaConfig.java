@@ -277,6 +277,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(
                     new ClassPathResource("db/oracle/V044__work_pattern_worker_type.sql")).execute(dataSource);
         }
+        Integer fullTimeBaselineCol = jdbc.queryForObject("SELECT COUNT(*) FROM user_tab_columns "
+                + "WHERE table_name = 'WORK_PATTERN' AND column_name = 'FULL_TIME_BASELINE_YN'", Integer.class);
+        if (fullTimeBaselineCol == null || fullTimeBaselineCol == 0) {
+            // #158: 통상근로자 비교 기준을 계산된 근로자 유형과 분리
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V045__work_pattern_full_time_baseline.sql")).execute(dataSource);
+        }
         return new Applied();
     }
 
