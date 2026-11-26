@@ -61,8 +61,29 @@ class WorkPatternServiceTest {
             saved.add(a);
             return a;
         });
+        workerTypes = mock(WorkerTypeService.class);
+        when(workerTypes.classifyPattern(any(), any(), any(Integer.class), any())).thenReturn(WorkerType.PART_TIME);
         Clock clock = Clock.fixed(TODAY.atTime(9, 0).atZone(SEOUL).toInstant(), SEOUL);
-        service = new WorkPatternService(patterns, assignments, employees, limits, clock);
+        service = new WorkPatternService(patterns, assignments, employees, limits, workerTypes, clock);
+    }
+
+    private WorkerTypeService workerTypes;
+
+    @Test
+    void 저장할_때_적용_근로자_유형을_1주_소정근로시간으로_계산한다() {
+        WorkPatternView v = service.create(ENTER, okReq("PT"));
+        assertThat(v.workerType()).isEqualTo(WorkerType.PART_TIME);
+        verify(workerTypes).classifyPattern(ENTER, null, 1800, TODAY);
+    }
+
+    @Test
+    void 시각을_바꾸면_자기_자신을_빼고_근로자_유형을_다시_계산한다() {
+        WorkPattern p = pattern(7, true);
+        when(patterns.findForUpdate(ENTER, 7)).thenReturn(Optional.of(p));
+        WorkPatternRequest changed = new WorkPatternRequest("DAY", "주간", 540, 885, 720, 45, "WWWWWOH", true, null);
+        WorkPatternView v = service.update(ENTER, 7, changed);
+        assertThat(v.workerType()).isEqualTo(WorkerType.PART_TIME);
+        verify(workerTypes).classifyPattern(ENTER, 7L, 1500, TODAY);
     }
 
     private static <T> T withId(T entity, String field, Object id) {
@@ -89,7 +110,7 @@ class WorkPatternServiceTest {
     private static WorkPattern pattern(long id, boolean active) {
         WorkPatternRequest r = okReq("DAY");
         WorkPattern p = new WorkPattern(ENTER, "DAY","주간", r.spec(), new WorkPatternRules.Result(360, 1800, List.of()),
-                active, null, LocalDateTime.of(2026, 1, 1, 0, 0));
+                WorkerType.FULL_TIME, active, null, LocalDateTime.of(2026, 1, 1, 0, 0));
         return withId(p, "patternId", id);
     }
 
@@ -309,7 +330,7 @@ class WorkPatternServiceTest {
     @Test
     void 오늘은_서울_기준() {
         Clock utcLate = Clock.fixed(Instant.parse("2026-11-12T15:30:00Z"), ZoneId.of("UTC"));
-        WorkPatternService s = new WorkPatternService(patterns, assignments, employees, limits, utcLate);
+        WorkPatternService s = new WorkPatternService(patterns, assignments, employees, limits, workerTypes, utcLate);
         assertThat(s.today()).isEqualTo(LocalDate.of(2026, 11, 13));
     }
 }

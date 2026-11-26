@@ -270,6 +270,13 @@ public class OracleItSchemaConfig {
                     new ClassPathResource("db/oracle/V043__attendance_record_flex_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer workerTypeCol = jdbc.queryForObject("SELECT COUNT(*) FROM user_tab_columns "
+                + "WHERE table_name = 'WORK_PATTERN' AND column_name = 'WORKER_TYPE_CODE'", Integer.class);
+        if (workerTypeCol == null || workerTypeCol == 0) {
+            // #158: 초단시간근로자 기준 legal_rate 항목, 근무유형 적용 근로자 유형
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V044__work_pattern_worker_type.sql")).execute(dataSource);
+        }
         return new Applied();
     }
 

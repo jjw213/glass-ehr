@@ -21,13 +21,13 @@ public final class WorkPatternDtos {
 
     public record WorkPatternView(long patternId, String patternCode, String patternName, int workStartMin,
             int workEndMin, Integer breakStartMin, int breakMinutes, String dayTypes, int dailyContractMinutes,
-            int weeklyContractMinutes, boolean active, String note, boolean assigned) {
+            int weeklyContractMinutes, WorkerType workerType, boolean active, String note, boolean assigned) {
 
         static WorkPatternView of(WorkPattern p, boolean assigned) {
             WorkPatternRules.Spec s = p.spec();
             return new WorkPatternView(p.getPatternId(), p.getPatternCode(), p.getPatternName(), s.workStartMin(),
                     s.workEndMin(), s.breakStartMin(), s.breakMinutes(), s.dayTypes(), p.getDailyContractMinutes(),
-                    p.getWeeklyContractMinutes(), p.isActive(), p.getNote(), assigned);
+                    p.getWeeklyContractMinutes(), p.getWorkerType(), p.isActive(), p.getNote(), assigned);
         }
     }
 

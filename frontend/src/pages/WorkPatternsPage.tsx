@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { LuPencil, LuPlus, LuRefreshCw, LuShieldAlert } from 'react-icons/lu';
 import { Badge, Card, CardHead, Modal, PageHead, Toggle, cx } from '../components/ui';
+import { WORKER_TYPE_LABEL, WORKER_TYPE_NOTICE } from '../api/workPatterns';
 import {
   DAY_TYPE_LABEL, WEEKDAYS, contractMinutes, duration, parseHm, toHm, validateWorkPattern, workPatternApi,
   type DayType, type Violation, type WorkPattern, type WorkPatternApi, type WorkPatternInput,
@@ -139,7 +140,7 @@ export function WorkPatternManager({ api, toast }: { api: WorkPatternApi; toast:
         ) : (
           <table className="code-table">
             <thead>
-              <tr><th>코드</th><th>이름</th><th>근무시간</th><th className="hide-sm">휴게</th><th>소정근로(1일/1주)</th><th className="hide-sm">휴무·주휴</th><th /></tr>
+              <tr><th>코드</th><th>이름</th><th>근무시간</th><th className="hide-sm">휴게</th><th>소정근로(1일/1주)</th><th>적용 근로자 유형</th><th className="hide-sm">휴무·주휴</th><th /></tr>
             </thead>
             <tbody>
               {rows.map((r) => (
@@ -151,6 +152,16 @@ export function WorkPatternManager({ api, toast }: { api: WorkPatternApi; toast:
                   <td className="num">{toHm(r.workStartMin)}~{r.workEndMin <= r.workStartMin ? '다음 날 ' : ''}{toHm(r.workEndMin)}</td>
                   <td className="hide-sm muted sm">{r.breakMinutes === 0 || r.breakStartMin === null ? '없음' : `${toHm(r.breakStartMin)}부터 ${duration(r.breakMinutes)}`}</td>
                   <td className="num">{duration(r.dailyContractMinutes)} / {duration(r.weeklyContractMinutes)}</td>
+                  <td>
+                    {r.workerType ? (
+                      <>
+                        <Badge tone={r.workerType === 'ULTRA_SHORT' ? 'amber' : 'blue'}>{WORKER_TYPE_LABEL[r.workerType]}</Badge>
+                        {WORKER_TYPE_NOTICE[r.workerType] && <span className="muted sm"> {WORKER_TYPE_NOTICE[r.workerType]}</span>}
+                      </>
+                    ) : (
+                      <span className="muted sm">미지정</span>
+                    )}
+                  </td>
                   <td className="hide-sm muted sm">{dayTypesText(r.dayTypes)}</td>
                   <td className="code-table__actions">
                     <button className="btn btn--ghost icon-only" onClick={() => openEdit(r)} aria-label={`${r.patternName} 수정`}><LuPencil /></button>

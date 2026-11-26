@@ -39,20 +39,22 @@ public class WorkPatternService {
     private final EmpWorkPatternRepository assignments;
     private final EmployeeRepository employees;
     private final WorkPatternLegalLimits limits;
+    private final WorkerTypeService workerTypes;
     private final Clock clock;
 
     @Autowired
     public WorkPatternService(WorkPatternRepository patterns, EmpWorkPatternRepository assignments,
-            EmployeeRepository employees, WorkPatternLegalLimits limits) {
-        this(patterns, assignments, employees, limits, Clock.system(SEOUL));
+            EmployeeRepository employees, WorkPatternLegalLimits limits, WorkerTypeService workerTypes) {
+        this(patterns, assignments, employees, limits, workerTypes, Clock.system(SEOUL));
     }
 
     WorkPatternService(WorkPatternRepository patterns, EmpWorkPatternRepository assignments,
-            EmployeeRepository employees, WorkPatternLegalLimits limits, Clock clock) {
+            EmployeeRepository employees, WorkPatternLegalLimits limits, WorkerTypeService workerTypes, Clock clock) {
         this.patterns = patterns;
         this.assignments = assignments;
         this.employees = employees;
         this.limits = limits;
+        this.workerTypes = workerTypes;
         this.clock = clock;
     }
 
@@ -84,7 +86,9 @@ public class WorkPatternService {
             throw AttendanceException.conflict("이미 있는 근무유형 코드예요: " + req.patternCode());
         }
         WorkPatternRules.Result r = requireValid(req.spec(), today());
-        WorkPattern p = new WorkPattern(enterCd, req.patternCode(), req.patternName().strip(), req.spec(), r,
+        // 적용 근로자 유형: 1주 소정근로시간으로 계산(근로기준법 제2조 제1항 제9호, 제18조 제3항, #158)
+        WorkerType type = workerTypes.classifyPattern(enterCd, null, r.weeklyContractMinutes(), today());
+        WorkPattern p = new WorkPattern(enterCd, req.patternCode(), req.patternName().strip(), req.spec(), r, type,
                 req.active() == null || req.active(), blankToNull(req.note()), now());
         return WorkPatternView.of(patterns.save(p), false);
     }
@@ -103,7 +107,9 @@ public class WorkPatternService {
                 throw AttendanceException.conflict(
                         "사원에게 배정된 근무유형은 시각·휴게·요일을 바꿀 수 없어요. 새 근무유형을 만들어 다시 배정해 주세요");
             }
-            p.applySpec(req.spec(), requireValid(req.spec(), today()));
+            WorkPatternRules.Result r = requireValid(req.spec(), today());
+            p.applySpec(req.spec(), r);
+            p.changeWorkerType(workerTypes.classifyPattern(enterCd, patternId, r.weeklyContractMinutes(), today()));
         }
         p.rename(req.patternName().strip(), req.active() == null || req.active(), blankToNull(req.note()), now());
         return WorkPatternView.of(p, assigned);

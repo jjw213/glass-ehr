@@ -151,7 +151,12 @@ public enum LegalRateItem {
     SPOUSE_MATERNITY_LEAVE_PAID_DAYS(LegalRateUnit.DAYS),
     FAMILY_CARE_LEAVE_PAID_DAYS(LegalRateUnit.DAYS),
     INFERTILITY_TREATMENT_LEAVE_DAYS_PER_YEAR(LegalRateUnit.DAYS),
-    INFERTILITY_TREATMENT_LEAVE_PAID_DAYS(LegalRateUnit.DAYS);
+    INFERTILITY_TREATMENT_LEAVE_PAID_DAYS(LegalRateUnit.DAYS),
+
+    // 근로기준법 제18조 제3항: 초단시간근로자 기준(4주 평균 1주 소정근로시간 미만이면 제55조·제60조 미적용)과
+    // 평균을 내는 주 수 (V044, #158)
+    SHORT_TIME_WORKER_WEEKLY_HOURS_THRESHOLD(LegalRateUnit.HOURS),
+    SHORT_TIME_WORKER_AVERAGE_WEEKS(LegalRateUnit.WEEKS);
 
     private final String unit;
 

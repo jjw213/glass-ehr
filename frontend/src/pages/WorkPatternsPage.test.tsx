@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   contractMinutes, createMockWorkPatternApi, duration, parseHm, toHm, validateWorkPattern,
-  type WorkPatternApi, type WorkPatternInput,
+  WORKER_TYPE_LABEL, WORKER_TYPE_NOTICE, type WorkPatternApi, type WorkPatternInput,
 } from '../api/workPatterns';
 import { canManageWorkPatterns, navFor } from '../nav';
 import { WorkPatternManager } from './WorkPatternsPage';
@@ -73,6 +73,16 @@ describe('WorkPatternManager', () => {
     await flush();
     return { api, toast };
   }
+
+  it('적용 근로자 유형: 초단시간은 주휴·연차 미적용 안내, 데모(서버 판정 없음)는 미지정', async () => {
+    expect(WORKER_TYPE_LABEL.ULTRA_SHORT).toBe('초단시간');
+    expect(WORKER_TYPE_NOTICE.ULTRA_SHORT).toContain('제18조 제3항');
+    expect(WORKER_TYPE_NOTICE.PART_TIME).toContain('비례');
+    expect(WORKER_TYPE_NOTICE.FULL_TIME).toBeNull();
+    await mount();
+    expect(host.querySelector('thead')!.textContent).toContain('적용 근로자 유형');
+    expect(host.querySelector('tbody tr')!.textContent).toContain('미지정');
+  });
 
   it('목록에 소정근로시간과 주휴일을 보인다', async () => {
     await mount();

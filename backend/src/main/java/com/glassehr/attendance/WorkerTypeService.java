@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 소정근로시간으로 근로자 유형을 정하고 주휴·연차 적용 안내를 만든다(#158, docs/part-time-worker-design.md).
+ * 소정근로시간으로 근로자 유형을 정하고 주휴·연차 적용 안내를 만든다(#158).
  *
  * <p>통상근로자 1주 소정근로시간은 법인의 사용 중인 "적용 근로자 유형 = 통상" 근무유형 중 가장 긴 것이다.
  * 그런 근무유형이 없으면 근로기준법 제50조 제1항·제2항 기준근로시간(legal_rate WEEKLY_STANDARD_WORK_HOURS,
@@ -55,8 +55,14 @@ public class WorkerTypeService {
 
     @Transactional(readOnly = true)
     public Baseline baseline(String enterCd, LocalDate date) {
+        return baseline(enterCd, null, date);
+    }
+
+    /** excludePatternId: 지금 저장하는 근무유형(자기 자신을 기준으로 삼지 않는다). */
+    private Baseline baseline(String enterCd, Long excludePatternId, LocalDate date) {
         return patterns.findByEnterCdOrderByPatternCodeAsc(enterCd).stream()
-                .filter(p -> p.isActive() && p.getWorkerType() == WorkerType.FULL_TIME)
+                .filter(p -> p.isActive() && p.getWorkerType() == WorkerType.FULL_TIME
+                        && !Objects.equals(p.getPatternId(), excludePatternId))
                 .max(Comparator.comparingInt(WorkPattern::getWeeklyContractMinutes))
                 .map(p -> new Baseline(p.getWeeklyContractMinutes(),
                         WorkPatternRules.count(p.spec().dayTypes(), WorkPatternRules.WORK_DAY), p.getPatternCode()))
@@ -75,7 +81,14 @@ public class WorkerTypeService {
     /** 매주 같은 소정근로시간(분)인 사원·근무유형의 근로자 유형. */
     @Transactional(readOnly = true)
     public WorkerType classify(String enterCd, int weeklyMinutes, LocalDate date) {
-        return WorkerTypeRules.classify(weeklyMinutes, baseline(enterCd, date).weeklyMinutes(), rules.asOf(date));
+        return classifyPattern(enterCd, null, weeklyMinutes, date);
+    }
+
+    /** 근무유형 저장 시 적용 근로자 유형. 기준값(legal_rate)이 없으면 LegalRateException(저장 거부). */
+    @Transactional(readOnly = true)
+    public WorkerType classifyPattern(String enterCd, Long patternId, int weeklyMinutes, LocalDate date) {
+        return WorkerTypeRules.classify(weeklyMinutes, baseline(enterCd, patternId, date).weeklyMinutes(),
+                rules.asOf(date));
     }
 
     /**
