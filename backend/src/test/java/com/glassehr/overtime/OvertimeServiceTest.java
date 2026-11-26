@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 
 import com.glassehr.approval.ApprovalException;
 import com.glassehr.approval.ApprovalService;
+import com.glassehr.attendance.WorkPolicyRules;
+import com.glassehr.attendance.WorkPolicyService;
 import com.glassehr.auth.AuthUser;
 import com.glassehr.employee.EmployeeRepository;
 import com.glassehr.overtime.OvertimeDtos.AuthRequest;
@@ -45,6 +47,7 @@ class OvertimeServiceTest {
     SpecialOvertimeAuthRepository auths;
     ApprovalService approvals;
     EmployeeRepository employees;
+    WorkPolicyService policies;
     OvertimeService service;
     AuthUser me;
 
@@ -54,8 +57,11 @@ class OvertimeServiceTest {
         auths = mock(SpecialOvertimeAuthRepository.class);
         approvals = mock(ApprovalService.class);
         employees = mock(EmployeeRepository.class);
-        service = new OvertimeService(requests, auths, approvals, employees, CLOCK);
+        policies = mock(WorkPolicyService.class);
+        when(policies.forEmployee(any(), anyLong(), any())).thenReturn(WorkPolicyRules.SYSTEM_DEFAULT);
+        service = new OvertimeService(requests, auths, approvals, employees, policies, CLOCK);
         me = mock(AuthUser.class);
+        when(me.enterCd()).thenReturn("C001");
         when(me.empId()).thenReturn(EMP);
         when(me.loginId()).thenReturn("emp7");
         when(requests.saveAndFlush(any())).thenAnswer(inv -> {
@@ -80,6 +86,38 @@ class OvertimeServiceTest {
         assertThat(v.status()).isEqualTo(OvertimeRequest.Status.IN_PROGRESS);
         assertThat(v.reason()).isEqualTo("출시 대응");
         verify(approvals).submit("OVERTIME", 11L, "연장근로 2099-03-10 19:00~22:00", EMP);
+    }
+
+    private static WorkPolicyRules.Policy overtimePolicy(WorkPolicyRules.Allowance overtime) {
+        WorkPolicyRules.Policy d = WorkPolicyRules.SYSTEM_DEFAULT;
+        return new WorkPolicyRules.Policy(overtime, d.night(), d.holiday(), true, 1, 0, WorkPolicyRules.Rounding.UP,
+                0, 0, true, WorkPolicyRules.MissingOut.IN_ONLY, true);
+    }
+
+    @Test
+    void 근무_정책이_연장_허용_안_함이면_신청을_거부한다() {
+        when(policies.forEmployee("C001", EMP, LocalDate.of(2099, 3, 10)))
+                .thenReturn(overtimePolicy(WorkPolicyRules.Allowance.DENY));
+        assertThatThrownBy(() -> service.create(create(EVENING, EVENING.plusHours(2), 0), me))
+                .isInstanceOfSatisfying(ApprovalException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST))
+                .hasMessageContaining("허용하지 않아요");
+        verify(requests, never()).saveAndFlush(any());
+        verify(approvals, never()).submit(any(), anyLong(), any(), anyLong());
+    }
+
+    @Test
+    void 근무_정책_주_한도를_넘는_신청은_거부한다() {
+        when(policies.forEmployee("C001", EMP, LocalDate.of(2099, 3, 10))).thenReturn(overtimePolicy(
+                new WorkPolicyRules.Allowance(WorkPolicyRules.AllowMode.LIMIT, null, 180, null)));
+        OvertimeRequest prior = mock(OvertimeRequest.class);
+        when(prior.getWorkKind()).thenReturn(OvertimeRequest.Kind.OVERTIME);
+        when(prior.getWorkDate()).thenReturn(LocalDate.of(2099, 3, 9));
+        when(prior.getPlannedMinutes()).thenReturn(120);
+        when(requests.findByEmpIdAndWorkDateBetweenAndStatusIn(eq(EMP), any(), any(), any())).thenReturn(List.of(prior));
+
+        assertThatThrownBy(() -> service.create(create(EVENING, EVENING.plusHours(2), 0), me))
+                .hasMessageContaining("한도");
+        assertThat(service.create(create(EVENING, EVENING.plusHours(1), 0), me).plannedMinutes()).isEqualTo(60);
     }
 
     @Test

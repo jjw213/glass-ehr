@@ -46,7 +46,85 @@ class WorkHoursServiceTest {
     private ApprovedOvertimeProvider overtimes;
     private WorkHoursLegalRules legalRules;
     private EmployeeRepository employees;
+    private WorkPolicyService policies;
     private WorkHoursService service;
+
+    /** 근무유형 PATTERN 에 정책을 재정의한다(#159). */
+    private void policyIs(WorkPolicyRules.Policy p) {
+        when(policies.resolved(ENTER)).thenReturn(
+                new WorkPolicyService.Resolved(WorkPolicyRules.SYSTEM_DEFAULT, Map.of(PATTERN, p)));
+    }
+
+    private static WorkPolicyRules.Policy policy(int unit, WorkPolicyRules.Rounding rounding,
+            WorkPolicyRules.MissingOut missingOut) {
+        WorkPolicyRules.Policy d = WorkPolicyRules.SYSTEM_DEFAULT;
+        return new WorkPolicyRules.Policy(d.overtime(), d.night(), d.holiday(), true, unit, 0, rounding, 0, 0, true,
+                missingOut, true);
+    }
+
+    @Test
+    void 정책_단위_15분_올림이면_7분_연장을_15분으로_인정한다() {
+        policyIs(policy(15, WorkPolicyRules.Rounding.UP, WorkPolicyRules.MissingOut.IN_ONLY));
+        LocalDate wed = MON.plusDays(2);
+        punchesAre(punch(AttendancePunch.Type.IN, wed.atTime(9, 0)), punch(AttendancePunch.Type.OUT, wed.atTime(18, 7)));
+
+        DailyWorkSummaryRow w = service.recalculate(ENTER, EMP, wed, wed, "hr1").get(2);
+        assertThat(w.overtimeMinutes()).isEqualTo(15);
+        assertThat(w.workedMinutes()).isEqualTo(495);
+        assertThat(w.workEnd()).isEqualTo(wed.atTime(18, 7));
+    }
+
+    @Test
+    void 퇴근_누락_정시_퇴근_처리면_종업_시각까지_인정한다() {
+        policyIs(policy(1, WorkPolicyRules.Rounding.UP, WorkPolicyRules.MissingOut.SCHEDULED_END));
+        LocalDate wed = MON.plusDays(2);
+        punchesAre(punch(AttendancePunch.Type.IN, wed.atTime(9, 0)));
+
+        DailyWorkSummaryRow w = service.recalculate(ENTER, EMP, wed, wed, "hr1").get(2);
+        assertThat(w.workedMinutes()).isEqualTo(480);
+        assertThat(w.workEnd()).isNull();
+        assertThat(w.issues()).isEqualTo("MISSING_OUT,OUT_SET_TO_SCHEDULE");
+    }
+
+    @Test
+    void 퇴근_누락_출근만_남김이면_실근로_0분() {
+        policyIs(policy(1, WorkPolicyRules.Rounding.UP, WorkPolicyRules.MissingOut.IN_ONLY));
+        LocalDate wed = MON.plusDays(2);
+        punchesAre(punch(AttendancePunch.Type.IN, wed.atTime(9, 0)));
+
+        DailyWorkSummaryRow w = service.recalculate(ENTER, EMP, wed, wed, "hr1").get(2);
+        assertThat(w.workedMinutes()).isZero();
+        assertThat(w.issues()).isEqualTo("MISSING_OUT");
+    }
+
+    @Test
+    void 퇴근_누락_다음_날_확인_요청이면_0분과_확인_요청_표시() {
+        policyIs(policy(1, WorkPolicyRules.Rounding.UP, WorkPolicyRules.MissingOut.CONFIRM_NEXT_DAY));
+        LocalDate wed = MON.plusDays(2);
+        punchesAre(punch(AttendancePunch.Type.IN, wed.atTime(9, 0)));
+
+        DailyWorkSummaryRow w = service.recalculate(ENTER, EMP, wed, wed, "hr1").get(2);
+        assertThat(w.workedMinutes()).isZero();
+        assertThat(w.issues()).isEqualTo("MISSING_OUT,OUT_CONFIRM_REQUESTED");
+    }
+
+    @Test
+    void 실시간_기록을_끄면_계획_기준으로_인정하고_연장_허용_안_함은_표시만_한다() {
+        WorkPolicyRules.Policy d = WorkPolicyRules.SYSTEM_DEFAULT;
+        policyIs(new WorkPolicyRules.Policy(WorkPolicyRules.Allowance.DENY, d.night(), d.holiday(), true, 1, 0,
+                WorkPolicyRules.Rounding.UP, 0, 0, true, WorkPolicyRules.MissingOut.IN_ONLY, false));
+        LocalDate wed = MON.plusDays(2);
+        punchesAre(punch(AttendancePunch.Type.IN, wed.atTime(8, 0)), punch(AttendancePunch.Type.OUT, wed.atTime(20, 0)));
+        DailyWorkSummaryRow w = service.recalculate(ENTER, EMP, wed, wed, "hr1").get(2);
+        assertThat(w.workedMinutes()).isEqualTo(480);
+        assertThat(w.overtimeMinutes()).isZero();
+
+        policyIs(new WorkPolicyRules.Policy(WorkPolicyRules.Allowance.DENY, d.night(), d.holiday(), true, 1, 0,
+                WorkPolicyRules.Rounding.UP, 0, 0, true, WorkPolicyRules.MissingOut.IN_ONLY, true));
+        w = service.recalculate(ENTER, EMP, wed, wed, "hr1").get(2);
+        assertThat(w.overtimeMinutes()).isEqualTo(180);
+        assertThat(w.issues()).contains("OVERTIME_POLICY_DENIED");
+    }
 
     private static final WorkHoursLegalRules.Applied APPLIED = new WorkHoursLegalRules.Applied(
             new WorkHoursCalculator.Rules(480, 2400, 480, 22 * 60, 6 * 60),
@@ -80,8 +158,10 @@ class WorkHoursServiceTest {
         legalRules = mock(WorkHoursLegalRules.class);
         employees = mock(EmployeeRepository.class);
         Clock clock = Clock.fixed(Instant.parse("2099-03-10T01:00:00Z"), WorkHoursService.SEOUL);
+        policies = mock(WorkPolicyService.class);
+        when(policies.resolved(ENTER)).thenReturn(WorkPolicyService.Resolved.NONE);
         service = new WorkHoursService(mapper, assignments, patterns, holidays, leaves, overtimes, legalRules,
-                employees, clock);
+                employees, policies, clock);
         when(employees.findByEnterCdAndEmpId(ENTER, EMP)).thenReturn(Optional.of(mock(Employee.class)));
         when(assignments.findByEnterCdAndEmpIdOrderByValidFromAsc(ENTER, EMP)).thenReturn(List.of(
                 new EmpWorkPattern(ENTER, EMP, PATTERN, LocalDate.of(2099, 1, 1), null, "hr1", LocalDateTime.now())));

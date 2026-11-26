@@ -50,19 +50,23 @@ public class WorkHoursService {
     private final ApprovedOvertimeProvider overtimes;
     private final WorkHoursLegalRules legalRules;
     private final EmployeeRepository employees;
+    private final WorkPolicyService policies;
     private final Clock clock;
 
     @Autowired
     public WorkHoursService(DailyWorkSummaryMapper mapper, EmpWorkPatternRepository assignments,
             WorkPatternRepository patterns, HolidayService holidays, ApprovedLeaveProvider leaves,
-            ApprovedOvertimeProvider overtimes, WorkHoursLegalRules legalRules, EmployeeRepository employees) {
-        this(mapper, assignments, patterns, holidays, leaves, overtimes, legalRules, employees, Clock.system(SEOUL));
+            ApprovedOvertimeProvider overtimes, WorkHoursLegalRules legalRules, EmployeeRepository employees,
+            WorkPolicyService policies) {
+        this(mapper, assignments, patterns, holidays, leaves, overtimes, legalRules, employees, policies,
+                Clock.system(SEOUL));
     }
 
     WorkHoursService(DailyWorkSummaryMapper mapper, EmpWorkPatternRepository assignments,
             WorkPatternRepository patterns, HolidayService holidays, ApprovedLeaveProvider leaves,
             ApprovedOvertimeProvider overtimes, WorkHoursLegalRules legalRules, EmployeeRepository employees,
-            Clock clock) {
+            WorkPolicyService policies, Clock clock) {
+        this.policies = policies;
         this.mapper = mapper;
         this.assignments = assignments;
         this.patterns = patterns;
@@ -157,6 +161,8 @@ public class WorkHoursService {
         Map<LocalDate, Leave> leaveByDate = leaves.approvedLeaves(empId, weekStart, weekEnd);
         Set<LocalDate> approvedOvertime = overtimes.approvedDates(empId, weekStart, weekEnd);
         LocalDateTime now = LocalDateTime.now(clock.withZone(SEOUL)).truncatedTo(ChronoUnit.MICROS);
+        // 근무 정책(#159): 근무유형 재정의 → 법인 기본 → 시스템 기본(정책 도입 전과 같은 결과).
+        WorkPolicyService.Resolved resolved = policies.resolved(enterCd);
 
         List<DailyWorkSummaryRow> rows = new ArrayList<>();
         for (LocalDate monday = weekStart; !monday.isAfter(weekEnd); monday = monday.plusWeeks(1)) {
@@ -170,22 +176,50 @@ public class WorkHoursService {
                     issues.add(ISSUE_NO_WORK_PATTERN);
                 }
                 DayKind kind = dayKind(pattern, holidayDates, d);
-                int contract = kind == DayKind.WORKDAY && pattern.isPresent()
-                        ? pattern.get().getDailyContractMinutes() : 0;
+                boolean scheduledDay = kind == DayKind.WORKDAY && pattern.isPresent();
+                int contract = scheduledDay ? pattern.get().getDailyContractMinutes() : 0;
+                WorkPolicyRules.Policy policy = resolved.forPattern(pattern.map(WorkPattern::getPatternId).orElse(null));
                 Shift shift = pairShift(punchList, d);
-                if (shift.start() != null && shift.end() == null) {
-                    issues.add(ISSUE_MISSING_OUT);
+                LocalDateTime schedStart = null;
+                LocalDateTime schedEnd = null;
+                if (scheduledDay) {
+                    WorkPatternRules.Spec spec = pattern.get().spec();
+                    schedStart = d.atStartOfDay().plusMinutes(spec.workStartMin());
+                    schedEnd = schedStart.plusMinutes(
+                            WorkPatternRules.spanMinutes(spec.workStartMin(), spec.workEndMin()));
                 }
-                List<Interval> work = shift.end() == null ? List.of() : List.of(new Interval(shift.start(), shift.end()));
+                // 정시 인정·이른 출근·퇴근 누락·계획 기준을 정책으로 적용한 집계 구간. 행의 출퇴근 시각은 원래 기록 그대로.
+                WorkPolicyRules.Recorded rec = WorkPolicyRules.record(policy, shift.start(), shift.end(), schedStart,
+                        schedEnd);
+                issues.addAll(rec.issues());
+                List<Interval> work = rec.end() == null ? List.of() : List.of(new Interval(rec.start(), rec.end()));
                 List<Interval> breaks = pattern.map(p -> scheduledBreaks(p.spec(), d)).orElse(List.of());
                 WorkHoursLegalRules.Applied applied = appliedByDate.computeIfAbsent(d, legalRules::asOf);
                 inputs.add(new DayInput(d, kind, contract, work, breaks, leaveByDate.get(d),
                         applied.rules()));
-                metas.add(new Meta(pattern.map(WorkPattern::getPatternId).orElse(null), shift, issues, applied));
+                metas.add(new Meta(pattern.map(WorkPattern::getPatternId).orElse(null), shift, issues, applied,
+                        policy));
             }
             List<DayResult> results = WorkHoursCalculator.calculateWeek(inputs);
+            int otWeek = 0;
+            int nightWeek = 0;
+            int holWeek = 0;
             for (int i = 0; i < results.size(); i++) {
-                DayResult r = results.get(i);
+                Meta meta = metas.get(i);
+                WorkPolicyRules.Policy policy = meta.policy();
+                // 인정 단위·올림/내림·법내 초과 구분. 휴일 기준시간(근로기준법 제56조 제2항)은 legal_rate 적용값.
+                DayResult r = WorkPolicyRules.recognizeDay(results.get(i), policy,
+                        meta.applied().rules().holidayThresholdMinutes());
+                int hol = r.holidayMinutes() + r.holidayExcessMinutes();
+                otWeek += r.overtimeMinutes();
+                nightWeek += r.nightMinutes();
+                holWeek += hol;
+                // 허용 방식 위반은 표시만 한다. 실제로 일한 시간은 줄이지 않는다(근로기준법 제43조).
+                addIfPresent(meta.issues(), WorkPolicyRules.allowanceIssue("OVERTIME", policy.overtime(),
+                        r.overtimeMinutes(), otWeek));
+                addIfPresent(meta.issues(), WorkPolicyRules.allowanceIssue("NIGHT", policy.night(),
+                        r.nightMinutes(), nightWeek));
+                addIfPresent(meta.issues(), WorkPolicyRules.allowanceIssue("HOLIDAY", policy.holiday(), hol, holWeek));
                 if (r.overtimeMinutes() + r.holidayMinutes() + r.holidayExcessMinutes() > 0
                         && !approvedOvertime.contains(r.workDate())) {
                     metas.get(i).issues().add(ISSUE_OVERTIME_NOT_APPROVED);
@@ -196,7 +230,14 @@ public class WorkHoursService {
         return rows;
     }
 
-    private record Meta(Long patternId, Shift shift, Set<String> issues, WorkHoursLegalRules.Applied applied) {
+    private record Meta(Long patternId, Shift shift, Set<String> issues, WorkHoursLegalRules.Applied applied,
+            WorkPolicyRules.Policy policy) {
+    }
+
+    private static void addIfPresent(Set<String> issues, String issue) {
+        if (issue != null) {
+            issues.add(issue);
+        }
     }
 
     /** 근무일 하루의 출근·퇴근. 퇴근을 못 찾으면 end = null. */
