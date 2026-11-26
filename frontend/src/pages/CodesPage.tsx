@@ -67,7 +67,7 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<Deleting | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [usage, setUsage] = useState<{ code: CodeListItem; summary: UsageSummary | null; page: UsagePage | null } | null>(null);
+  const [usageTarget, setUsageTarget] = useState<CodeListItem | null>(null);
   const [reload, setReload] = useState(0);
   const [groupReload, setGroupReload] = useState(0);
 
@@ -110,6 +110,7 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
     setEditing({ kind: 'group', mode: 'edit', group: g });
   };
   const close = useCallback(() => setEditing(null), []);
+  const closeUsage = useCallback(() => setUsageTarget(null), []);
 
   const saved = (g: string, text: string) => {
     invalidateCodes(g);   // useCodes 를 쓰는 화면이 새 목록을 받도록
@@ -188,21 +189,6 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
     }
   };
 
-  const openUsage = async (c: CodeListItem) => {
-    setUsage({ code: c, summary: null, page: null });
-    try {
-      const summary = await api.usages(c.groupCode, c.code);
-      setUsage({ code: c, summary, page: null });
-    } catch (e) { setUsage(null); fail(e); }
-  };
-  const openUsageRows = async (table: string, page: number) => {
-    if (!usage) return;
-    try {
-      const rows = await api.usageRows(usage.code.groupCode, usage.code.code, table, page);
-      setUsage({ ...usage, page: rows });
-    } catch (e) { fail(e); }
-  };
-
   const groupBlock = current ? groupDeleteBlock(current, codes) : null;
 
   return (
@@ -238,7 +224,7 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
             sub={current?.description ?? undefined}
             right={current && (
               <div className="code-head-actions">
-                <button className="btn btn--ghost icon-only" onClick={() => openGroupEdit(current)} aria-label={`${current.name} 그룹 수정`}><LuPencil /></button>
+                {!readOnly && <button className="btn btn--ghost icon-only" onClick={() => openGroupEdit(current)} aria-label={`${current.name} 그룹 수정`}><LuPencil /></button>}
                 <span title={groupBlock ?? undefined}>
                   <button className="btn btn--ghost icon-only" onClick={() => askDelete({ kind: 'group', group: current })} disabled={!!groupBlock || codes === null} aria-label={`${current.name} 그룹 삭제`}><LuTrash2 /></button>
                 </span>
@@ -280,7 +266,7 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
                       <td className="hide-sm muted sm">{c.description}</td>
                       <td className="num">
                         {c.inUse
-                          ? <button className="btn btn--ghost" onClick={() => void openUsage(c)} aria-label={`${c.name} 사용처`}>{c.usageCount}건</button>
+                          ? <button className="btn btn--ghost" onClick={() => setUsageTarget(c)} aria-label={`${c.name} 사용처`}>{c.usageCount}건</button>
                           : <span className="muted">—</span>}
                       </td>
                       <td>
@@ -363,7 +349,40 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
         </div>
       </Modal>
 
-      <Modal open={usage !== null} onClose={() => setUsage(null)} title={usage ? `${usage.code.name}(${usage.code.code}) 사용처` : '사용처'}>
+      <CodeUsageModal api={api} target={usageTarget} onClose={closeUsage} onError={fail} />
+    </>
+  );
+}
+
+type UsageTarget = Pick<CodeListItem, 'groupCode' | 'code' | 'name'>;
+
+/** 코드 사용처(테이블별 건수 → 행 목록). 근태코드 관리 화면도 쓴다(#143). */
+export function CodeUsageModal({ api, target, onClose, onError }: {
+  api: Pick<CodeApi, 'usages' | 'usageRows'>; target: UsageTarget | null; onClose: () => void; onError: (e: unknown) => void;
+}) {
+  const [usage, setUsage] = useState<{ code: UsageTarget; summary: UsageSummary | null; page: UsagePage | null } | null>(null);
+
+  useEffect(() => {
+    if (!target) { setUsage(null); return; }
+    let alive = true;
+    setUsage({ code: target, summary: null, page: null });
+    api.usages(target.groupCode, target.code).then(
+      (summary) => { if (alive) setUsage({ code: target, summary, page: null }); },
+      (e) => { if (alive) { onClose(); onError(e); } },
+    );
+    return () => { alive = false; };
+  }, [api, target, onClose, onError]);
+
+  const openUsageRows = async (table: string, page: number) => {
+    if (!usage) return;
+    try {
+      const rows = await api.usageRows(usage.code.groupCode, usage.code.code, table, page);
+      setUsage({ ...usage, page: rows });
+    } catch (e) { onError(e); }
+  };
+
+  return (
+      <Modal open={usage !== null} onClose={onClose} title={usage ? `${usage.code.name}(${usage.code.code}) 사용처` : '사용처'}>
         {usage && (usage.summary === null ? <p className="muted">불러오는 중…</p> : (
           <div className="form code-usage">
             <ul className="settings-list">
@@ -398,6 +417,5 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
           </div>
         ))}
       </Modal>
-    </>
   );
 }

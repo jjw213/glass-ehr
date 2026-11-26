@@ -14,5 +14,8 @@ public interface CodeGroupRepository extends JpaRepository<CodeGroup, CodeGroup.
 
     boolean existsByEnterCdAndGroupCode(String enterCd, String groupCode);
 
+    /** 다른 화면에서 편집하는 그룹(edit_page 있음)인지. 공통코드 쓰기 API 가 막는다(#143). */
+    boolean existsByEnterCdAndGroupCodeAndEditPageIsNotNull(String enterCd, String groupCode);
+
     Optional<CodeGroup> findByEnterCdAndGroupCode(String enterCd, String groupCode);
 }

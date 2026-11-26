@@ -25,6 +25,8 @@ class CodeReferencesSchemaScriptTest {
     static final Set<String> NOT_COMMON_CODE = Set.of(
             // 공통코드 자신·법인·조직·사업장 키
             "common_code_group.group_code", "common_code.group_code",
+            // 휴가 종류 상세 설정의 코드 FK 일부(항상 'LEAVE_TYPE', V041). 사용처가 아니라 코드 자신의 속성이다
+            "attendance_leave_type.group_code",
             "org_dept.dept_code", "biz_site.site_code", "emp_no_seq.site_code", "employee.site_code",
             "worker_rep_agreement.scope_site_code",
             // 법령 기준값 항목(legal_rate_item, 전 법인 공통)

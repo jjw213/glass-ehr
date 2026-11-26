@@ -309,6 +309,23 @@ class CommonCodeServiceTest {
     }
 
     @Test
+    void 근태코드처럼_다른_화면에서_편집하는_그룹은_공통코드_API로_추가_수정_삭제하면_409() {
+        when(groups.existsByEnterCdAndGroupCode(E, "LEAVE_TYPE")).thenReturn(true);
+        when(groups.existsByEnterCdAndGroupCodeAndEditPageIsNotNull(E, "LEAVE_TYPE")).thenReturn(true);
+        when(codes.findByEnterCdAndGroupCodeAndCode(E, "LEAVE_TYPE", "SICK"))
+                .thenReturn(Optional.of(code("LEAVE_TYPE", "SICK", 10, true)));
+
+        assertThatThrownBy(() -> service.create(E, "LEAVE_TYPE", new CodeCreateRequest("REFRESH", "리프레시 휴가", null, 1, true)))
+                .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
+        assertThatThrownBy(() -> service.update(E, "LEAVE_TYPE", "SICK", new CodeUpdateRequest("병가", null, 1, true)))
+                .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
+        assertThatThrownBy(() -> service.deleteCode(E, "LEAVE_TYPE", "SICK"))
+                .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
+        verify(codes, never()).saveAndFlush(any());
+        verify(codes, never()).delete(any());
+    }
+
+    @Test
     void 없는_그룹에_추가는_404() {
         when(groups.existsByEnterCdAndGroupCode(E, "NOPE")).thenReturn(false);
         assertThatThrownBy(() -> service.create(E, "NOPE", new CodeCreateRequest("A", "에이", null, 1, true)))

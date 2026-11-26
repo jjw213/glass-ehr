@@ -52,6 +52,7 @@ export const NAV: NavItem[] = [
   { id: 'familyLeaves', label: '육아·가족돌봄 휴직', short: '육아휴직', icon: LuBaby, module: 'attendance', roles: ['HR', 'ADMIN'] },
   { id: 'workPatterns', label: '근무유형 관리', short: '근무유형', icon: LuCalendarClock, module: 'attendance', roles: ['HR', 'ADMIN'] },
   { id: 'agreements', label: '서면합의서 관리', short: '합의서', icon: LuSignature, module: 'attendance', roles: ['HR', 'ADMIN'] },
+  { id: 'attendanceCodes', label: '근태코드 관리', short: '근태코드', icon: LuListTree, module: 'attendance', roles: ['HR', 'ADMIN'] },
   // 급여관리
   { id: 'payroll', label: '급여명세서', short: '급여', icon: LuWallet, module: 'payroll', top: true },
   // 전자결재
@@ -70,6 +71,9 @@ export const navFor = (role: Role) => NAV.filter((n) => !n.roles || n.roles.incl
 
 /** 공통코드를 관리하는 역할(인사담당자·관리자). */
 export const canManageCodes = (role: Role) => navFor(role).some((n) => n.id === 'codes');
+
+/** 근태코드를 관리하는 역할(인사담당자·관리자, #143). 쓰기 API 는 서버가 CODE_WRITE 로 다시 막는다. */
+export const canManageAttendanceCodes = (role: Role) => navFor(role).some((n) => n.id === 'attendanceCodes');
 
 /** 근무유형을 관리하는 역할(인사담당자·관리자, #25). 화면에서만 막는다. 백엔드 권한 검사는 인증·권한 이슈에서 붙인다. */
 export const canManageWorkPatterns = (role: Role) => navFor(role).some((n) => n.id === 'workPatterns');
