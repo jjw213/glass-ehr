@@ -81,13 +81,17 @@ public class ContractService {
 
     // ---------------------------------------------------------------- 조회
 
-    public List<ContractView> list(long empId) {
-        loadEmployee(empId);
-        return contracts.findByEmpIdOrderByStartDateAsc(empId).stream().map(ContractView::of).toList();
+    // 법인 조건(#124, docs/tenant-design.md 5.2): 공개 메서드는 첫 인자 enterCd(세션 현재 법인)의 사원·계약만 본다.
+    // 다른 법인 사원·계약 ID 는 없는 것과 같게 404.
+
+    public List<ContractView> list(String enterCd, long empId) {
+        loadEmployee(enterCd, empId);
+        return contracts.findByEnterCdAndEmpIdOrderByStartDateAsc(enterCd, empId).stream().map(ContractView::of)
+                .toList();
     }
 
-    public ContractView get(long contractId) {
-        return ContractView.of(load(contractId));
+    public ContractView get(String enterCd, long contractId) {
+        return ContractView.of(load(enterCd, contractId));
     }
 
     // ---------------------------------------------------------------- 등록·수정
@@ -97,12 +101,12 @@ public class ContractService {
      * (근로조건 변경으로 새 계약서를 쓰는 경우) 앞 계약을 새 계약 시작 전날로 끝낸다.
      */
     @Transactional
-    public ContractView create(long empId, ContractRequest req) {
-        Employee e = lockEmployee(empId);
+    public ContractView create(String enterCd, long empId, ContractRequest req) {
+        Employee e = lockEmployee(enterCd, empId);
         Terms t = terms(req);
         validate(t, e);
         LocalDateTime now = now();
-        for (EmploymentContract other : contracts.findByEmpIdOrderByStartDateAsc(empId)) {
+        for (EmploymentContract other : contracts.findByEnterCdAndEmpIdOrderByStartDateAsc(enterCd, empId)) {
             if (!other.overlaps(t.startDate(), t.endDate())) {
                 continue;
             }
@@ -113,22 +117,22 @@ public class ContractService {
             }
             throw overlap(other);
         }
-        EmploymentContract c = contracts.saveAndFlush(new EmploymentContract(empId, t, now));
+        EmploymentContract c = contracts.saveAndFlush(new EmploymentContract(e.getEnterCd(), empId, t, now));
         return ContractView.of(c);
     }
 
     /** 서면 교부 전 계약만 고친다. 교부 뒤 변경은 새 계약으로 등록한다(교부한 서면과 기록이 달라지지 않게). */
     @Transactional
-    public ContractView update(long contractId, ContractRequest req) {
-        Employee e = lockEmployee(empIdOf(contractId));
-        EmploymentContract c = loadForUpdate(contractId);
+    public ContractView update(String enterCd, long contractId, ContractRequest req) {
+        Employee e = lockEmployee(enterCd, empIdOf(enterCd, contractId));
+        EmploymentContract c = loadForUpdate(enterCd, contractId);
         if (c.isDelivered()) {
             throw ContractException.conflict("서면을 교부한 계약(교부일 " + c.getWrittenDeliveredDate()
                     + ")은 고칠 수 없어요. 바뀐 근로조건은 새 계약으로 등록해 주세요");
         }
         Terms t = terms(req);
         validate(t, e);
-        for (EmploymentContract other : contracts.findByEmpIdOrderByStartDateAsc(c.getEmpId())) {
+        for (EmploymentContract other : contracts.findByEnterCdAndEmpIdOrderByStartDateAsc(enterCd, c.getEmpId())) {
             if (!other.getContractId().equals(contractId) && other.overlaps(t.startDate(), t.endDate())) {
                 throw overlap(other);
             }
@@ -140,9 +144,9 @@ public class ContractService {
 
     /** 서면 교부일 기록(근로기준법 제17조 제2항, 기간제법 제17조). 한 번 기록하면 바꾸지 않는다. */
     @Transactional
-    public ContractView recordDelivery(long contractId, DeliveryRequest req) {
-        lockEmployee(empIdOf(contractId));
-        EmploymentContract c = loadForUpdate(contractId);
+    public ContractView recordDelivery(String enterCd, long contractId, DeliveryRequest req) {
+        lockEmployee(enterCd, empIdOf(enterCd, contractId));
+        EmploymentContract c = loadForUpdate(enterCd, contractId);
         if (c.isDelivered()) {
             throw ContractException.conflict("이미 서면 교부일이 기록돼 있어요(" + c.getWrittenDeliveredDate() + ")");
         }
@@ -160,9 +164,10 @@ public class ContractService {
     // ---------------------------------------------------------------- 목록·알림
 
     /** 서면 교부일이 없는 계약. 체결일이 오래된 순. */
-    public List<UndeliveredRow> undelivered() {
-        List<EmploymentContract> rows = contracts.findByWrittenDeliveredDateIsNullOrderByContractDateAscContractIdAsc();
-        Map<Long, Employee> emps = employeesOf(rows);
+    public List<UndeliveredRow> undelivered(String enterCd) {
+        List<EmploymentContract> rows = contracts
+                .findByEnterCdAndWrittenDeliveredDateIsNullOrderByContractDateAscContractIdAsc(enterCd);
+        Map<Long, Employee> emps = employeesOf(enterCd, rows);
         LocalDate today = today();
         return rows.stream().map(c -> {
             Employee e = emps.get(c.getEmpId());
@@ -182,11 +187,11 @@ public class ContractService {
      *   <li>FIXED_TERM_LIMIT_UNKNOWN: 기간제인데 legal_rate 기준값이 없어 계산 못 함</li>
      * </ul>
      */
-    public List<AlertRow> alerts(LocalDate asOf) {
+    public List<AlertRow> alerts(String enterCd, LocalDate asOf) {
         LocalDate base = asOf == null ? today() : asOf;
-        Map<Long, List<EmploymentContract>> byEmp = contracts.findAllByOrderByEmpIdAscStartDateAsc().stream()
+        Map<Long, List<EmploymentContract>> byEmp = contracts.findByEnterCdOrderByEmpIdAscStartDateAsc(enterCd).stream()
                 .collect(Collectors.groupingBy(EmploymentContract::getEmpId, LinkedHashMap::new, Collectors.toList()));
-        Map<Long, Employee> emps = employees.findAllById(byEmp.keySet()).stream()
+        Map<Long, Employee> emps = employees.findByEnterCdAndEmpIdIn(enterCd, byEmp.keySet()).stream()
                 .collect(Collectors.toMap(Employee::getEmpId, Function.identity()));
         List<AlertRow> out = new ArrayList<>();
         byEmp.forEach((empId, list) -> {
@@ -249,19 +254,20 @@ public class ContractService {
                 continuousStart, due, daysLeft);
     }
 
-    private Map<Long, Employee> employeesOf(List<EmploymentContract> rows) {
+    private Map<Long, Employee> employeesOf(String enterCd, List<EmploymentContract> rows) {
         List<Long> ids = rows.stream().map(EmploymentContract::getEmpId).distinct().toList();
-        return employees.findAllById(ids).stream().collect(Collectors.toMap(Employee::getEmpId, Function.identity()));
+        return employees.findByEnterCdAndEmpIdIn(enterCd, ids).stream()
+                .collect(Collectors.toMap(Employee::getEmpId, Function.identity()));
     }
 
-    private EmploymentContract load(long contractId) {
-        return contracts.findById(contractId)
+    private EmploymentContract load(String enterCd, long contractId) {
+        return contracts.findByEnterCdAndContractId(enterCd, contractId)
                 .orElseThrow(() -> ContractException.notFound("근로계약이 없어요: " + contractId));
     }
 
     /** 쓰기용 1단계: 계약 엔티티를 올리지 않고 사원 ID만 읽는다(잠금 전 상태를 영속성 컨텍스트에 남기지 않게). */
-    private long empIdOf(long contractId) {
-        return contracts.findEmpIdByContractId(contractId)
+    private long empIdOf(String enterCd, long contractId) {
+        return contracts.findEmpIdByContractId(enterCd, contractId)
                 .orElseThrow(() -> ContractException.notFound("근로계약이 없어요: " + contractId));
     }
 
@@ -269,18 +275,20 @@ public class ContractService {
      * 쓰기용 2단계: 사원 잠금을 잡은 뒤 계약 행을 잠가 읽는다. 잠금 대기 중 다른 요청이 교부일을 기록했으면
      * 그 결과를 읽어 교부된 계약을 고치거나 교부일을 덮어쓰지 않는다.
      */
-    private EmploymentContract loadForUpdate(long contractId) {
-        return contracts.findForUpdate(contractId)
+    private EmploymentContract loadForUpdate(String enterCd, long contractId) {
+        return contracts.findForUpdate(enterCd, contractId)
                 .orElseThrow(() -> ContractException.notFound("근로계약이 없어요: " + contractId));
     }
 
-    private Employee loadEmployee(long empId) {
-        return employees.findById(empId).orElseThrow(() -> ContractException.notFound("사원이 없어요: " + empId));
+    private Employee loadEmployee(String enterCd, long empId) {
+        return employees.findByEnterCdAndEmpId(enterCd, empId)
+                .orElseThrow(() -> ContractException.notFound("사원이 없어요: " + empId));
     }
 
     /** 같은 사원의 계약 쓰기를 직렬화한다(겹침 검사가 엇갈려 둘 다 통과하지 않게). */
-    private Employee lockEmployee(long empId) {
-        return employees.findForUpdate(empId).orElseThrow(() -> ContractException.notFound("사원이 없어요: " + empId));
+    private Employee lockEmployee(String enterCd, long empId) {
+        return employees.findForUpdate(enterCd, empId)
+                .orElseThrow(() -> ContractException.notFound("사원이 없어요: " + empId));
     }
 
     private void validate(Terms t, Employee e) {

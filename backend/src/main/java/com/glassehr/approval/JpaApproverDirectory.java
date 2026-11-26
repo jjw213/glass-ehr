@@ -37,7 +37,9 @@ class JpaApproverDirectory implements ApproverResolver.Directory {
     @Override
     public Optional<Long> deptOf(long empId, LocalDate date) {
         try {
-            return Optional.ofNullable(appointments.assignmentOn(empId, date).deptId());
+            // 발령 이력은 사원 자기 법인에서만 읽는다(#124)
+            Optional<String> enterCd = enterOf(empId);
+            return enterCd.map(cd -> appointments.assignmentOn(cd, empId, date).deptId());
         } catch (AppointmentException e) {
             return Optional.empty();
         }
@@ -69,7 +71,9 @@ class JpaApproverDirectory implements ApproverResolver.Directory {
     @Override
     public boolean isActive(long empId, LocalDate date) {
         try {
-            return appointments.assignmentOn(empId, date).empStatus() == EmpStatus.ACTIVE;
+            Optional<String> enterCd = enterOf(empId);
+            return enterCd.isPresent()
+                    && appointments.assignmentOn(enterCd.get(), empId, date).empStatus() == EmpStatus.ACTIVE;
         } catch (AppointmentException e) {
             return false;
         }

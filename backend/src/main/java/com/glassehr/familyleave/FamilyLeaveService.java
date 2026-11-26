@@ -149,10 +149,13 @@ public class FamilyLeaveService {
         String label = d.kind().label() + "(신청 " + reqId + ")";
         if (d.kind().isLeaveOfAbsence()) {
             // 법 제19조·제22조의2: 휴직 기간은 휴직(LEAVE) 발령으로 남긴다. 복직은 종료일 다음 날 예정(미확정)으로 만든다.
-            AppointmentView leave = appointments.create(empId, new AppointmentRequest(AppointmentType.LEAVE.code(),
+            String enterCd = e.getEnterCd();
+            AppointmentView leave = appointments.create(enterCd, empId,
+                    new AppointmentRequest(AppointmentType.LEAVE.code(),
                     d.startDate(), null, null, null, label + " 승인", d.startDate(), d.endDate()));
-            appointments.confirm(leave.apptId());
-            AppointmentView ret = appointments.create(empId, new AppointmentRequest(AppointmentType.RETURN.code(),
+            appointments.confirm(enterCd, leave.apptId());
+            AppointmentView ret = appointments.create(enterCd, empId,
+                    new AppointmentRequest(AppointmentType.RETURN.code(),
                     next, null, null, null, label + " 종료 복직 예정", null, null));
             r.approveLeave(leave.apptId(), ret.apptId(), actor, now());
         } else {
@@ -461,7 +464,12 @@ public class FamilyLeaveService {
     }
 
     private Optional<LeavePeriodView> actualLeave(FamilyLeaveRequest r) {
-        return appointments.leavePeriods(r.getEmpId(), r.getStartDate(), r.getEndDate()).stream()
+        // 발령 이력은 사원 자기 법인에서만 읽는다(#124). 신청 테이블 법인 키 전환은 근태 법인 이슈에서 한다.
+        String enterCd = employees.findById(r.getEmpId()).map(Employee::getEnterCd).orElse(null);
+        if (enterCd == null) {
+            return Optional.empty();
+        }
+        return appointments.leavePeriods(enterCd, r.getEmpId(), r.getStartDate(), r.getEndDate()).stream()
                 .filter(p -> r.getLeaveApptId() != null && p.leaveApptId() == r.getLeaveApptId())
                 .findFirst();
     }

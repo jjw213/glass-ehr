@@ -45,6 +45,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>이전 값은 등록·수정·확정 때마다 발령일 기준 확정 발령 이력({@link AppointmentHistory})으로 다시 채운다.</li>
  *   <li>확정된 발령은 고치거나 지울 수 없다. 되돌릴 때는 취소 발령을 등록·확정한다(#59).</li>
  *   <li>사원 현재 소속·직급·직책·재직상태는 확정 때와 매일 반영 작업에서 오늘 기준 이력 값으로만 바뀐다(#59).</li>
+ *   <li>법인 조건(#124, docs/tenant-design.md 5.2): 공개 메서드는 첫 인자 enterCd(세션 현재 법인)의 사원·발령만 본다.
+ *       다른 법인 사원·발령 ID 는 없는 것과 같게 404 로 끝난다(존재 여부를 드러내지 않음).</li>
  * </ul>
  * 쓰기 권한(인사담당) 검사는 백엔드 인증·권한 이슈에서 붙인다(사원·계약 API와 같음).
  */
@@ -90,39 +92,39 @@ public class AppointmentService {
 
     // ---------------------------------------------------------------- 조회
 
-    public List<AppointmentView> listByEmployee(long empId) {
-        loadEmployee(empId);
-        List<HrAppointment> list = appointments.findByEmpIdOrderByEffectiveDateAscApptIdAsc(empId);
-        return views(list, linksFor(list));
+    public List<AppointmentView> listByEmployee(String enterCd, long empId) {
+        loadEmployee(enterCd, empId);
+        List<HrAppointment> list = appointments.findByEnterCdAndEmpIdOrderByEffectiveDateAscApptIdAsc(enterCd, empId);
+        return views(list, linksFor(enterCd, list));
     }
 
-    /** 전체 발령. 조건은 모두 선택(확정 여부, 유형, 발령일 from~to 양끝 포함, 부서는 이전·이후 소속 중 하나). 발령일 순. */
-    public List<AppointmentView> search(Boolean confirmed, String typeCode, LocalDate from, LocalDate to,
-            Long deptId) {
+    /** 그 법인 전체 발령. 조건은 모두 선택(확정 여부, 유형, 발령일 from~to 양끝 포함, 부서는 이전·이후 소속 중 하나). 발령일 순. */
+    public List<AppointmentView> search(String enterCd, Boolean confirmed, String typeCode, LocalDate from,
+            LocalDate to, Long deptId) {
         if (from != null && to != null && to.isBefore(from)) {
             throw AppointmentException.badRequest("조회 종료일은 시작일 이후여야 해요");
         }
         String type = blankToNull(typeCode);
-        List<HrAppointment> list = appointments.findAllByOrderByEffectiveDateAscApptIdAsc().stream()
+        List<HrAppointment> list = appointments.findByEnterCdOrderByEffectiveDateAscApptIdAsc(enterCd).stream()
                 .filter(a -> confirmed == null || a.isConfirmed() == confirmed)
                 .filter(a -> type == null || a.getApptTypeCode().equals(type))
                 .filter(a -> from == null || !a.getEffectiveDate().isBefore(from))
                 .filter(a -> to == null || !a.getEffectiveDate().isAfter(to))
                 .filter(a -> deptId == null || deptId.equals(a.before().deptId()) || deptId.equals(a.after().deptId()))
                 .toList();
-        return views(list, list.isEmpty() ? Map.of() : allLinks());
+        return views(list, list.isEmpty() ? Map.of() : allLinks(enterCd));
     }
 
-    public AppointmentView get(long apptId) {
-        return view(load(apptId));
+    public AppointmentView get(String enterCd, long apptId) {
+        return view(load(enterCd, apptId));
     }
 
     /**
      * 기준일의 소속·직급·직책·재직상태(확정 발령 이력 기준, 미래 날짜 발령은 그날부터). 입사일 전이면 404.
      * 근태·급여 모듈은 이 메서드로 기준일 소속을 읽는다.
      */
-    public AssignmentView assignmentOn(long empId, LocalDate date) {
-        Employee e = loadEmployee(empId);
+    public AssignmentView assignmentOn(String enterCd, long empId, LocalDate date) {
+        Employee e = loadEmployee(enterCd, empId);
         Snapshot s = history(e, null).stateOn(date).orElseThrow(() -> AppointmentException.notFound(
                 date + "은(는) 입사일(" + e.getHireDate() + ") 전이라 소속 정보가 없어요"));
         return new AssignmentView(empId, date, s.deptId(), s.jobGradeCode(), s.jobTitleCode(), s.status());
@@ -132,23 +134,23 @@ public class AppointmentService {
      * 사원의 휴직 기간 중 from~to(양끝 포함)와 겹치는 것. 근태(연차·육아휴직)가 쓴다.
      * 남녀고용평등과 일·가정 양립 지원에 관한 법률 제19조 육아휴직도 휴직(LEAVE) 발령이라 여기에 들어간다.
      */
-    public List<LeavePeriodView> leavePeriods(long empId, LocalDate from, LocalDate to) {
+    public List<LeavePeriodView> leavePeriods(String enterCd, long empId, LocalDate from, LocalDate to) {
         requirePeriod(from, to);
-        Employee e = loadEmployee(empId);
+        Employee e = loadEmployee(enterCd, empId);
         return history(e, null).leavePeriods(from, to).stream().map(LeavePeriodView::of).toList();
     }
 
-    /** 모든 사원의 휴직 기간 중 from~to 와 겹치는 것(사원 ID → 휴직 시작일 순). 근태 월 집계용. */
-    public List<LeavePeriodView> leavePeriods(LocalDate from, LocalDate to) {
+    /** 그 법인 모든 사원의 휴직 기간 중 from~to 와 겹치는 것(사원 ID → 휴직 시작일 순). 근태 월 집계용. */
+    public List<LeavePeriodView> leavePeriods(String enterCd, LocalDate from, LocalDate to) {
         requirePeriod(from, to);
         // 휴직 종료는 뒤 복직·퇴직 발령으로 정해지므로 사원의 발령 전체로 계산한다
-        Map<Long, List<HrAppointment>> byEmp = appointments.findAllByOrderByEffectiveDateAscApptIdAsc().stream()
-                .collect(Collectors.groupingBy(HrAppointment::getEmpId, TreeMap::new, Collectors.toList()));
+        Map<Long, List<HrAppointment>> byEmp = appointments.findByEnterCdOrderByEffectiveDateAscApptIdAsc(enterCd)
+                .stream().collect(Collectors.groupingBy(HrAppointment::getEmpId, TreeMap::new, Collectors.toList()));
         if (byEmp.isEmpty()) {
             return List.of();
         }
-        Map<Long, Long> links = allLinks();
-        Map<Long, Employee> emps = employees.findAllById(byEmp.keySet()).stream()
+        Map<Long, Long> links = allLinks(enterCd);
+        Map<Long, Employee> emps = employees.findByEnterCdAndEmpIdIn(enterCd, byEmp.keySet()).stream()
                 .collect(Collectors.toMap(Employee::getEmpId, x -> x));
         List<LeavePeriodView> out = new ArrayList<>();
         byEmp.forEach((empId, list) -> {
@@ -162,12 +164,12 @@ public class AppointmentService {
         return out;
     }
 
-    /** 부서 폐지 검사: 사원별 확정·미취소 발령 이력을 반영하며 한 사람은 한 번만 센다. */
-    public long countDeptMembersOnOrAfter(long deptId, LocalDate date) {
-        Map<Long, List<HrAppointment>> byEmp = appointments.findAllByOrderByEffectiveDateAscApptIdAsc().stream()
-                .collect(Collectors.groupingBy(HrAppointment::getEmpId));
-        Map<Long, Long> links = allLinks();
-        return employees.findAllByOrderByEmpNoAsc().stream()
+    /** 부서 폐지 검사: 그 법인 사원별 확정·미취소 발령 이력을 반영하며 한 사람은 한 번만 센다. */
+    public long countDeptMembersOnOrAfter(String enterCd, long deptId, LocalDate date) {
+        Map<Long, List<HrAppointment>> byEmp = appointments.findByEnterCdOrderByEffectiveDateAscApptIdAsc(enterCd)
+                .stream().collect(Collectors.groupingBy(HrAppointment::getEmpId));
+        Map<Long, Long> links = allLinks(enterCd);
+        return employees.findByEnterCdOrderByEmpNoAsc(enterCd).stream()
                 .filter(e -> new AppointmentHistory(e, byEmp.getOrDefault(e.getEmpId(), List.of()), links)
                         .belongsToDeptOnOrAfter(deptId, date)).count();
     }
@@ -175,8 +177,8 @@ public class AppointmentService {
     // ---------------------------------------------------------------- 등록·수정·확정·삭제
 
     @Transactional
-    public AppointmentView create(long empId, AppointmentRequest req) {
-        Employee e = lockEmployee(empId);
+    public AppointmentView create(String enterCd, long empId, AppointmentRequest req) {
+        Employee e = lockEmployee(enterCd, empId);
         Content c = resolve(e, draftOf(req), null);
         String apptNo = apptNos.next(today().getYear());
         HrAppointment a = appointments.saveAndFlush(new HrAppointment(e.getEnterCd(), apptNo, empId, c, now()));
@@ -185,11 +187,11 @@ public class AppointmentService {
 
     /** 미확정 발령만 고친다. 대상 사원은 바꾸지 않는다(다른 사원이면 지우고 새로 등록). 취소 발령은 고치지 않는다. */
     @Transactional
-    public AppointmentView update(long apptId, AppointmentRequest req) {
-        Employee e = lockEmployee(empIdOf(apptId));
-        HrAppointment a = loadForUpdate(apptId);
+    public AppointmentView update(String enterCd, long apptId, AppointmentRequest req) {
+        Employee e = lockEmployee(enterCd, empIdOf(enterCd, apptId));
+        HrAppointment a = loadForUpdate(enterCd, apptId);
         requireUnconfirmed(a, "고칠");
-        if (cancels.existsById(apptId)) {
+        if (cancels.existsByEnterCdAndCancelApptId(enterCd, apptId)) {
             throw AppointmentException.conflict("취소 발령(" + a.getApptNo() + ")은 고칠 수 없어요. 지우고 다시 등록해 주세요");
         }
         Content c = resolve(e, draftOf(req), apptId);
@@ -200,20 +202,20 @@ public class AppointmentService {
 
     /**
      * 확정. 이전 값을 발령일 기준 이력으로 다시 채우고 규칙을 다시 검사한 뒤 확정 여부·확정일시를 기록하고,
-     * 오늘 기준 사원 현재 값을 다시 맞춘다(미래 날짜 발령은 그날 {@link #syncEmployee(long)}가 반영).
+     * 오늘 기준 사원 현재 값을 다시 맞춘다(미래 날짜 발령은 그날 {@link #syncEmployee(String, long)}가 반영).
      * 발령일이 이미 확정된 다른 발령보다 앞서면 거부한다(뒤 발령의 이전 값이 어긋나므로, 뒤 발령을 먼저 취소).
      */
     @Transactional
-    public AppointmentView confirm(long apptId) {
+    public AppointmentView confirm(String enterCd, long apptId) {
         // 부서 폐지 검사와 발령 확정을 직렬화한다. 사원 잠금보다 조직 잠금을 먼저 잡는다.
         orgLock.acquire();
-        Employee e = lockEmployee(empIdOf(apptId));
-        HrAppointment a = loadForUpdate(apptId);
+        Employee e = lockEmployee(enterCd, empIdOf(enterCd, apptId));
+        HrAppointment a = loadForUpdate(enterCd, apptId);
         requireUnconfirmed(a, "다시 확정할");
-        Optional<HrAppointmentCancel> link = cancels.findById(apptId);
+        Optional<HrAppointmentCancel> link = cancels.findByEnterCdAndCancelApptId(enterCd, apptId);
         Content c;
         if (link.isPresent()) {
-            HrAppointment original = loadForUpdate(link.get().getOriginalApptId());
+            HrAppointment original = loadForUpdate(enterCd, link.get().getOriginalApptId());
             c = cancelContent(e, original, a.getReason(), apptId);
         } else {
             c = resolve(e, draftOf(a), apptId);
@@ -236,35 +238,37 @@ public class AppointmentService {
      * 확정하면({@link #confirm}) 원 발령과 취소 발령이 모두 이력 계산에서 빠진다.
      */
     @Transactional
-    public AppointmentView cancel(long apptId, CancelRequest req) {
-        long empId = empIdOf(apptId);
-        Employee e = lockEmployee(empId);
-        HrAppointment original = loadForUpdate(apptId);
+    public AppointmentView cancel(String enterCd, long apptId, CancelRequest req) {
+        long empId = empIdOf(enterCd, apptId);
+        Employee e = lockEmployee(enterCd, empId);
+        HrAppointment original = loadForUpdate(enterCd, apptId);
         if (!original.isConfirmed()) {
             throw AppointmentException.conflict("확정 전 발령(" + original.getApptNo() + ")은 취소 발령 대신 고치거나 지워 주세요");
         }
-        if (cancels.existsById(apptId)) {
+        if (cancels.existsByEnterCdAndCancelApptId(enterCd, apptId)) {
             throw AppointmentException.conflict("취소 발령(" + original.getApptNo() + ")은 다시 취소할 수 없어요");
         }
-        cancels.findByOriginalApptId(apptId).ifPresent(c -> {
+        cancels.findByEnterCdAndOriginalApptId(enterCd, apptId).ifPresent(c -> {
             throw AppointmentException.conflict("이 발령(" + original.getApptNo() + ")에는 이미 취소 발령이 있어요");
         });
         Content c = cancelContent(e, original, req.reason(), null);
         String apptNo = apptNos.next(today().getYear());
         LocalDateTime now = now();
         HrAppointment cancel = appointments.saveAndFlush(new HrAppointment(e.getEnterCd(), apptNo, empId, c, now));
-        cancels.saveAndFlush(new HrAppointmentCancel(cancel.getApptId(), apptId, now));
+        cancels.saveAndFlush(new HrAppointmentCancel(e.getEnterCd(), cancel.getApptId(), apptId, now));
         return AppointmentView.of(cancel, apptId, null);
     }
 
     /** 미확정 발령만 지운다(잘못 등록한 경우). 확정된 발령은 이력으로 남긴다. 미확정 취소 발령은 연결도 함께 지운다. */
     @Transactional
-    public void delete(long apptId) {
-        lockEmployee(empIdOf(apptId));
-        HrAppointment a = loadForUpdate(apptId);
+    public void delete(String enterCd, long apptId) {
+        lockEmployee(enterCd, empIdOf(enterCd, apptId));
+        HrAppointment a = loadForUpdate(enterCd, apptId);
         requireUnconfirmed(a, "지울");
-        if (cancels.existsById(apptId)) {
-            cancels.deleteById(apptId);
+        // cancel_appt_id 는 전체에서 유일하다. 그 법인 연결인지 확인한 뒤 ID 로 지운다.
+        Optional<HrAppointmentCancel> link = cancels.findByEnterCdAndCancelApptId(enterCd, apptId);
+        if (link.isPresent()) {
+            cancels.delete(link.get());
             cancels.flush();
         }
         appointments.delete(a);
@@ -278,8 +282,8 @@ public class AppointmentService {
      * @return 값이 바뀌었으면 true
      */
     @Transactional
-    public boolean syncEmployee(long empId) {
-        return apply(lockEmployee(empId));
+    public boolean syncEmployee(String enterCd, long empId) {
+        return apply(lockEmployee(enterCd, empId));
     }
 
     // ---------------------------------------------------------------- 반영·이력
@@ -298,15 +302,16 @@ public class AppointmentService {
                 && Objects.equals(e.getEmpStatus(), s.status().name())) {
             return false;
         }
-        return employees.applyAppointment(e.getEmpId(), s.deptId(), s.jobGradeCode(), s.jobTitleCode(),
-                s.status().name(), now()) > 0;
+        return employees.applyAppointment(e.getEnterCd(), e.getEmpId(), s.deptId(), s.jobGradeCode(),
+                s.jobTitleCode(), s.status().name(), now()) > 0;
     }
 
     /** 사원의 발령 이력. excludeId 는 계산에서 뺄 발령(수정·확정 중인 자기 자신). */
     private AppointmentHistory history(Employee e, Long excludeId) {
-        List<HrAppointment> list = appointments.findByEmpIdOrderByEffectiveDateAscApptIdAsc(e.getEmpId()).stream()
+        List<HrAppointment> list = appointments
+                .findByEnterCdAndEmpIdOrderByEffectiveDateAscApptIdAsc(e.getEnterCd(), e.getEmpId()).stream()
                 .filter(a -> !a.getApptId().equals(excludeId)).toList();
-        return new AppointmentHistory(e, list, linksFor(list));
+        return new AppointmentHistory(e, list, linksFor(e.getEnterCd(), list));
     }
 
     /** 취소 발령 내용. 원 발령이 이력의 마지막 발령이어야 한다. selfId 는 확정 중인 취소 발령. */
@@ -334,15 +339,16 @@ public class AppointmentService {
                 original.getLeaveStartDate(), original.getLeaveEndDate());
     }
 
-    private Map<Long, Long> linksFor(Collection<HrAppointment> list) {
+    private Map<Long, Long> linksFor(String enterCd, Collection<HrAppointment> list) {
         if (list.isEmpty()) {
             return Map.of();
         }
-        return toLinkMap(cancels.findAllById(list.stream().map(HrAppointment::getApptId).toList()));
+        return toLinkMap(cancels.findByEnterCdAndCancelApptIdIn(enterCd,
+                list.stream().map(HrAppointment::getApptId).toList()));
     }
 
-    private Map<Long, Long> allLinks() {
-        return toLinkMap(cancels.findAll());
+    private Map<Long, Long> allLinks(String enterCd) {
+        return toLinkMap(cancels.findByEnterCd(enterCd));
     }
 
     private static Map<Long, Long> toLinkMap(List<HrAppointmentCancel> links) {
@@ -352,9 +358,10 @@ public class AppointmentService {
     }
 
     private AppointmentView view(HrAppointment a) {
-        Long cancelOf = cancels.findById(a.getApptId()).map(HrAppointmentCancel::getOriginalApptId).orElse(null);
-        Long cancelledBy = cancels.findByOriginalApptId(a.getApptId()).map(HrAppointmentCancel::getCancelApptId)
-                .orElse(null);
+        Long cancelOf = cancels.findByEnterCdAndCancelApptId(a.getEnterCd(), a.getApptId())
+                .map(HrAppointmentCancel::getOriginalApptId).orElse(null);
+        Long cancelledBy = cancels.findByEnterCdAndOriginalApptId(a.getEnterCd(), a.getApptId())
+                .map(HrAppointmentCancel::getCancelApptId).orElse(null);
         return AppointmentView.of(a, cancelOf, cancelledBy);
     }
 
@@ -380,9 +387,10 @@ public class AppointmentService {
     private Content resolve(Employee e, Draft d, Long selfId) {
         AppointmentType type = requireType(e.getEnterCd(), d.typeCode());
         LocalDate date = d.effectiveDate();
-        List<HrAppointment> others = appointments.findByEmpIdOrderByEffectiveDateAscApptIdAsc(e.getEmpId()).stream()
+        List<HrAppointment> others = appointments
+                .findByEnterCdAndEmpIdOrderByEffectiveDateAscApptIdAsc(e.getEnterCd(), e.getEmpId()).stream()
                 .filter(a -> !a.getApptId().equals(selfId)).toList();
-        AppointmentHistory history = new AppointmentHistory(e, others, linksFor(others));
+        AppointmentHistory history = new AppointmentHistory(e, others, linksFor(e.getEnterCd(), others));
 
         if (type == AppointmentType.HIRE) {
             if (!date.equals(e.getHireDate())) {
@@ -591,32 +599,33 @@ public class AppointmentService {
                 a.getReason(), a.getLeaveStartDate(), a.getLeaveEndDate());
     }
 
-    // ---------------------------------------------------------------- 읽기·잠금
+    // ---------------------------------------------------------------- 읽기·잠금 (모두 법인 조건, #124)
 
-    private HrAppointment load(long apptId) {
-        return appointments.findById(apptId)
+    private HrAppointment load(String enterCd, long apptId) {
+        return appointments.findByEnterCdAndApptId(enterCd, apptId)
                 .orElseThrow(() -> AppointmentException.notFound("발령이 없어요: " + apptId));
     }
 
     /** 쓰기용 1단계: 발령 엔티티를 올리지 않고 사원 ID만 읽는다. */
-    private long empIdOf(long apptId) {
-        return appointments.findEmpIdByApptId(apptId)
+    private long empIdOf(String enterCd, long apptId) {
+        return appointments.findEmpIdByApptId(enterCd, apptId)
                 .orElseThrow(() -> AppointmentException.notFound("발령이 없어요: " + apptId));
     }
 
     /** 쓰기용 2단계: 사원 잠금 뒤 발령 행을 잠가 읽는다(대기 중 다른 요청이 확정했으면 그 결과를 읽는다). */
-    private HrAppointment loadForUpdate(long apptId) {
-        return appointments.findForUpdate(apptId)
+    private HrAppointment loadForUpdate(String enterCd, long apptId) {
+        return appointments.findForUpdate(enterCd, apptId)
                 .orElseThrow(() -> AppointmentException.notFound("발령이 없어요: " + apptId));
     }
 
-    private Employee loadEmployee(long empId) {
-        return employees.findById(empId).orElseThrow(() -> AppointmentException.notFound("사원이 없어요: " + empId));
+    private Employee loadEmployee(String enterCd, long empId) {
+        return employees.findByEnterCdAndEmpId(enterCd, empId)
+                .orElseThrow(() -> AppointmentException.notFound("사원이 없어요: " + empId));
     }
 
     /** 같은 사원의 발령 쓰기를 직렬화한다(입사 발령 중복·재직상태 검사가 엇갈리지 않게). */
-    private Employee lockEmployee(long empId) {
-        return employees.findForUpdate(empId)
+    private Employee lockEmployee(String enterCd, long empId) {
+        return employees.findForUpdate(enterCd, empId)
                 .orElseThrow(() -> AppointmentException.notFound("사원이 없어요: " + empId));
     }
 

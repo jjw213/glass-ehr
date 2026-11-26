@@ -60,7 +60,7 @@ class AppointmentControllerTest {
 
     @Test
     void 등록은_201이고_휴직일과_이전_이후값을_돌려준다() throws Exception {
-        when(service.create(anyLong(), any())).thenReturn(view(false));
+        when(service.create(eq("C001"), anyLong(), any())).thenReturn(view(false));
         mvc.perform(post("/api/employees/1/appointments").contentType(MediaType.APPLICATION_JSON)
                         .content(LEAVE_BODY.formatted("\"육아휴직\"")))
                 .andExpect(status().isCreated())
@@ -70,7 +70,7 @@ class AppointmentControllerTest {
                 .andExpect(jsonPath("$.leaveEndDate").value("2027-05-31"))
                 .andExpect(jsonPath("$.confirmed").value(false));
         ArgumentCaptor<AppointmentRequest> req = ArgumentCaptor.forClass(AppointmentRequest.class);
-        verify(service).create(eq(1L), req.capture());
+        verify(service).create(eq("C001"), eq(1L), req.capture());
         assertThat(req.getValue().leaveStartDate()).isEqualTo(D);
     }
 
@@ -82,7 +82,7 @@ class AppointmentControllerTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("발령 사유를 입력해 주세요(근로기준법 제23조)"));
         }
-        verify(service, never()).create(anyLong(), any());
+        verify(service, never()).create(eq("C001"), anyLong(), any());
     }
 
     @Test
@@ -94,35 +94,35 @@ class AppointmentControllerTest {
 
     @Test
     void 확정된_발령_수정_삭제는_서비스_오류대로_409() throws Exception {
-        when(service.update(anyLong(), any())).thenThrow(AppointmentException.conflict("확정된 발령은 고칠 수 없어요"));
+        when(service.update(eq("C001"), anyLong(), any())).thenThrow(AppointmentException.conflict("확정된 발령은 고칠 수 없어요"));
         mvc.perform(put("/api/appointments/7").contentType(MediaType.APPLICATION_JSON)
                         .content(LEAVE_BODY.formatted("\"r\"")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("확정된 발령은 고칠 수 없어요"));
-        org.mockito.Mockito.doThrow(AppointmentException.conflict("지울 수 없어요")).when(service).delete(8L);
+        org.mockito.Mockito.doThrow(AppointmentException.conflict("지울 수 없어요")).when(service).delete(eq("C001"), eq(8L));
         mvc.perform(delete("/api/appointments/8")).andExpect(status().isConflict());
     }
 
     @Test
     void 확정_삭제_조회_경로() throws Exception {
-        when(service.confirm(7L)).thenReturn(view(true));
+        when(service.confirm(eq("C001"), eq(7L))).thenReturn(view(true));
         mvc.perform(post("/api/appointments/7/confirm"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.confirmed").value(true))
                 .andExpect(jsonPath("$.confirmedAt").value("2026-11-13T10:00:00"));
         mvc.perform(delete("/api/appointments/9")).andExpect(status().isNoContent());
-        verify(service).delete(9L);
+        verify(service).delete(eq("C001"), eq(9L));
 
-        when(service.search(any(), any(), any(), any(), any())).thenReturn(List.of(view(false)));
+        when(service.search(eq("C001"), any(), any(), any(), any(), any())).thenReturn(List.of(view(false)));
         mvc.perform(get("/api/appointments").param("confirmed", "false").param("type", "LEAVE")
                         .param("from", "2026-12-01").param("deptId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].apptId").value(7));
-        verify(service).search(eq(false), eq("LEAVE"), eq(D), isNull(), eq(10L));
+        verify(service).search(eq("C001"), eq(false), eq("LEAVE"), eq(D), isNull(), eq(10L));
 
-        when(service.get(7L)).thenThrow(AppointmentException.notFound("발령이 없어요: 7"));
+        when(service.get(eq("C001"), eq(7L))).thenThrow(AppointmentException.notFound("발령이 없어요: 7"));
         mvc.perform(get("/api/appointments/7")).andExpect(status().is(HttpStatus.NOT_FOUND.value()));
-        when(service.listByEmployee(1L)).thenReturn(List.of());
+        when(service.listByEmployee(eq("C001"), eq(1L))).thenReturn(List.of());
         mvc.perform(get("/api/employees/1/appointments")).andExpect(status().isOk());
     }
 }

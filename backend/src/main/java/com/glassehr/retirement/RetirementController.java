@@ -61,39 +61,40 @@ public class RetirementController {
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/retirements/retention-expired")
-    public List<RetentionExpiredRow> retentionExpired(@RequestParam(name = "asOf", required = false) LocalDate asOf) {
-        return service.retentionExpired(asOf);
+    public List<RetentionExpiredRow> retentionExpired(@RequestParam(name = "asOf", required = false) LocalDate asOf,
+            AuthUser user) {
+        return service.retentionExpired(user.enterCd(), asOf);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/retirements/{empId}")
-    public RetirementView get(@PathVariable long empId) {
-        return service.get(empId);
+    public RetirementView get(@PathVariable long empId, AuthUser user) {
+        return service.get(user.enterCd(), empId);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PutMapping("/api/retirements/{empId}/checklist/{itemCode}")
     public RetirementView updateChecklist(@PathVariable long empId, @PathVariable String itemCode,
             @Valid @RequestBody ChecklistUpdateRequest req, AuthUser user) {
-        return service.updateChecklist(empId, itemCode, req, user.loginId());
+        return service.updateChecklist(user.enterCd(), empId, itemCode, req, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/api/employees/{empId}/employment-certificates")
     @ResponseStatus(HttpStatus.CREATED)
     public CertificateView issue(@PathVariable long empId, @Valid @RequestBody CertificateRequest req, AuthUser user) {
-        return service.issueCertificate(empId, req, user.loginId());
+        return service.issueCertificate(user.enterCd(), empId, req, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/employees/{empId}/employment-certificates")
-    public List<CertificateView> certificates(@PathVariable long empId) {
-        return service.certificates(empId);
+    public List<CertificateView> certificates(@PathVariable long empId, AuthUser user) {
+        return service.certificates(user.enterCd(), empId);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/employment-certificates/{certId}")
-    public CertificateView certificate(@PathVariable long certId) {
-        return service.certificate(certId);
+    public CertificateView certificate(@PathVariable long certId, AuthUser user) {
+        return service.certificate(user.enterCd(), certId);
     }
 }

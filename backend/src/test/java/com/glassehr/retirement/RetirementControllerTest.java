@@ -81,14 +81,14 @@ class RetirementControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("해고는 해고 예고일을 입력해야 해요(근로기준법 제26조)"));
 
-        when(service.get(anyLong())).thenThrow(new EmployeeException(HttpStatus.CONFLICT, "이미 퇴직"));
+        when(service.get(eq("C001"), anyLong())).thenThrow(new EmployeeException(HttpStatus.CONFLICT, "이미 퇴직"));
         mvc.perform(get("/api/retirements/1")).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("이미 퇴직"));
     }
 
     @Test
     void 체크리스트_완료_표시() throws Exception {
-        when(service.updateChecklist(eq(1L), eq("HANDOVER"), any(), eq("hr1")))
+        when(service.updateChecklist(eq("C001"), eq(1L), eq("HANDOVER"), any(), eq("hr1")))
                 .thenReturn(view(NoticeCheck.OK, List.of()));
         mvc.perform(put("/api/retirements/1/checklist/HANDOVER").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"done\":true}"))
@@ -100,7 +100,7 @@ class RetirementControllerTest {
 
     @Test
     void 보존기한_경과_목록() throws Exception {
-        when(service.retentionExpired(LocalDate.of(2026, 11, 16))).thenReturn(List.of(new RetirementDtos.RetentionExpiredRow(
+        when(service.retentionExpired(eq("C001"), eq(LocalDate.of(2026, 11, 16)))).thenReturn(List.of(new RetirementDtos.RetentionExpiredRow(
                 5, "S01-2020-005", "예시사원", LocalDate.of(2023, 1, 1), "VOLUNTARY", LocalDate.of(2026, 1, 1), 319)));
         mvc.perform(get("/api/retirements/retention-expired").param("asOf", "2026-11-16"))
                 .andExpect(status().isOk())
@@ -113,8 +113,8 @@ class RetirementControllerTest {
     void 사용증명서_발급과_조회() throws Exception {
         CertificateView v = new CertificateView(9, 1, "S01-2024-001", D, List.of(CertificateItem.USE_PERIOD), null,
                 "예시사원", LocalDate.of(2024, 1, 2), D, null, null, null, null, null, "hr1", null);
-        when(service.issueCertificate(eq(1L), any(), eq("hr1"))).thenReturn(v);
-        when(service.certificate(9)).thenReturn(v);
+        when(service.issueCertificate(eq("C001"), eq(1L), any(), eq("hr1"))).thenReturn(v);
+        when(service.certificate(eq("C001"), eq(9L))).thenReturn(v);
         mvc.perform(post("/api/employees/1/employment-certificates").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"requestedOn\":\"2026-11-30\",\"items\":[\"USE_PERIOD\"]}"))
                 .andExpect(status().isCreated())

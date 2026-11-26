@@ -26,6 +26,12 @@ class ContractSchemaScriptTest {
         return read("db/oracle/V012__employment_contract.sql");
     }
 
+    private static String schema() throws IOException {
+        return ddl() + "\n"
+                + read("db/oracle/V031__enter_company_enter_cd.sql") + "\n"
+                + read("db/oracle/V038__appointment_contract_retirement_enter_cd.sql");
+    }
+
     @Test
     void DDL에_중괄호가_없다() throws IOException {
         // Oracle JDBC 가 {..}를 SQL92 escape 로 해석한다(V006 참고).
@@ -35,7 +41,7 @@ class ContractSchemaScriptTest {
 
     @Test
     void 엔티티_컬럼이_DDL에_모두_있다() throws IOException {
-        String table = ddl();
+        String table = schema();
         for (Field f : EmploymentContract.class.getDeclaredFields()) {
             Column c = f.getAnnotation(Column.class);
             if (c != null) {
