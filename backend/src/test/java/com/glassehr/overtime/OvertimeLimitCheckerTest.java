@@ -14,6 +14,7 @@ import com.glassehr.attendance.DailyWorkSummaryRow;
 import com.glassehr.attendance.WorkPattern;
 import com.glassehr.attendance.WorkPatternRepository;
 import com.glassehr.attendance.WorkPatternRules;
+import com.glassehr.attendance.WorkerType;
 import com.glassehr.legalrate.LegalRateException;
 import com.glassehr.legalrate.LegalRateItem;
 import com.glassehr.legalrate.LegalRateRow;
@@ -137,7 +138,8 @@ class OvertimeLimitCheckerTest {
                 requestStart.plusHours(3), 60, "사유", requestStart.minusDays(1));
         ReflectionTestUtils.setField(request, "requestId", 1L);
         WorkPattern pattern = new WorkPattern("C001", "DAY", "주간", new WorkPatternRules.Spec(540, 1080, 720, 60, "WWWWWOO"),
-                new WorkPatternRules.Result(480, 2400, List.of()), true, null, requestStart.minusDays(10));
+                new WorkPatternRules.Result(480, 2400, List.of()), WorkerType.FULL_TIME, true, null,
+                requestStart.minusDays(10));
         ReflectionTestUtils.setField(pattern, "patternId", 1L);
         when(patterns.findById(1L)).thenReturn(Optional.of(pattern));
         when(summaries.findRange(ENTER, EMP, MON.minusDays(1), MON.plusDays(6)))
