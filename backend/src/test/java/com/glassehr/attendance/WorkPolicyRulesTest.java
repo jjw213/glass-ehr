@@ -51,6 +51,18 @@ class WorkPolicyRulesTest {
     }
 
     @Test
+    void 인정_시간을_내려도_법정_한도용_실근로시간은_보존한다() {
+        Policy down = with(Allowance.UNLIMITED, Allowance.UNLIMITED, 60, 0, Rounding.DOWN);
+        WorkHoursCalculator.DayResult raw = new WorkHoursCalculator.DayResult(LocalDate.of(2099, 3, 5),
+                WorkHoursCalculator.DayKind.WORKDAY, 480, null, 0, 0, 487, 480, 0, 7, 0, 0, 0);
+
+        WorkHoursCalculator.DayResult recognized = WorkPolicyRules.recognizeDay(raw, down, 480);
+
+        assertThat(recognized.workedMinutes()).isEqualTo(487);
+        assertThat(recognized.overtimeMinutes()).isZero();
+    }
+
+    @Test
     void 월_누계를_지원하지_않는_야간_월_한도는_거부한다() {
         Policy d = WorkPolicyRules.SYSTEM_DEFAULT;
         Policy p = new Policy(d.overtime(), limit(null, null, 600), d.holiday(), true, 1, 0, Rounding.UP,

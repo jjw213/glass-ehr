@@ -241,7 +241,7 @@ public final class WorkPolicyRules {
 
     /**
      * 계산 결과에 인정 규칙을 적용한다. 법정 근로시간 내 연장(법내 초과)을 구분하지 않으면 연장으로 합친다.
-     * 연장·휴일·야간 분을 인정 단위로 맞추고, 실근로는 바뀐 연장·휴일 분만큼 함께 바꾼다(야간은 겹침 표시라 더하지 않는다).
+     * 연장·휴일·야간 분을 인정 단위로 맞춘다. 실근로는 법정 한도 판정에 쓰는 실제 값이므로 인정 규칙과 무관하게 보존한다.
      *
      * @param holidayThresholdMinutes 휴일근로 기준시간(근로기준법 제56조 제2항, legal_rate 적용값)
      */
@@ -257,7 +257,7 @@ public final class WorkPolicyRules {
         int hol = recognize(holidayTotal, p);
         // 근로기준법 제56조 제2항: 기준시간 이내·초과를 나눈다.
         int holWithin = Math.min(hol, holidayThresholdMinutes);
-        int worked = r.workedMinutes() + (ot - overtime) + (hol - holidayTotal);
+        int worked = r.workedMinutes();
         // 야간은 실근로와 겹치는 분류이므로 독립적으로 올림하더라도 실근로를 넘을 수 없다.
         int night = Math.min(recognize(r.nightMinutes(), p), worked);
         return new DayResult(r.workDate(), r.dayKind(), r.contractMinutes(), r.leaveKind(), r.leaveMinutes(),
