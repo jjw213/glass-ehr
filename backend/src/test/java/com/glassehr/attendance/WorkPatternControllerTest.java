@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(TestAuth.class)
 class WorkPatternControllerTest {
 
+    private static final String ENTER = "C001";
     private static final String BODY = """
             {"patternCode":"DAY","patternName":"주간","workStartMin":540,"workEndMin":945,
              "breakStartMin":720,"breakMinutes":45,"dayTypes":"WWWWWOH"}""";
@@ -46,7 +47,7 @@ class WorkPatternControllerTest {
 
     @Test
     void 목록() throws Exception {
-        when(service.list()).thenReturn(List.of(view()));
+        when(service.list(ENTER)).thenReturn(List.of(view()));
         mvc.perform(get("/api/attendance/work-patterns"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].patternCode").value("DAY"))
@@ -55,7 +56,7 @@ class WorkPatternControllerTest {
 
     @Test
     void 등록() throws Exception {
-        when(service.create(any())).thenReturn(view());
+        when(service.create(eq(ENTER), any())).thenReturn(view());
         mvc.perform(post("/api/attendance/work-patterns").contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.weeklyContractMinutes").value(1800));
@@ -63,7 +64,7 @@ class WorkPatternControllerTest {
 
     @Test
     void 법정_기준_위반은_422와_위반_목록() throws Exception {
-        when(service.create(any())).thenThrow(AttendanceException.rejected(List.of(
+        when(service.create(eq(ENTER), any())).thenThrow(AttendanceException.rejected(List.of(
                 new WorkPatternRules.Violation(WorkPatternRules.Code.WEEKLY_HOLIDAY_REQUIRED, "주휴일을 지정해 주세요"))));
         mvc.perform(post("/api/attendance/work-patterns").contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isUnprocessableEntity())
@@ -76,7 +77,7 @@ class WorkPatternControllerTest {
         LegalRateException missing = org.mockito.Mockito.mock(LegalRateException.class);
         when(missing.itemCode()).thenReturn("DAILY_STANDARD_WORK_HOURS");
         when(missing.asOfDate()).thenReturn(LocalDate.of(2026, 11, 13));
-        when(service.create(any())).thenThrow(missing);
+        when(service.create(eq(ENTER), any())).thenThrow(missing);
         mvc.perform(post("/api/attendance/work-patterns").contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("DAILY_STANDARD_WORK_HOURS")));
@@ -90,7 +91,7 @@ class WorkPatternControllerTest {
         String noHoliday = BODY.replace("\"dayTypes\":\"WWWWWOH\"", "\"dayTypes\":null");
         mvc.perform(post("/api/attendance/work-patterns").contentType(MediaType.APPLICATION_JSON).content(noHoliday))
                 .andExpect(status().isBadRequest());
-        verify(service, never()).create(any());
+        verify(service, never()).create(any(), any());
     }
 
     @Test
@@ -105,16 +106,16 @@ class WorkPatternControllerTest {
     @Test
     void 배정과_이력() throws Exception {
         AssignmentView a = new AssignmentView(7, 5, 1, "DAY", "주간", LocalDate.of(2026, 12, 1), null, null);
-        when(service.assign(eq(5L), any(), eq("hr1"))).thenReturn(a);
+        when(service.assign(eq(ENTER), eq(5L), any(), eq("hr1"))).thenReturn(a);
         mvc.perform(post("/api/attendance/employees/5/work-patterns").header("X-Actor-Id", "hr1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"patternId\":1,\"validFrom\":\"2026-12-01\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.validFrom").value("2026-12-01"));
         // 요청자는 서버가 확인한 로그인 사용자(hr1)로 기록된다.
-        verify(service).assign(eq(5L), any(), eq("hr1"));
+        verify(service).assign(eq(ENTER), eq(5L), any(), eq("hr1"));
 
-        when(service.history(5)).thenReturn(List.of(a));
+        when(service.history(ENTER, 5)).thenReturn(List.of(a));
         mvc.perform(get("/api/attendance/employees/5/work-patterns"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].patternCode").value("DAY"));
@@ -125,12 +126,12 @@ class WorkPatternControllerTest {
         mvc.perform(post("/api/attendance/employees/5/work-patterns").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"patternId\":1}"))
                 .andExpect(status().isBadRequest());
-        verify(service, never()).assign(anyLong(), any(), any());
+        verify(service, never()).assign(any(), anyLong(), any(), any());
     }
 
     @Test
     void 일반_사원은_근무유형을_볼_수_있지만_등록_배정은_403() throws Exception {
-        when(service.list()).thenReturn(List.of(view()));
+        when(service.list(ENTER)).thenReturn(List.of(view()));
         mvc.perform(get("/api/attendance/work-patterns").header("X-Actor-Id", "emp1"))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/attendance/work-patterns").header("X-Actor-Id", "emp1")
@@ -142,32 +143,32 @@ class WorkPatternControllerTest {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/attendance/employees/5/work-patterns").header("X-Actor-Id", "emp1"))
                 .andExpect(status().isForbidden());
-        verify(service, never()).create(any());
-        verify(service, never()).assign(anyLong(), any(), any());
-        verify(service, never()).history(anyLong());
+        verify(service, never()).create(any(), any());
+        verify(service, never()).assign(any(), anyLong(), any(), any());
+        verify(service, never()).history(any(), anyLong());
     }
 
     @Test
     void 급여담당은_배정을_조회만_할_수_있다() throws Exception {
-        when(service.history(5)).thenReturn(List.of());
+        when(service.history(ENTER, 5)).thenReturn(List.of());
         mvc.perform(get("/api/attendance/employees/5/work-patterns").header("X-Actor-Id", "pay1"))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/attendance/work-patterns").header("X-Actor-Id", "pay1")
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isForbidden());
-        verify(service, never()).create(any());
+        verify(service, never()).create(any(), any());
     }
 
     @Test
     void 사용자를_모르면_401() throws Exception {
         mvc.perform(get("/api/attendance/work-patterns").header("X-Actor-Id", "nobody"))
                 .andExpect(status().isUnauthorized());
-        verify(service, never()).list();
+        verify(service, never()).list(any());
     }
 
     @Test
     void 기준일_배정이_없으면_204() throws Exception {
-        when(service.effective(5, LocalDate.of(2026, 1, 1))).thenReturn(Optional.empty());
+        when(service.effective(ENTER, 5,LocalDate.of(2026, 1, 1))).thenReturn(Optional.empty());
         mvc.perform(get("/api/attendance/employees/5/work-patterns/effective").param("date", "2026-01-01"))
                 .andExpect(status().isNoContent());
     }

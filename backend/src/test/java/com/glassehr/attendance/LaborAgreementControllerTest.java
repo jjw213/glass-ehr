@@ -38,7 +38,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(TestAuth.class)
 class LaborAgreementControllerTest {
 
-    private static final LocalDate D = LocalDate.of(2026, 1, 1);
+    private static final String ENTER = "C001";
+    private static final LocalDate D =LocalDate.of(2026, 1, 1);
     private static final String BODY = """
             {"agreementType":"SELECTIVE","title":"선택적 근로시간제 합의","signedDate":"2025-12-20",
              "validFrom":"2026-01-01","validUntil":"2026-12-31","scopeType":"ALL","targetDesc":"연구직 전원",
@@ -101,14 +102,14 @@ class LaborAgreementControllerTest {
 
     @Test
     void 유효_합의서_확인() throws Exception {
-        when(guard.check(AgreementType.SELECTIVE, D, null, "S01"))
+        when(guard.check(ENTER, AgreementType.SELECTIVE, D, null, "S01"))
                 .thenReturn(new CheckResult(false, AgreementType.SELECTIVE, null, null, null, null, "없어요"));
         mvc.perform(get("/api/attendance/agreements/check").param("type", "SELECTIVE").param("from", "2026-01-01")
                         .param("siteCode", " S01 "))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(false))
                 .andExpect(jsonPath("$.message").value("없어요"));
-        when(guard.check(eq(AgreementType.SELECTIVE), eq(D), eq(D), isNull()))
+        when(guard.check(eq(ENTER), eq(AgreementType.SELECTIVE), eq(D), eq(D), isNull()))
                 .thenThrow(AttendanceException.badRequest("x"));
         mvc.perform(get("/api/attendance/agreements/check").param("type", "SELECTIVE").param("from", "2026-01-01")
                         .param("until", "2026-01-01"))
@@ -117,7 +118,7 @@ class LaborAgreementControllerTest {
 
     @Test
     void 만료_예정() throws Exception {
-        when(service.expiring(null)).thenReturn(new ExpiringView(30, List.of(view())));
+        when(service.expiring(ENTER, null)).thenReturn(new ExpiringView(30, List.of(view())));
         mvc.perform(get("/api/attendance/agreements/expiring"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.days").value(30))
@@ -126,13 +127,13 @@ class LaborAgreementControllerTest {
 
     @Test
     void 첨부_올리기와_형식_거부() throws Exception {
-        when(service.addFile(eq(1L), eq("a.pdf"), any(), eq("hr1"))).thenReturn(new AgreementFileView(9, 1, "a.pdf",
+        when(service.addFile(eq(ENTER), eq(1L), eq("a.pdf"), any(), eq("hr1"))).thenReturn(new AgreementFileView(9, 1, "a.pdf",
                 "application/pdf", 10, "0".repeat(64), "hr1", LocalDateTime.of(2026, 1, 1, 9, 0)));
         mvc.perform(multipart("/api/attendance/agreements/1/files")
                         .file(new MockMultipartFile("file", "a.pdf", "application/pdf", "%PDF-1.7 x".getBytes())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.fileId").value(9));
-        when(service.addFile(eq(1L), eq("b.exe"), any(), eq("hr1"))).thenThrow(
+        when(service.addFile(eq(ENTER), eq(1L), eq("b.exe"), any(), eq("hr1"))).thenThrow(
                 new AttendanceException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "PDF만", List.of()));
         mvc.perform(multipart("/api/attendance/agreements/1/files")
                         .file(new MockMultipartFile("file", "b.exe", "application/pdf", new byte[] {1})))
@@ -142,9 +143,9 @@ class LaborAgreementControllerTest {
 
     @Test
     void 첨부_내려받기는_저장된_형식과_파일명으로() throws Exception {
-        LaborAgreementFile f = new LaborAgreementFile(1, "합의서.pdf", "application/pdf", "%PDF-1.7".getBytes(),
+        LaborAgreementFile f = new LaborAgreementFile(ENTER, 1,"합의서.pdf", "application/pdf", "%PDF-1.7".getBytes(),
                 "0".repeat(64), "hr1", LocalDateTime.of(2026, 1, 1, 9, 0));
-        when(service.file(1, 9)).thenReturn(f);
+        when(service.file(ENTER, 1, 9)).thenReturn(f);
         mvc.perform(get("/api/attendance/agreements/1/files/9"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("application/pdf"))
@@ -156,12 +157,12 @@ class LaborAgreementControllerTest {
     @Test
     void 첨부_삭제() throws Exception {
         mvc.perform(delete("/api/attendance/agreements/1/files/9")).andExpect(status().isNoContent());
-        verify(service).deleteFile(1, 9);
+        verify(service).deleteFile(ENTER, 1, 9);
     }
 
     @Test
     void 급여담당은_조회만_되고_등록은_403() throws Exception {
-        when(service.list()).thenReturn(List.of(view()));
+        when(service.list(ENTER)).thenReturn(List.of(view()));
         mvc.perform(get("/api/attendance/agreements").header("X-Actor-Id", "pay1")).andExpect(status().isOk());
         mvc.perform(post("/api/attendance/agreements").header("X-Actor-Id", "pay1")
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
@@ -172,7 +173,7 @@ class LaborAgreementControllerTest {
     @Test
     void 일반_사원은_조회도_403() throws Exception {
         mvc.perform(get("/api/attendance/agreements").header("X-Actor-Id", "emp1")).andExpect(status().isForbidden());
-        verify(service, never()).list();
-        verify(service, never()).get(anyLong());
+        verify(service, never()).list(any());
+        verify(service, never()).get(any(), anyLong());
     }
 }

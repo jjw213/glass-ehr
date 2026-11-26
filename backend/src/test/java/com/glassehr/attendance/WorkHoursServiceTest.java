@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import com.glassehr.attendance.DailyWorkSummaryMapper.PunchRecord;
 import com.glassehr.attendance.WorkHoursCalculator.DayKind;
 import com.glassehr.attendance.WorkHoursService.Shift;
+import com.glassehr.employee.Employee;
 import com.glassehr.employee.EmployeeRepository;
 import com.glassehr.legalrate.LegalRateException;
 import java.math.BigDecimal;
@@ -32,6 +33,7 @@ import org.mockito.ArgumentCaptor;
 /** 원자료 모으기·근무 짝짓기·재계산 저장. 기준값은 테스트 입력(법령 정답 아님). 날짜는 가짜 값(2099-03-02 월요일). */
 class WorkHoursServiceTest {
 
+    private static final String ENTER = "C001";
     private static final long EMP = 7L;
     private static final long PATTERN = 3L;
     private static final LocalDate MON = LocalDate.of(2099, 3, 2);
@@ -54,7 +56,7 @@ class WorkHoursServiceTest {
     /** 09:00~18:00, 휴게 12:00 60분, 월~금 근무·토 휴무·일 주휴일. */
     private static WorkPattern dayPattern() {
         WorkPatternRules.Spec spec = new WorkPatternRules.Spec(9 * 60, 18 * 60, 12 * 60, 60, "WWWWWOH");
-        return new WorkPattern("DAY", "주간", spec, new WorkPatternRules.Result(480, 2400, List.of()), true, null,
+        return new WorkPattern(ENTER, "DAY","주간", spec, new WorkPatternRules.Result(480, 2400, List.of()), true, null,
                 LocalDateTime.of(2099, 1, 1, 0, 0));
     }
 
@@ -80,11 +82,11 @@ class WorkHoursServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2099-03-10T01:00:00Z"), WorkHoursService.SEOUL);
         service = new WorkHoursService(mapper, assignments, patterns, holidays, leaves, overtimes, legalRules,
                 employees, clock);
-        when(employees.existsById(EMP)).thenReturn(true);
-        when(assignments.findByEmpIdOrderByValidFromAsc(EMP)).thenReturn(List.of(
-                new EmpWorkPattern(EMP, PATTERN, LocalDate.of(2099, 1, 1), null, "hr1", LocalDateTime.now())));
-        when(patterns.findById(PATTERN)).thenReturn(Optional.of(dayPattern()));
-        when(holidays.holidayDates(any(), any())).thenReturn(Set.of());
+        when(employees.findByEnterCdAndEmpId(ENTER, EMP)).thenReturn(Optional.of(mock(Employee.class)));
+        when(assignments.findByEnterCdAndEmpIdOrderByValidFromAsc(ENTER, EMP)).thenReturn(List.of(
+                new EmpWorkPattern(ENTER, EMP, PATTERN, LocalDate.of(2099, 1, 1), null, "hr1", LocalDateTime.now())));
+        when(patterns.findByEnterCdAndPatternId(ENTER, PATTERN)).thenReturn(Optional.of(dayPattern()));
+        when(holidays.holidayDates(eq(ENTER), any(), any())).thenReturn(Set.of());
         when(leaves.approvedLeaves(anyLong(), any(), any())).thenReturn(Map.of());
         when(legalRules.asOf(any())).thenReturn(APPLIED);
     }
@@ -96,7 +98,7 @@ class WorkHoursServiceTest {
                 .thenReturn(List.of(punch(AttendancePunch.Type.IN, wed.atTime(9, 0)),
                         punch(AttendancePunch.Type.OUT, wed.atTime(20, 0))));
 
-        List<DailyWorkSummaryRow> rows = service.recalculate(EMP, wed, wed, "hr1");
+        List<DailyWorkSummaryRow> rows = service.recalculate(ENTER,EMP, wed, wed, "hr1");
 
         verify(mapper).deleteRange(EMP, MON, MON.plusDays(6));
         verify(mapper, times(7)).insert(any());
@@ -122,20 +124,20 @@ class WorkHoursServiceTest {
         LocalDate wed = MON.plusDays(2);
         punchesAre(punch(AttendancePunch.Type.IN, wed.atTime(9, 0)), punch(AttendancePunch.Type.OUT, wed.atTime(20, 0)));
 
-        List<DailyWorkSummaryRow> rows = service.recalculate(EMP, wed, wed, "hr1");
+        List<DailyWorkSummaryRow> rows = service.recalculate(ENTER,EMP, wed, wed, "hr1");
         assertThat(rows.get(2).overtimeMinutes()).isPositive();
         assertThat(rows.get(2).issues()).isEqualTo("OVERTIME_NOT_APPROVED");
         assertThat(rows.get(1).issues()).isNull();
 
         when(overtimes.approvedDates(EMP, MON, MON.plusDays(6))).thenReturn(Set.of(wed));
-        assertThat(service.recalculate(EMP, wed, wed, "hr1").get(2).issues()).isNull();
+        assertThat(service.recalculate(ENTER,EMP, wed, wed, "hr1").get(2).issues()).isNull();
     }
 
     @Test
     void 휴일_달력에_있는_소정근로일은_휴일이고_소정근로시간은_0() {
-        when(holidays.holidayDates(any(), any())).thenReturn(Set.of(MON));
+        when(holidays.holidayDates(eq(ENTER), any(), any())).thenReturn(Set.of(MON));
         punchesAre(punch(AttendancePunch.Type.IN, MON.atTime(9, 0)), punch(AttendancePunch.Type.OUT, MON.atTime(18, 0)));
-        DailyWorkSummaryRow r = service.recalculate(EMP, MON, MON, "hr1").get(0);
+        DailyWorkSummaryRow r = service.recalculate(ENTER,EMP, MON, MON, "hr1").get(0);
         assertThat(r.dayKind()).isEqualTo("HOLIDAY");
         assertThat(r.contractMinutes()).isZero();
         assertThat(r.holidayMinutes()).isEqualTo(480);
@@ -145,17 +147,17 @@ class WorkHoursServiceTest {
     void 승인된_반차를_입력으로_넣는다() {
         when(leaves.approvedLeaves(anyLong(), any(), any())).thenReturn(
                 Map.of(MON, new WorkHoursCalculator.Leave(WorkHoursCalculator.LeaveKind.HALF_DAY_AM, 240)));
-        DailyWorkSummaryRow r = service.recalculate(EMP, MON, MON, "hr1").get(0);
+        DailyWorkSummaryRow r = service.recalculate(ENTER,EMP, MON, MON, "hr1").get(0);
         assertThat(r.leaveKind()).isEqualTo("HALF_DAY_AM");
         assertThat(r.leaveMinutes()).isEqualTo(240);
     }
 
     @Test
     void 퇴근이_없거나_근무유형이_없으면_사유를_남긴다() {
-        when(assignments.findByEmpIdOrderByValidFromAsc(EMP)).thenReturn(List.of(
-                new EmpWorkPattern(EMP, PATTERN, MON.plusDays(1), null, "hr1", LocalDateTime.now())));
+        when(assignments.findByEnterCdAndEmpIdOrderByValidFromAsc(ENTER, EMP)).thenReturn(List.of(
+                new EmpWorkPattern(ENTER, EMP, PATTERN, MON.plusDays(1), null, "hr1", LocalDateTime.now())));
         punchesAre(punch(AttendancePunch.Type.IN, MON.atTime(9, 0)));
-        List<DailyWorkSummaryRow> rows = service.recalculate(EMP, MON, MON, "hr1");
+        List<DailyWorkSummaryRow> rows = service.recalculate(ENTER,EMP, MON, MON, "hr1");
         assertThat(rows.get(0).issues()).isEqualTo("NO_WORK_PATTERN,MISSING_OUT");
         assertThat(rows.get(0).workStart()).isEqualTo(MON.atTime(9, 0));
         assertThat(rows.get(0).workEnd()).isNull();
@@ -166,16 +168,16 @@ class WorkHoursServiceTest {
     @Test
     void 기준값이_없으면_지우지_않는다() {
         when(legalRules.asOf(any())).thenThrow(mock(LegalRateException.class));
-        assertThatThrownBy(() -> service.recalculate(EMP, MON, MON, "hr1")).isInstanceOf(LegalRateException.class);
+        assertThatThrownBy(() -> service.recalculate(ENTER,EMP, MON, MON, "hr1")).isInstanceOf(LegalRateException.class);
         verify(mapper, never()).deleteRange(anyLong(), any(), any());
         verify(mapper, never()).insert(any());
     }
 
     @Test
     void 없는_사원이나_잘못된_기간은_거부() {
-        assertThatThrownBy(() -> service.recalculate(99L, MON, MON, "hr1"))
+        assertThatThrownBy(() -> service.recalculate(ENTER,99L, MON, MON, "hr1"))
                 .isInstanceOf(AttendanceException.class).hasMessageContaining("사원이 없어요");
-        assertThatThrownBy(() -> service.recalculate(EMP, MON, MON.minusDays(1), "hr1"))
+        assertThatThrownBy(() -> service.recalculate(ENTER,EMP, MON, MON.minusDays(1), "hr1"))
                 .isInstanceOf(AttendanceException.class);
         assertThatThrownBy(() -> service.find(EMP, MON, MON.plusDays(WorkHoursService.MAX_RANGE_DAYS)))
                 .isInstanceOf(AttendanceException.class);
@@ -184,8 +186,8 @@ class WorkHoursServiceTest {
     @Test
     void 재계산을_두_번_해도_같은_결과() {
         punchesAre(punch(AttendancePunch.Type.IN, MON.atTime(8, 0)), punch(AttendancePunch.Type.OUT, MON.atTime(23, 0)));
-        List<DailyWorkSummaryRow> a = service.recalculate(EMP, MON, MON, "hr1");
-        List<DailyWorkSummaryRow> b = service.recalculate(EMP, MON.plusDays(3), MON.plusDays(3), "hr1");
+        List<DailyWorkSummaryRow> a = service.recalculate(ENTER,EMP, MON, MON, "hr1");
+        List<DailyWorkSummaryRow> b = service.recalculate(ENTER,EMP, MON.plusDays(3), MON.plusDays(3), "hr1");
         assertThat(b).isEqualTo(a);
         ArgumentCaptor<DailyWorkSummaryRow> rows = ArgumentCaptor.forClass(DailyWorkSummaryRow.class);
         verify(mapper, times(14)).insert(rows.capture());

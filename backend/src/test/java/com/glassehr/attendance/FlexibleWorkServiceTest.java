@@ -49,6 +49,7 @@ class FlexibleWorkServiceTest {
     /** 임의 기준값(법령 수치 아님): 정산기간 1개월, 휴식 검사 600분(1개월 초과 정산기간에서만). */
     private static final Limits FAKE_SEL = new Limits(0, 1, 0, 0, 600, 420, 1800, 0);
     private static final long EMP = 5L;
+    private static final String ENTER = "C001";
 
     private FlexWorkAssignRepository assigns;
     private FlexWorkPlanRepository plans;
@@ -78,6 +79,7 @@ class FlexibleWorkServiceTest {
         when(rules.selectiveAsOf(any(), any())).thenReturn(FAKE_SEL);
         Employee e = mock(Employee.class);
         when(e.getEmpId()).thenReturn(EMP);
+        when(e.getEnterCd()).thenReturn(ENTER);
         when(e.getSiteCode()).thenReturn("HQ");
         when(e.getHireDate()).thenReturn(LocalDate.of(2020, 1, 1));
         when(employees.findById(EMP)).thenReturn(Optional.of(e));
@@ -127,7 +129,7 @@ class FlexibleWorkServiceTest {
 
     @Test
     void 유효한_서면합의가_없으면_배정_거부() {
-        when(guard.requireValid(eq(AgreementType.SELECTIVE), any(), any(), eq("HQ")))
+        when(guard.requireValid(eq(ENTER), eq(AgreementType.SELECTIVE), any(), any(), eq("HQ")))
                 .thenThrow(new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY, "합의서 없음", List.of()));
         assertThatThrownBy(() -> service.assign(req(WorkSystem.SELECTIVE, LocalDate.of(2026, 3, 1),
                 LocalDate.of(2026, 3, 31), "GENERAL", null, null, null), "hr1"))
@@ -140,7 +142,7 @@ class FlexibleWorkServiceTest {
     @Test
     void 서면합의가_있으면_합의서_ID를_함께_저장() {
         LaborAgreement a = agreement(7L);
-        when(guard.requireValid(AgreementType.FLEXIBLE_WRITTEN, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31),
+        when(guard.requireValid(ENTER, AgreementType.FLEXIBLE_WRITTEN, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31),
                 "HQ")).thenReturn(a);
         var v = service.assign(req(WorkSystem.FLEXIBLE_WRITTEN, LocalDate.of(2026, 3, 1),
                 LocalDate.of(2026, 3, 31), null, null, null, null), "hr1");
@@ -152,7 +154,7 @@ class FlexibleWorkServiceTest {
     @Test
     void 재량근로도_서면합의를_검사() {
         LaborAgreement a = agreement(8L);
-        when(guard.requireValid(eq(AgreementType.DISCRETIONARY), any(), any(), any())).thenReturn(a);
+        when(guard.requireValid(eq(ENTER), eq(AgreementType.DISCRETIONARY), any(), any(), any())).thenReturn(a);
         var v = service.assign(req(WorkSystem.DISCRETIONARY, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 12, 31),
                 "INFO_SYSTEM", null, null, 540), "hr1");
         assertThat(v.agreementId()).isEqualTo(8L);
@@ -166,7 +168,7 @@ class FlexibleWorkServiceTest {
         var v = service.assign(req(WorkSystem.FLEXIBLE_SHORT, LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 15),
                 null, null, null, null), "hr1");
         assertThat(v.agreementId()).isNull();
-        verify(guard, never()).requireValid(any(), any(), any(), any());
+        verify(guard, never()).requireValid(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -175,7 +177,7 @@ class FlexibleWorkServiceTest {
                 LocalDate.of(2026, 4, 1), null, null, null, null), "hr1"))
                 .isInstanceOf(AttendanceException.class)
                 .hasMessageContaining("제51조 제2항");
-        verify(guard, never()).requireValid(any(), any(), any(), any());
+        verify(guard, never()).requireValid(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -184,7 +186,7 @@ class FlexibleWorkServiceTest {
         when(rules.flexibleAsOf(WorkSystem.FLEXIBLE_LONG, first))
                 .thenReturn(new Limits(0, 6, 3000, 600, 600, 420, 1800, 2));
         LaborAgreement agreement = agreement(7L);
-        when(guard.requireValid(eq(AgreementType.FLEXIBLE_LONG), any(), any(), eq("HQ"))).thenReturn(agreement);
+        when(guard.requireValid(eq(ENTER), eq(AgreementType.FLEXIBLE_LONG), any(), any(), eq("HQ"))).thenReturn(agreement);
         LocalDate last = first.plusMonths(2).minusDays(1);
 
         assertThatThrownBy(() -> service.assign(req(WorkSystem.FLEXIBLE_LONG, first, last, null, null, null, null), "hr1"))
@@ -239,14 +241,14 @@ class FlexibleWorkServiceTest {
     void 연결된_합의서가_무효면_계획_저장과_정산을_막는다() {
         FlexWorkAssign assign = stored(WorkSystem.SELECTIVE, "GENERAL", null, null, null);
         doThrow(new AttendanceException(HttpStatus.UNPROCESSABLE_ENTITY, "유효한 서면합의서가 없어요", List.of()))
-                .when(guard).requireLinked(assign.getAgreementId(), AgreementType.SELECTIVE,
+                .when(guard).requireLinked(ENTER, assign.getAgreementId(), AgreementType.SELECTIVE,
                         assign.getPeriodStart(), assign.getPeriodEnd(), "HQ");
 
         assertThatThrownBy(() -> service.savePlan(1L, List.of(day(2, 9, 18, 480)), SELF))
                 .hasMessageContaining("서면합의서");
         assertThatThrownBy(() -> service.settle(1L, SELF)).hasMessageContaining("서면합의서");
         verify(plans, never()).deleteAllOfAssign(1L);
-        verify(workHours, never()).weekInputs(any());
+        verify(workHours, never()).weekInputs(any(), any());
     }
 
     @Test
@@ -306,9 +308,9 @@ class FlexibleWorkServiceTest {
     // ---------------------------------------------------------------- 정산(집계 엔진 연결)
 
     private void actualEveryDay(int minutes) {
-        when(workHours.weekInputs(any())).thenAnswer(inv -> {
-            LocalDate d = inv.getArgument(0);
-            return new WorkHoursService.WeekInputs(d.with(DayOfWeek.MONDAY), Set.of(), Map.of());
+        when(workHours.weekInputs(eq(ENTER), any())).thenAnswer(inv -> {
+            LocalDate d = inv.getArgument(1);
+            return new WorkHoursService.WeekInputs(ENTER, d.with(DayOfWeek.MONDAY), Set.of(), Map.of());
         });
         when(workHours.computeWeek(eq(EMP), any())).thenAnswer(inv -> {
             WorkHoursService.WeekInputs w = inv.getArgument(1);

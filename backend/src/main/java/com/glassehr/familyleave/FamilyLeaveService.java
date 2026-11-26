@@ -157,17 +157,17 @@ public class FamilyLeaveService {
             r.approveLeave(leave.apptId(), ret.apptId(), actor, now());
         } else {
             // 법 제19조의2·제19조의3: 단축 기간만 단축 근무유형을 쓰고, 끝나면 원래 근무유형으로 돌아간다.
-            AssignmentView before = currentPattern(empId, d.startDate());
+            AssignmentView before = currentPattern(e.getEnterCd(), empId, d.startDate());
             Optional<FamilyLeaveRequest> contiguous = approved(empId, reqId).stream()
                     .filter(o -> o.getKind() == Kind.CHILDCARE_REDUCED_HOURS
                             && o.getEndDate().plusDays(1).equals(d.startDate()) && o.getRestoreAssignId() != null)
                     .findFirst();
             AssignmentView reduced = contiguous.isPresent()
-                    ? workPatterns.replaceLatest(empId, contiguous.get().getRestoreAssignId(),
+                    ? workPatterns.replaceLatest(e.getEnterCd(), empId, contiguous.get().getRestoreAssignId(),
                             new AssignRequest(d.workPatternId(), d.startDate(), label + " 시작"))
-                    : workPatterns.assign(empId,
+                    : workPatterns.assign(e.getEnterCd(), empId,
                             new AssignRequest(d.workPatternId(), d.startDate(), label + " 시작"), actor);
-            AssignmentView restore = workPatterns.assign(empId,
+            AssignmentView restore = workPatterns.assign(e.getEnterCd(), empId,
                     new AssignRequest(before.patternId(), next, label + " 종료, 원래 근무유형"), actor);
             r.approveReduced(reduced.assignId(), restore.assignId(), actor, now());
         }
@@ -334,7 +334,8 @@ public class FamilyLeaveService {
 
     private void checkReduced(Employee e, Draft d, List<FamilyLeaveRequest> approved) {
         LocalDate on = d.startDate();
-        WorkPattern p = patterns.findById(d.workPatternId())
+        // 사원과 같은 법인 근무유형만 고를 수 있다(#125).
+        WorkPattern p = patterns.findByEnterCdAndPatternId(e.getEnterCd(), d.workPatternId())
                 .orElseThrow(() -> FamilyLeaveException.notFound("근무유형이 없어요: " + d.workPatternId()));
         if (!p.isActive()) {
             throw FamilyLeaveException.badRequest("사용 중지된 근무유형은 고를 수 없어요: " + p.getPatternCode());
@@ -347,8 +348,8 @@ public class FamilyLeaveService {
             throw FamilyLeaveException.badRequest("단축 후 주 소정근로시간은 " + min / 60 + "시간 이상 " + max / 60
                     + "시간 이하여야 해요(법 제19조의2 제3항). 고른 근무유형은 주 " + minutes(weekly));
         }
-        AssignmentView before = currentPattern(e.getEmpId(), on);
-        WorkPattern current = patterns.findById(before.patternId())
+        AssignmentView before = currentPattern(e.getEnterCd(), e.getEmpId(), on);
+        WorkPattern current = patterns.findByEnterCdAndPatternId(e.getEnterCd(), before.patternId())
                 .orElseThrow(() -> FamilyLeaveException.notFound("근무유형이 없어요: " + before.patternId()));
         if (weekly >= current.getWeeklyContractMinutes()) {
             throw FamilyLeaveException.badRequest("단축 근무유형의 주 소정근로시간(" + minutes(weekly) + ")이 지금 근무유형("
@@ -507,8 +508,8 @@ public class FamilyLeaveService {
         return list.stream().reduce(MonthsDays.ZERO, MonthsDays::plus);
     }
 
-    private AssignmentView currentPattern(long empId, LocalDate on) {
-        return workPatterns.effective(empId, on).orElseThrow(() -> FamilyLeaveException.conflict(
+    private AssignmentView currentPattern(String enterCd, long empId, LocalDate on) {
+        return workPatterns.effective(enterCd, empId, on).orElseThrow(() -> FamilyLeaveException.conflict(
                 "시작일(" + on + ")에 배정된 근무유형이 없어 단축이 끝난 뒤 돌아갈 근무유형을 알 수 없어요. 먼저 근무유형을 배정해 주세요"));
     }
 

@@ -8,17 +8,25 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * 근무유형은 법인마다 따로 둔다. 근무유형 API 는 법인 조건이 있는 메서드만 쓴다(#125, docs/tenant-design.md 5.2).
+ * 상속한 findById 는 같은 법인 행이 복합 FK 로 가리키는 pattern_id(집계 행·가족돌봄 신청·배정)를 따라갈 때만 쓴다.
+ */
 public interface WorkPatternRepository extends JpaRepository<WorkPattern, Long> {
 
-    List<WorkPattern> findAllByOrderByPatternCodeAsc();
+    List<WorkPattern> findByEnterCdOrderByPatternCodeAsc(String enterCd);
 
-    boolean existsByPatternCode(String patternCode);
+    boolean existsByEnterCdAndPatternCode(String enterCd, String patternCode);
+
+    /** 요청으로 받은 근무유형 ID 는 이것으로 찾는다. 다른 법인 근무유형은 빈 값. */
+    Optional<WorkPattern> findByEnterCdAndPatternId(String enterCd, Long patternId);
 
     /**
      * 근무유형 행 잠금. 수정(시각 변경)과 배정이 이것으로 읽어 서로 직렬화한다.
      * 잠그지 않으면 "배정 없음"을 확인한 수정과 동시에 들어온 배정이 바뀌기 전 값으로 검사돼 저장될 수 있다.
+     * 다른 법인 근무유형은 빈 값(→ 404).
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT p FROM WorkPattern p WHERE p.patternId = :patternId")
-    Optional<WorkPattern> findForUpdate(@Param("patternId") long patternId);
+    @Query("SELECT p FROM WorkPattern p WHERE p.enterCd = :enterCd AND p.patternId = :patternId")
+    Optional<WorkPattern> findForUpdate(@Param("enterCd") String enterCd, @Param("patternId") long patternId);
 }

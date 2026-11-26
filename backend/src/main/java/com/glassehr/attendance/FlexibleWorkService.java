@@ -162,7 +162,8 @@ public class FlexibleWorkService {
         Long agreementId = null;
         AgreementType type = sys.requiredAgreement();
         if (type != null) {
-            agreementId = guard.requireValid(type, req.periodStart(), req.periodEnd(), e.getSiteCode())
+            // 사원과 같은 법인 서면합의만 인정한다(#125).
+            agreementId = guard.requireValid(e.getEnterCd(), type, req.periodStart(), req.periodEnd(), e.getSiteCode())
                     .getAgreementId();
         }
         FlexWorkAssign saved = assigns.save(new FlexWorkAssign(e.getEmpId(), sys, req.periodStart(),
@@ -295,7 +296,7 @@ public class FlexibleWorkService {
         LocalDate workFrom = e.getHireDate().isAfter(a.getPeriodStart()) ? e.getHireDate() : a.getPeriodStart();
         LocalDate workTo = e.getRetireDate() != null && e.getRetireDate().isBefore(a.getPeriodEnd())
                 ? e.getRetireDate() : a.getPeriodEnd();
-        Map<LocalDate, DailyWorkSummaryRow> actual = actualDays(a.getEmpId(), workFrom, workTo);
+        Map<LocalDate, DailyWorkSummaryRow> actual = actualDays(e.getEnterCd(), a.getEmpId(), workFrom, workTo);
         Map<LocalDate, Integer> planMinutes = new HashMap<>();
         for (FlexWorkPlan p : plans.findByFlexIdOrderByWorkDateAsc(flexId)) {
             planMinutes.put(p.getWorkDate(), p.getPlanMinutes());
@@ -307,7 +308,7 @@ public class FlexibleWorkService {
 
         if (sys == WorkSystem.DISCRETIONARY) {
             // 1일 기준시간(근로기준법 제50조 제2항)은 배정 시작일 기준 legal_rate
-            WorkHoursCalculator.Rules base = workHours.weekInputs(a.getPeriodStart()).appliedByDate()
+            WorkHoursCalculator.Rules base = workHours.weekInputs(e.getEnterCd(), a.getPeriodStart()).appliedByDate()
                     .get(a.getPeriodStart()).rules();
             int recognized = 0;
             int overtime = 0;
@@ -369,13 +370,14 @@ public class FlexibleWorkService {
     }
 
     /** 집계 엔진으로 [from, to]의 날별 결과를 주 단위로 계산(저장하지 않음). 날짜 순. */
-    private Map<LocalDate, DailyWorkSummaryRow> actualDays(long empId, LocalDate from, LocalDate to) {
+    private Map<LocalDate, DailyWorkSummaryRow> actualDays(String enterCd, long empId, LocalDate from,
+            LocalDate to) {
         Map<LocalDate, DailyWorkSummaryRow> out = new java.util.TreeMap<>();
         if (to.isBefore(from)) {
             return out;
         }
         for (LocalDate d = from; !d.isAfter(to); d = d.plusWeeks(1)) {
-            for (DailyWorkSummaryRow r : workHours.computeWeek(empId, workHours.weekInputs(d))) {
+            for (DailyWorkSummaryRow r : workHours.computeWeek(empId, workHours.weekInputs(enterCd, d))) {
                 if (!r.workDate().isBefore(from) && !r.workDate().isAfter(to)) {
                     out.put(r.workDate(), r);
                 }
@@ -383,7 +385,7 @@ public class FlexibleWorkService {
         }
         // 마지막 주가 위 반복에서 빠지는 경우(시작 요일보다 앞선 요일로 끝날 때)
         if (!out.containsKey(to)) {
-            for (DailyWorkSummaryRow r : workHours.computeWeek(empId, workHours.weekInputs(to))) {
+            for (DailyWorkSummaryRow r : workHours.computeWeek(empId, workHours.weekInputs(enterCd, to))) {
                 if (!r.workDate().isBefore(from) && !r.workDate().isAfter(to)) {
                     out.put(r.workDate(), r);
                 }
@@ -423,7 +425,7 @@ public class FlexibleWorkService {
     private void requireLinkedAgreement(FlexWorkAssign assign, Employee employee) {
         AgreementType type = assign.getWorkSystem().requiredAgreement();
         if (type != null) {
-            guard.requireLinked(assign.getAgreementId(), type, assign.getPeriodStart(), assign.getPeriodEnd(),
+            guard.requireLinked(employee.getEnterCd(), assign.getAgreementId(), type, assign.getPeriodStart(), assign.getPeriodEnd(),
                     employee.getSiteCode());
         }
     }
