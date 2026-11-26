@@ -91,7 +91,11 @@ public class WorkPatternService {
                 : workerTypes.classifyPattern(enterCd, null, r.weeklyContractMinutes(), today());
         WorkPattern p = new WorkPattern(enterCd, req.patternCode(), req.patternName().strip(), req.spec(), r, type,
                 req.usesFullTimeBaseline(), req.active() == null || req.active(), blankToNull(req.note()), now());
-        return WorkPatternView.of(patterns.save(p), false);
+        WorkPattern saved = patterns.save(p);
+        if (saved.isFullTimeBaseline()) {
+            reclassifyPatterns(enterCd);
+        }
+        return WorkPatternView.of(saved, false);
     }
 
     /** 다른 법인 근무유형은 404(존재 여부를 드러내지 않는다, #125). */
@@ -114,13 +118,26 @@ public class WorkPatternService {
             WorkPatternRules.Result r = requireValid(req.spec(), today());
             p.applySpec(req.spec(), r);
         }
-        if (specChanged || p.isFullTimeBaseline() != fullTimeBaseline) {
+        boolean baselineChanged = p.isFullTimeBaseline() != fullTimeBaseline;
+        if (specChanged || baselineChanged) {
             p.changeWorkerType(fullTimeBaseline ? WorkerType.FULL_TIME
                     : workerTypes.classifyPattern(enterCd, patternId, p.getWeeklyContractMinutes(), today()));
         }
         p.changeFullTimeBaseline(fullTimeBaseline);
+        if (baselineChanged) {
+            reclassifyPatterns(enterCd);
+        }
         p.rename(req.patternName().strip(), req.active() == null || req.active(), blankToNull(req.note()), now());
         return WorkPatternView.of(p, assigned);
+    }
+
+    /** 통상근로자 비교 기준이 바뀌면 같은 법인의 저장된 판정도 현재 기준으로 맞춘다. */
+    private void reclassifyPatterns(String enterCd) {
+        for (WorkPattern pattern : patterns.findByEnterCdOrderByPatternCodeAsc(enterCd)) {
+            pattern.changeWorkerType(pattern.isFullTimeBaseline() ? WorkerType.FULL_TIME
+                    : workerTypes.classifyPattern(enterCd, pattern.getPatternId(),
+                            pattern.getWeeklyContractMinutes(), today()));
+        }
     }
 
     @Transactional(readOnly = true)

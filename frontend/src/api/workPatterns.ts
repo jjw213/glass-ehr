@@ -28,6 +28,7 @@ export interface WorkPatternSpec {
 export interface WorkPatternInput extends WorkPatternSpec {
   patternCode: string;
   patternName: string;
+  fullTimeBaseline: boolean;
   active: boolean;
   note: string | null;
 }

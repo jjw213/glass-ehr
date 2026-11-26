@@ -28,13 +28,13 @@ export function WorkPatternsPage() {
 
 interface Draft {
   patternCode: string; patternName: string; start: string; end: string;
-  breakStart: string; breakMinutes: string; dayTypes: DayType[]; active: boolean; note: string;
+  breakStart: string; breakMinutes: string; dayTypes: DayType[]; fullTimeBaseline: boolean; active: boolean; note: string;
 }
 type Editing = { mode: 'create' } | { mode: 'edit'; row: WorkPattern };
 
 const emptyDraft = (): Draft => ({
   patternCode: '', patternName: '', start: '09:00', end: '18:00', breakStart: '12:00', breakMinutes: '60',
-  dayTypes: ['W', 'W', 'W', 'W', 'W', 'O', 'H'], active: true, note: '',
+  dayTypes: ['W', 'W', 'W', 'W', 'W', 'O', 'H'], fullTimeBaseline: false, active: true, note: '',
 });
 const NEXT: Record<DayType, DayType> = { W: 'O', O: 'H', H: 'W' };
 
@@ -48,7 +48,8 @@ function toInput(d: Draft): WorkPatternInput | string {
   if (breakMinutes > 0 && breakStart === null) return '휴게 시작 시각을 HH:MM 으로 입력해 주세요';
   return {
     patternCode: d.patternCode, patternName: d.patternName, workStartMin: start, workEndMin: end,
-    breakStartMin: breakStart, breakMinutes, dayTypes: d.dayTypes.join(''), active: d.active, note: d.note.trim() || null,
+    breakStartMin: breakStart, breakMinutes, dayTypes: d.dayTypes.join(''), fullTimeBaseline: d.fullTimeBaseline,
+    active: d.active, note: d.note.trim() || null,
   };
 }
 
@@ -82,7 +83,7 @@ export function WorkPatternManager({ api, toast }: { api: WorkPatternApi; toast:
   const openEdit = (r: WorkPattern) => open({ mode: 'edit', row: r }, {
     patternCode: r.patternCode, patternName: r.patternName, start: toHm(r.workStartMin), end: toHm(r.workEndMin),
     breakStart: r.breakStartMin === null ? '' : toHm(r.breakStartMin), breakMinutes: String(r.breakMinutes),
-    dayTypes: [...r.dayTypes] as DayType[], active: r.active, note: r.note ?? '',
+    dayTypes: [...r.dayTypes] as DayType[], fullTimeBaseline: r.fullTimeBaseline, active: r.active, note: r.note ?? '',
   });
   const close = useCallback(() => setEditing(null), []);
 
@@ -156,6 +157,7 @@ export function WorkPatternManager({ api, toast }: { api: WorkPatternApi; toast:
                     {r.workerType ? (
                       <>
                         <Badge tone={r.workerType === 'ULTRA_SHORT' ? 'amber' : 'blue'}>{WORKER_TYPE_LABEL[r.workerType]}</Badge>
+                        {r.fullTimeBaseline && <span className="muted sm"> 비교 기준</span>}
                         {WORKER_TYPE_NOTICE[r.workerType] && <span className="muted sm"> {WORKER_TYPE_NOTICE[r.workerType]}</span>}
                       </>
                     ) : (
@@ -224,6 +226,11 @@ export function WorkPatternManager({ api, toast }: { api: WorkPatternApi; toast:
             </div>
           </div>
           <div className="form__row">
+            <div className="field">
+              <span className="field__label">통상근로자 비교 기준</span>
+              <Toggle checked={draft.fullTimeBaseline}
+                onChange={(v) => setDraft({ ...draft, fullTimeBaseline: v })} label="통상근로자 비교 기준" />
+            </div>
             <div className="field">
               <span className="field__label">사용 여부</span>
               <Toggle checked={draft.active} onChange={(v) => setDraft({ ...draft, active: v })} label="사용 여부" />

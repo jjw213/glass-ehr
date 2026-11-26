@@ -22,7 +22,7 @@ const byLabel = (host: HTMLElement, label: string) => host.querySelector<HTMLEle
 
 const base: WorkPatternInput = {
   patternCode: 'DAY2', patternName: '주간', workStartMin: 540, workEndMin: 1080, breakStartMin: 720, breakMinutes: 60,
-  dayTypes: 'WWWWWOH', active: true, note: null,
+  dayTypes: 'WWWWWOH', fullTimeBaseline: false, active: true, note: null,
 };
 
 describe('근무유형 메뉴 권한', () => {
@@ -106,6 +106,18 @@ describe('WorkPatternManager', () => {
     expect(check).toHaveBeenCalledOnce();
     expect(toast).toHaveBeenCalledWith('근무유형 NIGHT를 추가했어요');
     expect((await api.list()).map((r) => r.patternCode)).toContain('NIGHT');
+  });
+
+  it('통상근로자 비교 기준을 등록하고 기존 지정 상태를 표시한다', async () => {
+    const api = createMockWorkPatternApi();
+    await mount(api);
+    await act(async () => { byLabel(host, '주간 근무 수정').click(); });
+    const baseline = byLabel(host, '통상근로자 비교 기준');
+    expect(baseline.getAttribute('aria-checked')).toBe('true');
+    await act(async () => { baseline.click(); });
+    await act(async () => { host.querySelector<HTMLFormElement>('.modal form')!.requestSubmit(); });
+    await flush();
+    expect((await api.list()).find((r) => r.patternCode === 'DAY')!.fullTimeBaseline).toBe(false);
   });
 
   it('주휴일을 지정하지 않으면 저장하지 않는다', async () => {

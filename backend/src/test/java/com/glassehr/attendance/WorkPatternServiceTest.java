@@ -98,6 +98,23 @@ class WorkPatternServiceTest {
         verify(workerTypes).classifyPattern(ENTER, 7L, 1500, TODAY);
     }
 
+    @Test
+    void 통상근로자_비교_기준을_바꾸면_같은_법인의_기존_근무유형도_재판정한다() {
+        WorkPattern baseline = pattern(7, true);
+        WorkPattern existing = pattern(8, true);
+        when(patterns.findForUpdate(ENTER, 7)).thenReturn(Optional.of(baseline));
+        when(patterns.findByEnterCdOrderByPatternCodeAsc(ENTER)).thenReturn(List.of(baseline, existing));
+        WorkPatternRequest req = new WorkPatternRequest("DAY", "주간", 540, 945, 720, 45,
+                "WWWWWOH", true, true, null);
+
+        service.update(ENTER, 7, req);
+
+        assertThat(baseline.isFullTimeBaseline()).isTrue();
+        assertThat(baseline.getWorkerType()).isEqualTo(WorkerType.FULL_TIME);
+        assertThat(existing.getWorkerType()).isEqualTo(WorkerType.PART_TIME);
+        verify(workerTypes).classifyPattern(ENTER, 8L, 1800, TODAY);
+    }
+
     private static <T> T withId(T entity, String field, Object id) {
         try {
             Field f = entity.getClass().getDeclaredField(field);
