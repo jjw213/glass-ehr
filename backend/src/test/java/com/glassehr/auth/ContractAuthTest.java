@@ -86,6 +86,6 @@ class ContractAuthTest {
     @Test
     void 인사담당은_계약_목록을_본다() throws Exception {
         mvc.perform(as(get("/api/employees/7/contracts"), "hr1")).andExpect(status().isOk());
-        verify(service).list(eq("C001"), 7L);
+        verify(service).list(eq("C001"), eq(7L));
     }
 }

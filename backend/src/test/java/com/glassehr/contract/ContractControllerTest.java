@@ -112,7 +112,7 @@ class ContractControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].type").value("CONTRACT_EXPIRING"))
                 .andExpect(jsonPath("$[0].daysLeft").value(3));
-        verify(service).alerts(eq("C001"), LocalDate.of(2026, 2, 27));
+        verify(service).alerts(eq("C001"), eq(LocalDate.of(2026, 2, 27)));
         mvc.perform(get("/api/contracts/alerts")).andExpect(status().isOk());
         verify(service).alerts(eq("C001"), isNull());
         mvc.perform(get("/api/contracts/alerts").param("asOf", "2026/02/27")).andExpect(status().isBadRequest());
@@ -122,7 +122,7 @@ class ContractControllerTest {
     void 미교부_목록과_이력() throws Exception {
         when(service.undelivered(eq("C001"))).thenReturn(List.of());
         mvc.perform(get("/api/contracts/undelivered")).andExpect(status().isOk()).andExpect(jsonPath("$").isArray());
-        when(service.list(eq("C001"), 1)).thenReturn(List.of(view(List.of())));
+        when(service.list(eq("C001"), eq(1L))).thenReturn(List.of(view(List.of())));
         mvc.perform(get("/api/employees/1/contracts")).andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].contractId").value(7));
     }
