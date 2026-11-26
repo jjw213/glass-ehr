@@ -139,7 +139,8 @@ class RetirementServiceTest {
             certStore.put(c.getCertId(), c);
             return c;
         });
-        when(certs.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(certStore.get(inv.<Long>getArgument(0))));
+        when(certs.findByEnterCdAndCertId(any(), anyLong()))
+                .thenAnswer(inv -> Optional.ofNullable(certStore.get(inv.<Long>getArgument(1))));
 
         EmploymentContractRepository contracts = mock(EmploymentContractRepository.class);
         when(contracts.findByEnterCdAndEmpIdOrderByStartDateAsc(any(), anyLong())).thenAnswer(inv -> contractStore.stream()

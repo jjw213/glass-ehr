@@ -84,6 +84,7 @@ class FamilyLeaveServiceTest {
 
         Employee e = mock(Employee.class);
         when(e.getEmpId()).thenReturn(1L);
+        when(e.getEnterCd()).thenReturn("C001");
         when(e.getHireDate()).thenReturn(HIRE);
         when(employees.findForUpdate(1L)).thenReturn(Optional.of(e));
         when(employees.existsById(1L)).thenReturn(true);
@@ -100,7 +101,7 @@ class FamilyLeaveServiceTest {
         when(requests.findEmpIdByReqId(anyLong())).thenReturn(Optional.of(1L));
         when(requests.findForUpdate(anyLong())).thenAnswer(i -> store.stream()
                 .filter(r -> r.getReqId() == (long) i.getArgument(0)).findFirst());
-        when(appointments.create(eq("C001"), eq(1L), any())).thenAnswer(i -> appt(apptIds.getAndIncrement(), i.getArgument(1)));
+        when(appointments.create(eq("C001"), eq(1L), any())).thenAnswer(i -> appt(apptIds.getAndIncrement(), i.getArgument(2)));
 
         // 테스트용 임의 기준값(법령 정답 아님)
         rate(LegalRateItem.PARENTAL_LEAVE_MAX_MONTHS, 10);
@@ -290,9 +291,9 @@ class FamilyLeaveServiceTest {
         order.verify(orgLock).acquire();
         order.verify(employees).findForUpdate(1L);
         order.verify(appointments).create(eq("C001"), eq(1L), captor.capture());
-        order.verify(appointments).confirm(eq("C001"), 100L);
+        order.verify(appointments).confirm(eq("C001"), eq(100L));
         order.verify(appointments).create(eq("C001"), eq(1L), captor.capture());
-        verify(appointments, never()).confirm(eq("C001"), 101L);
+        verify(appointments, never()).confirm(eq("C001"), eq(101L));
 
         AppointmentRequest leave = captor.getAllValues().get(0);
         assertThat(leave.apptTypeCode()).isEqualTo("LEAVE");

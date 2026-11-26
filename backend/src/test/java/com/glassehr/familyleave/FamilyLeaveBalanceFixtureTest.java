@@ -176,6 +176,7 @@ class FamilyLeaveBalanceFixtureTest {
         EmployeeRepository employees = mock(EmployeeRepository.class);
         Employee e = mock(Employee.class);
         when(e.getEmpId()).thenReturn(1L);
+        when(e.getEnterCd()).thenReturn("C001");
         when(e.getHireDate()).thenReturn(LocalDate.of(2015, 1, 1));
         when(employees.findForUpdate(1L)).thenReturn(Optional.of(e));
         when(employees.existsById(1L)).thenReturn(true);
@@ -197,7 +198,7 @@ class FamilyLeaveBalanceFixtureTest {
         });
 
         AppointmentService appointments = mock(AppointmentService.class);
-        when(appointments.create(eq("C001"), eq(1L), any())).thenAnswer(i -> appt(refIds.getAndIncrement(), i.getArgument(1)));
+        when(appointments.create(eq("C001"), eq(1L), any())).thenAnswer(i -> appt(refIds.getAndIncrement(), i.getArgument(2)));
         // 휴직 발령 이력은 신청 기간 그대로 둔다(조기 복직 없음).
         when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenAnswer(i -> store.stream()
                 .filter(r -> r.getLeaveApptId() != null)

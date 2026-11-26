@@ -100,7 +100,7 @@ class RetirementControllerTest {
 
     @Test
     void 보존기한_경과_목록() throws Exception {
-        when(service.retentionExpired(eq("C001"), LocalDate.of(2026, 11, 16))).thenReturn(List.of(new RetirementDtos.RetentionExpiredRow(
+        when(service.retentionExpired(eq("C001"), eq(LocalDate.of(2026, 11, 16)))).thenReturn(List.of(new RetirementDtos.RetentionExpiredRow(
                 5, "S01-2020-005", "예시사원", LocalDate.of(2023, 1, 1), "VOLUNTARY", LocalDate.of(2026, 1, 1), 319)));
         mvc.perform(get("/api/retirements/retention-expired").param("asOf", "2026-11-16"))
                 .andExpect(status().isOk())
