@@ -89,6 +89,8 @@ class ContractServiceTest {
     void setUp() {
         contracts = mock(EmploymentContractRepository.class);
         when(contracts.findById(anyLong())).thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(0))));
+        when(contracts.findByEnterCdAndContractId(any(), anyLong()))
+                .thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(1))));
         when(contracts.findForUpdate(any(), anyLong())).thenAnswer(inv -> Optional.ofNullable(store.get(inv.<Long>getArgument(1))));
         when(contracts.findEmpIdByContractId(any(), anyLong())).thenAnswer(inv ->
                 Optional.ofNullable(store.get(inv.<Long>getArgument(1))).map(EmploymentContract::getEmpId));
@@ -117,8 +119,8 @@ class ContractServiceTest {
         when(employees.findByEnterCdAndEmpId(any(), anyLong())).thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(1))));
         when(employees.findForUpdate(any(), anyLong()))
                 .thenAnswer(inv -> Optional.ofNullable(emps.get(inv.<Long>getArgument(1))));
-        when(employees.findAllById(any())).thenAnswer(inv -> {
-            Collection<Long> ids = inv.getArgument(0);
+        when(employees.findByEnterCdAndEmpIdIn(any(), any())).thenAnswer(inv -> {
+            Collection<Long> ids = inv.getArgument(1);
             return ids.stream().map(emps::get).filter(e -> e != null).toList();
         });
 
@@ -231,7 +233,7 @@ class ContractServiceTest {
         InOrder order = inOrder(contracts, employees);
         for (int i = 0; i < 2; i++) {
             order.verify(contracts).findEmpIdByContractId("C001", id);
-            order.verify(employees).findForUpdate(1L);
+            order.verify(employees).findForUpdate("C001", 1L);
             order.verify(contracts).findForUpdate("C001", id);
         }
     }
