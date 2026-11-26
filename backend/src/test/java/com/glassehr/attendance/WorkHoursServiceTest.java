@@ -134,8 +134,11 @@ class WorkHoursServiceTest {
     /** 09:00~18:00, 휴게 12:00 60분, 월~금 근무·토 휴무·일 주휴일. */
     private static WorkPattern dayPattern() {
         WorkPatternRules.Spec spec = new WorkPatternRules.Spec(9 * 60, 18 * 60, 12 * 60, 60, "WWWWWOH");
-        return new WorkPattern(ENTER, "DAY","주간", spec, new WorkPatternRules.Result(480, 2400, List.of()), true, null,
-                LocalDateTime.of(2099, 1, 1, 0, 0));
+        WorkPattern p = new WorkPattern(ENTER, "DAY", "주간", spec, new WorkPatternRules.Result(480, 2400, List.of()),
+                true, null, LocalDateTime.of(2099, 1, 1, 0, 0));
+        // 저장된 근무유형처럼 ID 를 둔다(정책 재정의는 근무유형 ID 로 찾는다).
+        org.springframework.test.util.ReflectionTestUtils.setField(p, "patternId", PATTERN);
+        return p;
     }
 
     /** 근무일은 기록 시각의 날짜(V021 ck_punch_work_date_same). */

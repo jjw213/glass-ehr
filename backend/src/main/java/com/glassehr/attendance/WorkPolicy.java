@@ -18,7 +18,7 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 /**
- * 근무 정책(기록·인정 규칙, #159). 테이블: V044__work_policy.sql. patternId 가 null 이면 법인 기본 정책.
+ * 근무 정책(기록·인정 규칙, #159). 테이블: V045__work_policy.sql. patternId 가 null 이면 법인 기본 정책.
  * 값 검사는 {@link WorkPolicyRules}. 쓰인 정책은 지우지 않고 숨긴다(active=false).
  */
 @Entity

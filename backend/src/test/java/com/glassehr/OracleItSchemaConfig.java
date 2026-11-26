@@ -270,6 +270,13 @@ public class OracleItSchemaConfig {
                     new ClassPathResource("db/oracle/V043__attendance_record_flex_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer workPolicy = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'WORK_POLICY'", Integer.class);
+        if (workPolicy == null || workPolicy == 0) {
+            // #159: 근무 정책(기록·인정 규칙)
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V045__work_policy.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
