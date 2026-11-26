@@ -88,6 +88,7 @@ class FamilyLeaveServiceTest {
         when(e.getEnterCd()).thenReturn(ENTER);
         when(e.getHireDate()).thenReturn(HIRE);
         when(employees.findForUpdate(1L)).thenReturn(Optional.of(e));
+        when(employees.findById(1L)).thenReturn(Optional.of(e));
         when(employees.existsById(1L)).thenReturn(true);
 
         when(requests.findByEmpIdOrderByStartDateAscReqIdAsc(1L)).thenAnswer(i -> List.copyOf(store));

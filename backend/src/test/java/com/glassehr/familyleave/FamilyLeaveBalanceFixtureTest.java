@@ -179,6 +179,7 @@ class FamilyLeaveBalanceFixtureTest {
         when(e.getEnterCd()).thenReturn("C001");
         when(e.getHireDate()).thenReturn(LocalDate.of(2015, 1, 1));
         when(employees.findForUpdate(1L)).thenReturn(Optional.of(e));
+        when(employees.findById(1L)).thenReturn(Optional.of(e));
         when(employees.existsById(1L)).thenReturn(true);
 
         WorkPatternRepository patterns = mock(WorkPatternRepository.class);
