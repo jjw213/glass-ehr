@@ -61,7 +61,7 @@ class AppointmentAuthTest {
 
     @Test
     void 일반_사원은_본인의_확정_발령만_본다() throws Exception {
-        when(service.listByEmployee(eq("C001"), TestAuthUsers.EMP_EMP)).thenReturn(List.of(view(1, true), view(2, false)));
+        when(service.listByEmployee(eq("C001"), eq(TestAuthUsers.EMP_EMP))).thenReturn(List.of(view(1, true), view(2, false)));
         mvc.perform(as(get("/api/employees/" + TestAuthUsers.EMP_EMP + "/appointments"), "emp1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -81,7 +81,7 @@ class AppointmentAuthTest {
 
     @Test
     void 인사담당은_다른_사원의_미확정_발령까지_본다() throws Exception {
-        when(service.listByEmployee(eq("C001"), TestAuthUsers.EMP_EMP)).thenReturn(List.of(view(1, true), view(2, false)));
+        when(service.listByEmployee(eq("C001"), eq(TestAuthUsers.EMP_EMP))).thenReturn(List.of(view(1, true), view(2, false)));
         mvc.perform(as(get("/api/employees/" + TestAuthUsers.EMP_EMP + "/appointments"), "hr1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2));

@@ -15,12 +15,13 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
-/** #59 V019(사원 재직상태·취소 발령 연결)과 #124 V038(법인 키) 정적 검사. DB 없이 돈다. */
+/** #59 V019(사원 재직상태·취소 발령 연결), #123 V031(법인 컬럼), #124 V038(법인 키) 정적 검사. DB 없이 돈다. */
 class AppointmentApplySchemaScriptTest {
 
     private static String ddl() throws IOException {
         return List.of(
                         "db/oracle/V019__hr_appointment_apply_cancel.sql",
+                        "db/oracle/V031__enter_company_enter_cd.sql",
                         "db/oracle/V038__appointment_contract_retirement_enter_cd.sql")
                 .stream()
                 .map(AppointmentApplySchemaScriptTest::read)

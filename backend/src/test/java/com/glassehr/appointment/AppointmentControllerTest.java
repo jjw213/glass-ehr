@@ -99,19 +99,19 @@ class AppointmentControllerTest {
                         .content(LEAVE_BODY.formatted("\"r\"")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("확정된 발령은 고칠 수 없어요"));
-        org.mockito.Mockito.doThrow(AppointmentException.conflict("지울 수 없어요")).when(service).delete(eq("C001"), 8L);
+        org.mockito.Mockito.doThrow(AppointmentException.conflict("지울 수 없어요")).when(service).delete(eq("C001"), eq(8L));
         mvc.perform(delete("/api/appointments/8")).andExpect(status().isConflict());
     }
 
     @Test
     void 확정_삭제_조회_경로() throws Exception {
-        when(service.confirm(eq("C001"), 7L)).thenReturn(view(true));
+        when(service.confirm(eq("C001"), eq(7L))).thenReturn(view(true));
         mvc.perform(post("/api/appointments/7/confirm"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.confirmed").value(true))
                 .andExpect(jsonPath("$.confirmedAt").value("2026-11-13T10:00:00"));
         mvc.perform(delete("/api/appointments/9")).andExpect(status().isNoContent());
-        verify(service).delete(eq("C001"), 9L);
+        verify(service).delete(eq("C001"), eq(9L));
 
         when(service.search(eq("C001"), any(), any(), any(), any(), any())).thenReturn(List.of(view(false)));
         mvc.perform(get("/api/appointments").param("confirmed", "false").param("type", "LEAVE")
@@ -120,9 +120,9 @@ class AppointmentControllerTest {
                 .andExpect(jsonPath("$[0].apptId").value(7));
         verify(service).search(eq("C001"), eq(false), eq("LEAVE"), eq(D), isNull(), eq(10L));
 
-        when(service.get(eq("C001"), 7L)).thenThrow(AppointmentException.notFound("발령이 없어요: 7"));
+        when(service.get(eq("C001"), eq(7L))).thenThrow(AppointmentException.notFound("발령이 없어요: 7"));
         mvc.perform(get("/api/appointments/7")).andExpect(status().is(HttpStatus.NOT_FOUND.value()));
-        when(service.listByEmployee(eq("C001"), 1L)).thenReturn(List.of());
+        when(service.listByEmployee(eq("C001"), eq(1L))).thenReturn(List.of());
         mvc.perform(get("/api/employees/1/appointments")).andExpect(status().isOk());
     }
 }
