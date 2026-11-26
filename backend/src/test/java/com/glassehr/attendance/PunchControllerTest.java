@@ -60,7 +60,7 @@ class PunchControllerTest {
                         .content("{\"type\":\"OUT\",\"empId\":100,\"punchedAt\":\"2000-01-01T00:00:00+09:00\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.check").value("OUT_WITHOUT_IN"));
-        verify(service).punch(eq(TestAuthUsers.EMP_EMP), eq("emp1"), any());
+        verify(service).punch(eq(TestAuthUsers.C001), eq(TestAuthUsers.EMP_EMP), eq("emp1"), any());
     }
 
     @Test
