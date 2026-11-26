@@ -77,6 +77,18 @@ class WorkPatternServiceTest {
     }
 
     @Test
+    void 통상근로자_비교_기준은_기존_판정과_무관하게_통상으로_저장한다() {
+        WorkPatternRequest req = new WorkPatternRequest("FT30", "주 30시간", 540, 945, 720, 45,
+                "WWWWWOH", true, true, null);
+
+        WorkPatternView v = service.create(ENTER, req);
+
+        assertThat(v.fullTimeBaseline()).isTrue();
+        assertThat(v.workerType()).isEqualTo(WorkerType.FULL_TIME);
+        verify(workerTypes, never()).classifyPattern(any(), any(), any(Integer.class), any());
+    }
+
+    @Test
     void 시각을_바꾸면_자기_자신을_빼고_근로자_유형을_다시_계산한다() {
         WorkPattern p = pattern(7, true);
         when(patterns.findForUpdate(ENTER, 7)).thenReturn(Optional.of(p));

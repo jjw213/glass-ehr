@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 소정근로시간으로 근로자 유형을 정하고 주휴·연차 적용 안내를 만든다(#158).
  *
- * <p>통상근로자 1주 소정근로시간은 법인의 사용 중인 "적용 근로자 유형 = 통상" 근무유형 중 가장 긴 것이다.
+ * <p>통상근로자 1주 소정근로시간은 법인의 사용 중인 "통상근로자 비교 기준" 근무유형 중 가장 긴 것이다.
  * 그런 근무유형이 없으면 근로기준법 제50조 제1항·제2항 기준근로시간(legal_rate WEEKLY_STANDARD_WORK_HOURS,
  * DAILY_STANDARD_WORK_HOURS)을 통상근로자의 1주 소정근로시간·1일 소정근로시간으로 본다.
  */
@@ -61,8 +61,8 @@ public class WorkerTypeService {
     /** excludePatternId: 지금 저장하는 근무유형(자기 자신을 기준으로 삼지 않는다). */
     private Baseline baseline(String enterCd, Long excludePatternId, LocalDate date) {
         return patterns.findByEnterCdOrderByPatternCodeAsc(enterCd).stream()
-                .filter(p -> p.isActive() && p.getWorkerType() == WorkerType.FULL_TIME
-                        && !Objects.equals(p.getPatternId(), excludePatternId))
+                .filter(p -> p.isActive() && p.isFullTimeBaseline()
+                        && (excludePatternId == null || !Objects.equals(p.getPatternId(), excludePatternId)))
                 .max(Comparator.comparingInt(WorkPattern::getWeeklyContractMinutes))
                 .map(p -> new Baseline(p.getWeeklyContractMinutes(),
                         WorkPatternRules.count(p.spec().dayTypes(), WorkPatternRules.WORK_DAY), p.getPatternCode()))

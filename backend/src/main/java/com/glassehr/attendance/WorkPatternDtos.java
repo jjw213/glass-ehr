@@ -21,13 +21,22 @@ public final class WorkPatternDtos {
 
     public record WorkPatternView(long patternId, String patternCode, String patternName, int workStartMin,
             int workEndMin, Integer breakStartMin, int breakMinutes, String dayTypes, int dailyContractMinutes,
-            int weeklyContractMinutes, WorkerType workerType, boolean active, String note, boolean assigned) {
+            int weeklyContractMinutes, WorkerType workerType, boolean fullTimeBaseline, boolean active, String note,
+            boolean assigned) {
+
+        public WorkPatternView(long patternId, String patternCode, String patternName, int workStartMin,
+                int workEndMin, Integer breakStartMin, int breakMinutes, String dayTypes, int dailyContractMinutes,
+                int weeklyContractMinutes, WorkerType workerType, boolean active, String note, boolean assigned) {
+            this(patternId, patternCode, patternName, workStartMin, workEndMin, breakStartMin, breakMinutes, dayTypes,
+                    dailyContractMinutes, weeklyContractMinutes, workerType, false, active, note, assigned);
+        }
 
         static WorkPatternView of(WorkPattern p, boolean assigned) {
             WorkPatternRules.Spec s = p.spec();
             return new WorkPatternView(p.getPatternId(), p.getPatternCode(), p.getPatternName(), s.workStartMin(),
                     s.workEndMin(), s.breakStartMin(), s.breakMinutes(), s.dayTypes(), p.getDailyContractMinutes(),
-                    p.getWeeklyContractMinutes(), p.getWorkerType(), p.isActive(), p.getNote(), assigned);
+                    p.getWeeklyContractMinutes(), p.getWorkerType(), p.isFullTimeBaseline(), p.isActive(), p.getNote(),
+                    assigned);
         }
     }
 
@@ -58,12 +67,23 @@ public final class WorkPatternDtos {
             @Pattern(regexp = "^[WOH]+$", message = "요일 구분은 W(근무일)·O(휴무일)·H(주휴일)로 7자리를 써 주세요")
             @Size(min = 7, max = 7, message = "요일 구분은 월~일 7자리로 써 주세요")
             String dayTypes,
+            Boolean fullTimeBaseline,
             Boolean active,
             @Size(max = 500, message = "비고는 500자 이내로 써 주세요")
             String note) {
 
+        public WorkPatternRequest(String patternCode, String patternName, Integer workStartMin, Integer workEndMin,
+                Integer breakStartMin, Integer breakMinutes, String dayTypes, Boolean active, String note) {
+            this(patternCode, patternName, workStartMin, workEndMin, breakStartMin, breakMinutes, dayTypes, false,
+                    active, note);
+        }
+
         WorkPatternRules.Spec spec() {
             return new WorkPatternRules.Spec(workStartMin, workEndMin, breakStartMin, breakMinutes, dayTypes);
+        }
+
+        boolean usesFullTimeBaseline() {
+            return Boolean.TRUE.equals(fullTimeBaseline);
         }
     }
 

@@ -61,6 +61,11 @@ public class WorkPattern {
     @Column(name = "worker_type_code")
     private WorkerType workerType;
 
+    /** 통상근로자 비교 기준으로 관리자가 지정한 근무유형(#158, V045). 판정 결과와 독립된 입력값이다. */
+    @Convert(converter = YnConverter.class)
+    @Column(name = "full_time_baseline_yn", nullable = false)
+    private Boolean fullTimeBaseline;
+
     @Convert(converter = YnConverter.class)
     @Column(name = "use_yn", nullable = false)
     private Boolean active;
@@ -79,8 +84,15 @@ public class WorkPattern {
 
     public WorkPattern(String enterCd, String patternCode, String patternName, WorkPatternRules.Spec spec,
             WorkPatternRules.Result computed, WorkerType workerType, boolean active, String note, LocalDateTime now) {
+        this(enterCd, patternCode, patternName, spec, computed, workerType, false, active, note, now);
+    }
+
+    public WorkPattern(String enterCd, String patternCode, String patternName, WorkPatternRules.Spec spec,
+            WorkPatternRules.Result computed, WorkerType workerType, boolean fullTimeBaseline, boolean active,
+            String note, LocalDateTime now) {
         this.enterCd = enterCd;
         this.workerType = workerType;
+        this.fullTimeBaseline = fullTimeBaseline;
         this.patternCode = patternCode;
         this.patternName = patternName;
         applySpec(spec, computed);
@@ -102,6 +114,10 @@ public class WorkPattern {
 
     void changeWorkerType(WorkerType workerType) {
         this.workerType = workerType;
+    }
+
+    void changeFullTimeBaseline(boolean fullTimeBaseline) {
+        this.fullTimeBaseline = fullTimeBaseline;
     }
 
     void rename(String name, boolean active, String note, LocalDateTime now) {
@@ -141,6 +157,10 @@ public class WorkPattern {
 
     public WorkerType getWorkerType() {
         return workerType;
+    }
+
+    public boolean isFullTimeBaseline() {
+        return Boolean.TRUE.equals(fullTimeBaseline);
     }
 
     public boolean isActive() {

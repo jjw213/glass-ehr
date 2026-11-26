@@ -87,9 +87,10 @@ public class WorkPatternService {
         }
         WorkPatternRules.Result r = requireValid(req.spec(), today());
         // 적용 근로자 유형: 1주 소정근로시간으로 계산(근로기준법 제2조 제1항 제9호, 제18조 제3항, #158)
-        WorkerType type = workerTypes.classifyPattern(enterCd, null, r.weeklyContractMinutes(), today());
+        WorkerType type = req.usesFullTimeBaseline() ? WorkerType.FULL_TIME
+                : workerTypes.classifyPattern(enterCd, null, r.weeklyContractMinutes(), today());
         WorkPattern p = new WorkPattern(enterCd, req.patternCode(), req.patternName().strip(), req.spec(), r, type,
-                req.active() == null || req.active(), blankToNull(req.note()), now());
+                req.usesFullTimeBaseline(), req.active() == null || req.active(), blankToNull(req.note()), now());
         return WorkPatternView.of(patterns.save(p), false);
     }
 
@@ -102,15 +103,22 @@ public class WorkPatternService {
             throw AttendanceException.badRequest("근무유형 코드는 바꿀 수 없어요");
         }
         boolean assigned = assignments.existsByEnterCdAndPatternId(enterCd, patternId);
-        if (!p.spec().equals(req.spec())) {
+        boolean fullTimeBaseline = req.fullTimeBaseline() == null
+                ? p.isFullTimeBaseline() : req.usesFullTimeBaseline();
+        boolean specChanged = !p.spec().equals(req.spec());
+        if (specChanged) {
             if (assigned) {
                 throw AttendanceException.conflict(
                         "사원에게 배정된 근무유형은 시각·휴게·요일을 바꿀 수 없어요. 새 근무유형을 만들어 다시 배정해 주세요");
             }
             WorkPatternRules.Result r = requireValid(req.spec(), today());
             p.applySpec(req.spec(), r);
-            p.changeWorkerType(workerTypes.classifyPattern(enterCd, patternId, r.weeklyContractMinutes(), today()));
         }
+        if (specChanged || p.isFullTimeBaseline() != fullTimeBaseline) {
+            p.changeWorkerType(fullTimeBaseline ? WorkerType.FULL_TIME
+                    : workerTypes.classifyPattern(enterCd, patternId, p.getWeeklyContractMinutes(), today()));
+        }
+        p.changeFullTimeBaseline(fullTimeBaseline);
         p.rename(req.patternName().strip(), req.active() == null || req.active(), blankToNull(req.note()), now());
         return WorkPatternView.of(p, assigned);
     }

@@ -137,4 +137,24 @@ class WorkerTypeFixtureTest {
         assertThat(s.describe("C001", 2400, d).workerType()).isEqualTo(WorkerType.FULL_TIME);
         assertThat(s.describe("C001", 0, d)).isNull();
     }
+
+    @Test
+    void 지정한_주_35시간_근무유형을_통상근로자_비교_기준으로_쓴다() throws IOException {
+        LocalDate d = LocalDate.of(2026, 11, 26);
+        LegalRateService rates = rates();
+        WorkPatternRepository patterns = mock(WorkPatternRepository.class);
+        WorkPatternRules.Spec spec = new WorkPatternRules.Spec(540, 1005, 720, 45, "WWWWWOH");
+        WorkPattern baseline = new WorkPattern("C001", "FT35", "주 35시간", spec,
+                new WorkPatternRules.Result(420, 2100, List.of()), WorkerType.FULL_TIME, true, true, null,
+                java.time.LocalDateTime.of(2026, 1, 1, 0, 0));
+        when(patterns.findByEnterCdOrderByPatternCodeAsc("C001")).thenReturn(List.of(baseline));
+        WorkerTypeService s = new WorkerTypeService(patterns, new WorkerTypeLegalRules(rates), rates);
+
+        WorkerTypeService.WorkerTypeView view = s.describe("C001", 1200, d);
+
+        assertThat(view.fullTimeWeeklyMinutes()).isEqualTo(2100);
+        assertThat(view.fullTimePatternCode()).isEqualTo("FT35");
+        assertThat(view.workerType()).isEqualTo(WorkerType.PART_TIME);
+        assertThat(view.baseLeaveMinutes()).isEqualTo(4140);
+    }
 }
