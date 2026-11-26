@@ -45,13 +45,13 @@ public class FlexibleWorkController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AssignView assign(@RequestBody AssignRequest req, AuthUser user) {
-        return service.assign(req, user.loginId());
+        return service.assign(user.enterCd(), req, user.loginId());
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping
-    public List<AssignView> list(@RequestParam(required = false) Long empId) {
-        return service.list(empId);
+    public List<AssignView> list(@RequestParam(required = false) Long empId, AuthUser user) {
+        return service.list(user.enterCd(), empId);
     }
 
     @RequiresPermission

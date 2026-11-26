@@ -248,6 +248,14 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V040__message_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer punchKeyCols = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_ATTENDANCE_PUNCH'", Integer.class);
+        if (punchKeyCols == null || punchKeyCols < 2) {
+            // #126: 출퇴근·일별 집계·유연근무 배정·계획 키와 계획 FK 에 법인
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V043__attendance_record_flex_enter_cd.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

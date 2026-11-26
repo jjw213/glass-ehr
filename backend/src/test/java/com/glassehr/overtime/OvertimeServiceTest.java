@@ -138,13 +138,15 @@ class OvertimeServiceTest {
         OvertimeRequest r = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, EVENING, EVENING.plusHours(1), 0,
                 "사유", EVENING.minusDays(1));
         when(requests.findForUpdate(11L)).thenReturn(Optional.of(r));
-        when(employees.findForUpdate(EMP)).thenReturn(Optional.of(mock(com.glassehr.employee.Employee.class)));
+        com.glassehr.employee.Employee emp = mock(com.glassehr.employee.Employee.class);
+        when(emp.getEnterCd()).thenReturn("C001");
+        when(employees.findForUpdate(EMP)).thenReturn(Optional.of(emp));
 
-        doThrow(new ApprovalException(HttpStatus.UNPROCESSABLE_ENTITY, "한도")).when(limits).check(r);
+        doThrow(new ApprovalException(HttpStatus.UNPROCESSABLE_ENTITY, "한도")).when(limits).check("C001", r);
         assertThatThrownBy(() -> handler.onApproved(11L)).isInstanceOf(ApprovalException.class);
         assertThat(r.getStatus()).isEqualTo(OvertimeRequest.Status.IN_PROGRESS);
         verify(employees).findForUpdate(EMP);
-        verify(limits).check(r);
+        verify(limits).check("C001", r);
 
         handler.onRejected(11L);
         assertThat(r.getStatus()).isEqualTo(OvertimeRequest.Status.REJECTED);

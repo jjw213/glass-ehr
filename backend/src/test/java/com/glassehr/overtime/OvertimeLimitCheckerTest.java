@@ -36,6 +36,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class OvertimeLimitCheckerTest {
 
     static final long EMP = 7L;
+    static final String ENTER = "C001";
     static final LocalDate MON = LocalDate.of(2099, 3, 9);
 
     LegalRateService legalRates;
@@ -59,7 +60,7 @@ class OvertimeLimitCheckerTest {
                 .thenReturn(rate("WEEKLY_OVERTIME_LIMIT_HOURS", 1));
         when(legalRates.getEffective(eq(LegalRateItem.WEEKLY_STANDARD_WORK_HOURS), any(LocalDate.class)))
                 .thenReturn(rate("WEEKLY_STANDARD_WORK_HOURS", 2));
-        when(summaries.findRange(anyLong(), any(), any())).thenReturn(List.of());
+        when(summaries.findRange(any(), anyLong(), any(), any())).thenReturn(List.of());
         when(requests.findByEmpIdAndWorkDateBetweenAndStatusIn(anyLong(), any(), any(), any())).thenReturn(List.of());
     }
 
@@ -91,10 +92,10 @@ class OvertimeLimitCheckerTest {
     void 이미_승인된_신청과_이번_신청을_더해_1주_기준을_넘은_시간이_한도를_넘으면_승인하지_않는다() {
         approved(req(1, OvertimeRequest.Kind.OVERTIME, MON, 100));
 
-        OvertimeLimitChecker.Result ok = checker.check(req(2, OvertimeRequest.Kind.OVERTIME, MON.plusDays(1), 80));
+        OvertimeLimitChecker.Result ok = checker.check(ENTER,req(2, OvertimeRequest.Kind.OVERTIME, MON.plusDays(1), 80));
         assertThat(ok.weeklyWorkedMinutes()).isEqualTo(180);
         assertThat(ok.overtimeMinutes()).isEqualTo(60);
-        assertThatThrownBy(() -> checker.check(req(3, OvertimeRequest.Kind.OVERTIME, MON.plusDays(6), 81)))
+        assertThatThrownBy(() -> checker.check(ENTER,req(3, OvertimeRequest.Kind.OVERTIME, MON.plusDays(6), 81)))
                 .isInstanceOfSatisfying(ApprovalException.class,
                         e -> assertThat(e.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY))
                 .hasMessageContaining("제53조 제1항");
@@ -103,7 +104,7 @@ class OvertimeLimitCheckerTest {
     @Test
     void 휴일근로_신청도_한도_합계에_넣어_검사한다() {
         approved(req(1, OvertimeRequest.Kind.OVERTIME, MON, 100));
-        assertThatThrownBy(() -> checker.check(req(2, OvertimeRequest.Kind.HOLIDAY, MON.plusDays(6), 81)))
+        assertThatThrownBy(() -> checker.check(ENTER,req(2, OvertimeRequest.Kind.HOLIDAY, MON.plusDays(6), 81)))
                 .isInstanceOf(ApprovalException.class);
     }
 
@@ -117,11 +118,11 @@ class OvertimeLimitCheckerTest {
                 start.plusHours(3).plusMinutes(30), 0, "사유", start.minusDays(1));
         ReflectionTestUtils.setField(future, "requestId", 2L);
         approved(reflected, future);
-        when(summaries.findRange(EMP, MON.minusDays(1), MON.plusDays(6)))
+        when(summaries.findRange(ENTER, EMP, MON.minusDays(1), MON.plusDays(6)))
                 .thenReturn(List.of(actual(MON, "WORKDAY", 120, start, start.plusHours(2))));
 
-        assertThat(checker.check(reflected).weeklyWorkedMinutes()).isEqualTo(150);
-        assertThat(checker.check(req(3, OvertimeRequest.Kind.OVERTIME, MON.plusDays(2), 30)).weeklyWorkedMinutes())
+        assertThat(checker.check(ENTER,reflected).weeklyWorkedMinutes()).isEqualTo(150);
+        assertThat(checker.check(ENTER,req(3, OvertimeRequest.Kind.OVERTIME, MON.plusDays(2), 30)).weeklyWorkedMinutes())
                 .isEqualTo(180);
         assertThat(OvertimeLimitChecker.weekWorked(MON, Map.of(MON, 10), Map.of(MON, 30, MON.plusDays(7), 99)))
                 .isEqualTo(40);
@@ -139,10 +140,10 @@ class OvertimeLimitCheckerTest {
                 new WorkPatternRules.Result(480, 2400, List.of()), true, null, requestStart.minusDays(10));
         ReflectionTestUtils.setField(pattern, "patternId", 1L);
         when(patterns.findById(1L)).thenReturn(Optional.of(pattern));
-        when(summaries.findRange(EMP, MON.minusDays(1), MON.plusDays(6)))
+        when(summaries.findRange(ENTER, EMP, MON.minusDays(1), MON.plusDays(6)))
                 .thenReturn(List.of(actual(MON, "WORKDAY", 180, MON.atTime(9, 0), MON.atTime(13, 0))));
 
-        assertThat(checker.check(request).weeklyWorkedMinutes()).isEqualTo(300);
+        assertThat(checker.check(ENTER,request).weeklyWorkedMinutes()).isEqualTo(300);
     }
 
     @Test
@@ -151,17 +152,17 @@ class OvertimeLimitCheckerTest {
         OvertimeRequest request = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, start, start.plusHours(2),
                 0, "사유", start.minusDays(1));
         ReflectionTestUtils.setField(request, "requestId", 1L);
-        when(summaries.findRange(EMP, MON.minusDays(1), MON.plusDays(6))).thenReturn(List.of(
+        when(summaries.findRange(ENTER, EMP, MON.minusDays(1), MON.plusDays(6))).thenReturn(List.of(
                 actual(MON.minusDays(1), "WORKDAY", 420, MON.minusDays(1).atTime(22, 0), MON.atTime(6, 0))));
 
-        assertThat(checker.check(request).weeklyWorkedMinutes()).isZero();
+        assertThat(checker.check(ENTER,request).weeklyWorkedMinutes()).isZero();
     }
 
     @Test
     void 다른_주의_승인분은_세지_않는다() {
-        assertThat(checker.check(req(2, OvertimeRequest.Kind.OVERTIME, MON.plusDays(6), 60)).weekStart())
+        assertThat(checker.check(ENTER,req(2, OvertimeRequest.Kind.OVERTIME, MON.plusDays(6), 60)).weekStart())
                 .isEqualTo(MON);
-        assertThat(checker.check(req(3, OvertimeRequest.Kind.OVERTIME, MON.plusDays(7), 60)).weekStart())
+        assertThat(checker.check(ENTER,req(3, OvertimeRequest.Kind.OVERTIME, MON.plusDays(7), 60)).weekStart())
                 .isEqualTo(MON.plusDays(7));
     }
 
@@ -170,13 +171,13 @@ class OvertimeLimitCheckerTest {
         when(legalRates.getEffective(eq(LegalRateItem.WEEKLY_OVERTIME_LIMIT_HOURS), any(LocalDate.class)))
                 .thenThrow(mock(LegalRateException.class));
         when(legalRates.firstEffectiveFrom("WEEKLY_OVERTIME_LIMIT_HOURS")).thenReturn(Optional.of(MON));
-        assertThatThrownBy(() -> checker.check(req(2, OvertimeRequest.Kind.OVERTIME, MON, 10)))
+        assertThatThrownBy(() -> checker.check(ENTER,req(2, OvertimeRequest.Kind.OVERTIME, MON, 10)))
                 .isInstanceOfSatisfying(ApprovalException.class,
                         e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("WEEKLY_OVERTIME_LIMIT_HOURS");
 
         when(legalRates.firstEffectiveFrom("WEEKLY_OVERTIME_LIMIT_HOURS")).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> checker.check(req(3, OvertimeRequest.Kind.OVERTIME, MON, 10)))
+        assertThatThrownBy(() -> checker.check(ENTER,req(3, OvertimeRequest.Kind.OVERTIME, MON, 10)))
                 .isInstanceOfSatisfying(ApprovalException.class,
                         e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
     }
@@ -187,7 +188,7 @@ class OvertimeLimitCheckerTest {
                 .thenThrow(mock(LegalRateException.class));
         when(legalRates.firstEffectiveFrom("WEEKLY_OVERTIME_LIMIT_HOURS")).thenReturn(Optional.of(MON.plusDays(1)));
 
-        OvertimeLimitChecker.Result r = checker.check(req(2, OvertimeRequest.Kind.HOLIDAY, MON, 600));
+        OvertimeLimitChecker.Result r = checker.check(ENTER,req(2, OvertimeRequest.Kind.HOLIDAY, MON, 600));
         assertThat(r.limitMinutes()).isNull();
         assertThat(r.exceeded()).isFalse();
     }
@@ -196,7 +197,7 @@ class OvertimeLimitCheckerTest {
     void 주_기준근로시간_기준값이_없으면_409로_승인하지_않는다() {
         when(legalRates.getEffective(eq(LegalRateItem.WEEKLY_STANDARD_WORK_HOURS), any(LocalDate.class)))
                 .thenThrow(mock(LegalRateException.class));
-        assertThatThrownBy(() -> checker.check(req(2, OvertimeRequest.Kind.OVERTIME, MON, 10)))
+        assertThatThrownBy(() -> checker.check(ENTER,req(2, OvertimeRequest.Kind.OVERTIME, MON, 10)))
                 .isInstanceOfSatisfying(ApprovalException.class,
                         e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("WEEKLY_STANDARD_WORK_HOURS");

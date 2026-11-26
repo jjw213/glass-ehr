@@ -43,7 +43,7 @@ class WorkHoursControllerTest {
 
     @Test
     void 인사담당은_집계를_조회한다() throws Exception {
-        when(service.find(1L, MON, MON.plusDays(6))).thenReturn(List.of());
+        when(service.find("C001", 1L, MON, MON.plusDays(6))).thenReturn(List.of());
         mvc.perform(get("/api/attendance/daily-summaries").param("empId", "1")
                         .param("from", "2099-03-02").param("to", "2099-03-08"))
                 .andExpect(status().isOk())

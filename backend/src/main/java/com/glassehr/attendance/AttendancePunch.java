@@ -35,6 +35,10 @@ public class AttendancePunch {
     @Column(name = "punch_id", nullable = false, updatable = false)
     private Long punchId;
 
+    /** 법인 코드(#126). 사원과 같은 법인. PK 는 DB 에서 (enter_cd, punch_id). */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
@@ -68,8 +72,9 @@ public class AttendancePunch {
     protected AttendancePunch() {
     }
 
-    public AttendancePunch(long empId, Type type, LocalDateTime serverNow, LocalDateTime clientTime, Check check,
-            Source source, String createdBy) {
+    public AttendancePunch(String enterCd, long empId, Type type, LocalDateTime serverNow, LocalDateTime clientTime,
+            Check check, Source source, String createdBy) {
+        this.enterCd = enterCd;
         this.empId = empId;
         this.type = type;
         this.punchedAt = serverNow;
@@ -82,6 +87,7 @@ public class AttendancePunch {
     }
 
     public Long getPunchId() { return punchId; }
+    public String getEnterCd() { return enterCd; }
     public Long getEmpId() { return empId; }
     public Type getType() { return type; }
     public LocalDateTime getPunchedAt() { return punchedAt; }
