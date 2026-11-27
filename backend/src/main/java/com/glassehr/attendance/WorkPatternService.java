@@ -209,7 +209,7 @@ public class WorkPatternService {
     private List<AssignmentView> views(List<EmpWorkPattern> rows) {
         Map<Long, WorkPattern> cache = new HashMap<>();
         return rows.stream().map(a -> view(a, cache.computeIfAbsent(a.getPatternId(),
-                id -> patterns.findById(id).orElseThrow()))).toList();
+                id -> patterns.findByEnterCdAndPatternId(a.getEnterCd(), id).orElseThrow()))).toList();
     }
 
     private static AssignmentView view(EmpWorkPattern a, WorkPattern p) {

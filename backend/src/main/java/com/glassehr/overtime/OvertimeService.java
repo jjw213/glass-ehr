@@ -115,8 +115,7 @@ public class OvertimeService {
             throw new ApprovalException(HttpStatus.CONFLICT, "이미 등록된 인가 번호예요: " + authNo);
         }
         // 대상은 현재 법인 사원만(#127). 다른 법인 사원은 없는 사원과 같이 답한다.
-        if (employees.findAllById(req.empIds()).stream().filter(e -> enterCd.equals(e.getEnterCd())).count()
-                != req.empIds().size()) {
+        if (employees.findByEnterCdAndEmpIdIn(enterCd, req.empIds()).size() != req.empIds().size()) {
             throw bad("없는 사원이 대상에 들어 있어요");
         }
         SpecialOvertimeAuth a = auths.save(new SpecialOvertimeAuth(enterCd, req.authKind(), authNo, req.laborOffice().strip(),
