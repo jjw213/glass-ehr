@@ -17,6 +17,8 @@ import com.glassehr.legalrate.LegalRateItem;
 import com.glassehr.legalrate.LegalRateRow;
 import com.glassehr.legalrate.LegalRateService;
 import com.glassehr.legalrate.LegalRateUnit;
+import com.glassehr.tenant.EnterSettingKey;
+import com.glassehr.tenant.EnterSettingTestSupport;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -26,6 +28,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -117,7 +120,8 @@ class HolidayServiceTest {
                     return new LegalRateRow(LegalRateItem.PUBLIC_HOLIDAY_PAID_MIN_HEADCOUNT.code(), PAID_FROM, null, min,
                             LegalRateUnit.COUNT, "시험 부칙", null);
                 });
-        service = new HolidayService(holidays, agreements, new PublicHolidayPaidRule(rates, 30), clock);
+        service = new HolidayService(holidays, agreements, new PublicHolidayPaidRule(rates,
+                EnterSettingTestSupport.defaults(Map.of(EnterSettingKey.WORKPLACE_REGULAR_HEADCOUNT, 30))), clock);
     }
 
     private Optional<Holiday> byId(Object id) {

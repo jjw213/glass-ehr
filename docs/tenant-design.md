@@ -228,11 +228,13 @@ CREATE TABLE enter_company (
 - `glassehr.auth.demo-password`
 - `server.servlet.session.*`(세션 유효 시간·쿠키)
 
-옮기는 방식(8장 7번 이슈에서 처리, 제안):
+옮기는 방식(#131에서 구현):
 
-- 법인별 설정 테이블 `enter_setting(enter_cd, setting_key, effective_from, setting_value)`에 값을 둔다. 값이 없는 법인은 지금의 `application.yml` 값을 기본값으로 쓴다.
-- 그때까지는 모든 법인이 `application.yml` 값을 같이 쓴다. 이 기간에는 30인 이상 기준(AGENTS.md)이 모든 법인에 적용된다.
-- 테이블 구성은 그 이슈에서 저장소 주인에게 확인한다.
+- V047 `enter_setting(enter_cd, setting_key, effective_from, setting_value, updated_by, updated_at)` PK `(enter_cd, setting_key, effective_from)`에 값을 둔다. 날짜 d의 값은 `effective_from <= d`인 행 중 가장 늦은 것이다. 값이 없는 법인은 `application.yml` 값을 기본값으로 쓴다(전역 값은 기본값으로만 쓴다).
+- 변경 이력은 `enter_setting_hist`(PK `(enter_cd, hist_id)`, `(enter_cd, setting_key, effective_from)` 복합 FK로 같은 법인 설정만 가리킨다)에 등록·수정마다 한 행을 남긴다.
+- 키 목록과 입력 범위는 코드(`EnterSettingKey`)가 정한다. 옮긴 키: 위 표의 상시근로자 수·계약 만료 알림·기간제 상한 알림·서면합의서 만료 알림·주 52시간 근접 기준. 계산·판정(`PublicHolidayPaidRule`, `ContractService.alerts`, `LaborAgreementService.expiring`, `WeeklyHoursService`)은 `EnterSettingService.value(enterCd, key, date)`로 그 법인·그 날짜 값을 읽는다.
+- API `GET /api/enter-settings`, `PUT /api/enter-settings/{key}`(`{effectiveFrom, value}`), `GET /api/enter-settings/history`. 권한 `EMP_WRITE`(그 법인 관리자·인사), 법인은 세션 현재 법인만. 화면: 시스템관리 > 회사 설정.
+- 로그인 실패 잠금 횟수·잠금 시간(`glassehr.auth.*`)은 아직 전역 값이다(잠금 시간이 정수가 아닌 기간 값이고 로그인 전 처리라 후속 제안).
 
 ## 8. 기존 데이터 이전과 후속 이슈 순서
 
