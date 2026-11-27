@@ -59,9 +59,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     @Query("SELECT e FROM Employee e WHERE e.enterCd = :enterCd AND e.empId = :empId")
     Optional<Employee> findForUpdate(@Param("enterCd") String enterCd, @Param("empId") long empId);
 
-    /** 현재 그 직책을 가진 재직자(결재자 찾기, #30). */
-    @Query("SELECT e.empId FROM Employee e WHERE e.jobTitleCode = :code AND e.empStatus = 'ACTIVE'")
-    List<Long> findActiveEmpIdsWithTitle(@Param("code") String titleCode);
+    /** 그 법인에서 현재 그 직책을 가진 재직자(결재자 찾기, #30·#127). */
+    @Query("SELECT e.empId FROM Employee e WHERE e.enterCd = :enterCd AND e.jobTitleCode = :code"
+            + " AND e.empStatus = 'ACTIVE'")
+    List<Long> findActiveEmpIdsWithTitle(@Param("enterCd") String enterCd, @Param("code") String titleCode);
 
     List<Employee> findByRetireDateIsNullOrderByEmpNoAsc();
 

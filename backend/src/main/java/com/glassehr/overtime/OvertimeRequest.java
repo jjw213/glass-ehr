@@ -31,6 +31,10 @@ public class OvertimeRequest {
     @Column(name = "request_id", nullable = false, updatable = false)
     private Long requestId;
 
+    /** 신청자 법인(#127). 복합 FK (enter_cd, emp_id) 로 다른 법인 사원 신청을 만들 수 없다. */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
@@ -69,8 +73,9 @@ public class OvertimeRequest {
     protected OvertimeRequest() {
     }
 
-    OvertimeRequest(long empId, Kind workKind, LocalDateTime startAt, LocalDateTime endAt, int breakMinutes,
-            String reason, LocalDateTime requestedAt) {
+    OvertimeRequest(String enterCd, long empId, Kind workKind, LocalDateTime startAt, LocalDateTime endAt,
+            int breakMinutes, String reason, LocalDateTime requestedAt) {
+        this.enterCd = enterCd;
         this.empId = empId;
         this.workKind = workKind;
         this.workDate = startAt.toLocalDate();
@@ -129,6 +134,10 @@ public class OvertimeRequest {
 
     public Integer getPlannedMinutes() {
         return plannedMinutes;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public String getReason() {

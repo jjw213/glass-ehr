@@ -46,9 +46,9 @@ public class ApprovalTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public List<TemplateView> list(String requestType) {
+    public List<TemplateView> list(String enterCd, String requestType) {
         requireType(requestType);
-        return templates.findByRequestTypeOrderByValidFromDesc(requestType).stream().map(TemplateView::of).toList();
+        return templates.findByEnterCdAndRequestTypeOrderByValidFromDesc(enterCd, requestType).stream().map(TemplateView::of).toList();
     }
 
     @Transactional
@@ -61,9 +61,9 @@ public class ApprovalTemplateService {
         List<ApprovalTemplate.Step> steps = new ArrayList<>();
         int no = 1;
         for (TemplateStepRequest s : req.steps()) {
-            steps.add(step(no++, s));
+            steps.add(step(user.enterCd(), no++, s));
         }
-        Optional<ApprovalTemplate> latest = templates.lockByRequestType(req.requestType()).stream()
+        Optional<ApprovalTemplate> latest = templates.lockByRequestType(user.enterCd(), req.requestType()).stream()
                 .max(Comparator.comparing(ApprovalTemplate::getValidFrom));
         if (latest.isPresent()) {
             ApprovalTemplate prev = latest.get();
@@ -75,11 +75,11 @@ public class ApprovalTemplateService {
             templates.saveAndFlush(prev);
         }
         ApprovalTemplate saved = templates.saveAndFlush(
-                new ApprovalTemplate(req.requestType(), req.validFrom(), steps, user.loginId()));
+                new ApprovalTemplate(user.enterCd(), req.requestType(), req.validFrom(), steps, user.loginId()));
         return TemplateView.of(saved);
     }
 
-    private ApprovalTemplate.Step step(int no, TemplateStepRequest s) {
+    private ApprovalTemplate.Step step(String enterCd, int no, TemplateStepRequest s) {
         String ref = s.approverRef() == null || s.approverRef().isBlank() ? null : s.approverRef().strip();
         ApproverKind kind = s.approverKind();
         if (!kind.needsRef()) {
@@ -105,7 +105,8 @@ public class ApprovalTemplateService {
             } catch (NumberFormatException e) {
                 throw ApprovalException.badRequest(no + "단계: 사원 지정은 사원 ID 숫자로 넣어 주세요");
             }
-            if (!employees.existsById(empId)) {
+            // 결재선에는 현재 법인 사원만 지정할 수 있다(#127). 다른 법인 사원은 없는 사원과 같이 답한다.
+            if (employees.findByEnterCdAndEmpId(enterCd, empId).isEmpty()) {
                 throw ApprovalException.badRequest(no + "단계: 사원(" + empId + ")을 찾을 수 없어요");
             }
         }

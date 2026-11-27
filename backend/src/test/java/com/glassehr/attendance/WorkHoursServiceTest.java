@@ -129,7 +129,7 @@ class WorkHoursServiceTest {
         assertThat(rows.get(2).issues()).isEqualTo("OVERTIME_NOT_APPROVED");
         assertThat(rows.get(1).issues()).isNull();
 
-        when(overtimes.approvedDates(EMP, MON, MON.plusDays(6))).thenReturn(Set.of(wed));
+        when(overtimes.approvedDates(ENTER, EMP, MON, MON.plusDays(6))).thenReturn(Set.of(wed));
         assertThat(service.recalculate(ENTER,EMP, wed, wed, "hr1").get(2).issues()).isNull();
     }
 
