@@ -347,6 +347,58 @@ class CommonCodeServiceTest {
         assertThat(v.active()).isFalse();
     }
 
+    private static void assertStatus(org.assertj.core.api.ThrowableAssert.ThrowingCallable call, HttpStatus status) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(status));
+    }
+
+    @Test
+    void 처리방식이_있는_그룹은_추가할_때_처리방식이_필수이고_목록_안의_값만_받는다() {
+        when(groups.existsByEnterCdAndGroupCode(E, "RETIREMENT_REASON")).thenReturn(true);
+        when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
+
+        assertStatus(() -> service.create(E, "RETIREMENT_REASON",
+                new CodeCreateRequest("MGMT_DISMISSAL", "경영상 해고", null, 55, true, null)), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create(E, "RETIREMENT_REASON",
+                new CodeCreateRequest("MGMT_DISMISSAL", "경영상 해고", null, 55, true, "FIXED_TERM")), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create(E, "JOB_GRADE",
+                new CodeCreateRequest("INTERN", "인턴", null, 5, true, "REGULAR")), HttpStatus.BAD_REQUEST);
+        verify(codes, never()).saveAndFlush(any());
+
+        CodeView v = service.create(E, "RETIREMENT_REASON",
+                new CodeCreateRequest("MGMT_DISMISSAL", "경영상 해고", null, 55, true, "DISMISSAL"));
+        assertThat(v.sysType()).isEqualTo("DISMISSAL");
+    }
+
+    @Test
+    void 기본_코드는_처리방식을_바꿀_수_없고_사용자_코드는_바꿀_수_있다() {
+        when(groups.existsByEnterCdAndGroupCode(E, "EMPLOYMENT_TYPE")).thenReturn(true);
+        CommonCode base = new CommonCode(E, "EMPLOYMENT_TYPE", "FIXED_TERM", "기간제", null, 20, true, "FIXED_TERM", T0)
+                .markSystem();
+        CommonCode own = new CommonCode(E, "EMPLOYMENT_TYPE", "INTERN", "인턴", null, 40, true, "FIXED_TERM", T0);
+        when(codes.findByEnterCdAndGroupCodeAndCode(E, "EMPLOYMENT_TYPE", "FIXED_TERM")).thenReturn(Optional.of(base));
+        when(codes.findByEnterCdAndGroupCodeAndCode(E, "EMPLOYMENT_TYPE", "INTERN")).thenReturn(Optional.of(own));
+
+        assertStatus(() -> service.update(E, "EMPLOYMENT_TYPE", "FIXED_TERM",
+                new CodeUpdateRequest("기간제", null, 20, true, "REGULAR")), HttpStatus.CONFLICT);
+        assertThat(service.update(E, "EMPLOYMENT_TYPE", "FIXED_TERM",
+                new CodeUpdateRequest("기간제(계약직)", null, 20, true, "FIXED_TERM")).name()).isEqualTo("기간제(계약직)");
+        assertStatus(() -> service.update(E, "EMPLOYMENT_TYPE", "INTERN",
+                new CodeUpdateRequest("인턴", null, 40, true, null)), HttpStatus.BAD_REQUEST);
+        assertThat(service.update(E, "EMPLOYMENT_TYPE", "INTERN",
+                new CodeUpdateRequest("인턴", null, 40, true, "FIXED_TERM_PART_TIME")).sysType())
+                .isEqualTo("FIXED_TERM_PART_TIME");
+    }
+
+    @Test
+    void 처리방식_목록은_그룹별_서버_고정값이고_없는_그룹은_404() {
+        when(groups.existsByEnterCdAndGroupCode(E, "RETIREMENT_REASON")).thenReturn(true);
+        when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
+        assertThat(service.sysTypes(E, "RETIREMENT_REASON")).extracting(CodeSysTypes.SysType::code)
+                .contains("DISMISSAL", "VOLUNTARY", "DEATH", "OTHER");
+        assertThat(service.sysTypes(E, "JOB_GRADE")).isEmpty();
+        assertStatus(() -> service.sysTypes(E, "NOPE"), HttpStatus.NOT_FOUND);
+    }
+
     @Test
     void 없는_코드_수정은_404() {
         when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);

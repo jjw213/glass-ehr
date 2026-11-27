@@ -48,7 +48,7 @@ class CommonCodeControllerTest {
     private CommonCodeService service;
 
     private static CodeView view(String group, String code, String name, int sort, boolean active) {
-        return new CodeView(group, code, name, null, sort, active, false);
+        return new CodeView(group, code, name, null, sort, active, false, null);
     }
 
     @Test
@@ -94,7 +94,7 @@ class CommonCodeControllerTest {
     @Test
     void 관리화면은_사용중지_코드도_요청할_수_있다() throws Exception {
         when(service.listCodes("C001", "JOB_GRADE", true)).thenReturn(List.of(
-                new CodeListItem("JOB_GRADE", "OLD", "옛 직급", null, 1, false, false, true, 3)));
+                new CodeListItem("JOB_GRADE", "OLD", "옛 직급", null, 1, false, false, null, true, 3)));
         mvc.perform(get("/api/code-groups/JOB_GRADE/codes").param("includeInactive", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].active").value(false))
@@ -104,12 +104,23 @@ class CommonCodeControllerTest {
 
     @Test
     void 코드_추가는_201() throws Exception {
-        CodeCreateRequest req = new CodeCreateRequest("INTERN", "인턴", null, 40, true);
+        CodeCreateRequest req = new CodeCreateRequest("INTERN", "인턴", null, 40, true, "FIXED_TERM");
         when(service.create("C001", "EMPLOYMENT_TYPE", req)).thenReturn(view("EMPLOYMENT_TYPE", "INTERN", "인턴", 40, true));
         mvc.perform(post("/api/code-groups/EMPLOYMENT_TYPE/codes").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"code\":\"INTERN\",\"name\":\"인턴\",\"sortOrder\":40,\"active\":true}"))
+                        .content("{\"code\":\"INTERN\",\"name\":\"인턴\",\"sortOrder\":40,\"active\":true,"
+                                + "\"sysType\":\"FIXED_TERM\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value("INTERN"));
+    }
+
+    @Test
+    void 처리방식_목록() throws Exception {
+        when(service.sysTypes("C001", "EMPLOYMENT_TYPE")).thenReturn(CodeSysTypes.of("EMPLOYMENT_TYPE"));
+        mvc.perform(get("/api/code-groups/EMPLOYMENT_TYPE/sys-types"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value("REGULAR"))
+                .andExpect(jsonPath("$[3].code").value("FIXED_TERM_PART_TIME"))
+                .andExpect(jsonPath("$[3].name").value("기간제·단시간"));
     }
 
     @Test
@@ -140,7 +151,7 @@ class CommonCodeControllerTest {
 
     @Test
     void 코드_수정() throws Exception {
-        CodeUpdateRequest req = new CodeUpdateRequest("사원(구)", null, 15, false);
+        CodeUpdateRequest req = new CodeUpdateRequest("사원(구)", null, 15, false, null);
         when(service.update("C001", "JOB_GRADE", "STAFF", req)).thenReturn(view("JOB_GRADE", "STAFF", "사원(구)", 15, false));
         mvc.perform(put("/api/code-groups/JOB_GRADE/codes/STAFF").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"사원(구)\",\"sortOrder\":15,\"active\":false}"))

@@ -2,7 +2,23 @@
  * 데모(VITE_API=mock)용 공통코드 시드. 백엔드 시드 backend/src/main/resources/db/oracle/V007__common_code_seed.sql 과 같게 유지한다
  * (src/api/codes.test.ts 가 SQL 파일과 비교한다). 시스템 그룹·기본 코드 표시는 V037 과 같다(같은 테스트가 비교한다).
  */
-import type { Code, CodeGroup, MockUsages } from '../api/codes';
+import type { Code, CodeGroup, MockUsages, SysType } from '../api/codes';
+
+/**
+ * 처리방식 목록(#141). 서버 고정값이고 백엔드 CodeSysTypes 와 같다(src/api/codes.test.ts 가 V050 CHECK 와 비교한다).
+ * 데모 가짜 백엔드가 쓰고, 실제 화면은 GET /api/code-groups/{group}/sys-types 로 받는다. 이 그룹의 코드는 처리방식이 꼭 있어야 한다.
+ */
+export const SYS_TYPES: Record<string, SysType[]> = {
+  EMPLOYMENT_TYPE: [
+    { code: 'REGULAR', name: '일반(기간의 정함 없음)' }, { code: 'FIXED_TERM', name: '기간제' },
+    { code: 'PART_TIME', name: '단시간' }, { code: 'FIXED_TERM_PART_TIME', name: '기간제·단시간' },
+  ],
+  RETIREMENT_REASON: [
+    { code: 'VOLUNTARY', name: '자진 퇴사' }, { code: 'RECOMMENDED', name: '권고사직' }, { code: 'RETIREMENT_AGE', name: '정년' },
+    { code: 'CONTRACT_END', name: '계약 만료' }, { code: 'DISMISSAL', name: '해고' }, { code: 'TRANSFER', name: '전적' },
+    { code: 'DEATH', name: '사망' }, { code: 'OTHER', name: '기타' },
+  ],
+};
 
 const g = (groupCode: string, name: string, description: string, sortOrder: number): CodeGroup =>
   ({ groupCode, name, description, sortOrder, active: true, system: true, editPage: null });
@@ -23,8 +39,24 @@ const SYSTEM_CODES = new Set([
   'RETIREMENT_REASON/RETIREMENT_AGE', 'RETIREMENT_REASON/DISMISSAL', 'RETIREMENT_REASON/TRANSFER_AFFILIATE', 'RETIREMENT_REASON/DEATH',
 ]);
 
+/**
+ * 시드 코드의 처리방식(V050, #141). 코드값과 이름이 다른 것만 적는다. 나머지는 처리방식이 있는 그룹이면
+ * 코드값과 같은 이름(목록에 없으면 고용형태 REGULAR·퇴직사유 OTHER), 없는 그룹이면 null.
+ */
+const SEED_SYS_TYPE: Record<string, string> = {
+  'RETIREMENT_REASON/RECOMMENDED_RESIGNATION': 'RECOMMENDED',
+  'RETIREMENT_REASON/CONTRACT_EXPIRED': 'CONTRACT_END',
+  'RETIREMENT_REASON/TRANSFER_AFFILIATE': 'TRANSFER',
+};
+const FALLBACK_SYS_TYPE: Record<string, string> = { EMPLOYMENT_TYPE: 'REGULAR', RETIREMENT_REASON: 'OTHER' };
+const sysTypeOf = (groupCode: string, code: string): string | null => {
+  const list = SYS_TYPES[groupCode];
+  if (!list) return null;
+  return SEED_SYS_TYPE[`${groupCode}/${code}`] ?? (list.some((s) => s.code === code) ? code : FALLBACK_SYS_TYPE[groupCode]);
+};
+
 const c = (groupCode: string, code: string, name: string, sortOrder: number, description: string | null = null): Code =>
-  ({ groupCode, code, name, description, sortOrder, active: true, system: SYSTEM_CODES.has(`${groupCode}/${code}`) });
+  ({ groupCode, code, name, description, sortOrder, active: true, system: SYSTEM_CODES.has(`${groupCode}/${code}`), sysType: sysTypeOf(groupCode, code) });
 
 /** 데모 사용처. 이름은 명백한 가짜 값이다. */
 export const DEMO_USAGES: MockUsages = {

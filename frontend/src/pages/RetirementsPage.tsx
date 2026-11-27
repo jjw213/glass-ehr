@@ -4,7 +4,7 @@ import { Badge, Card, CardHead, PageHead } from '../components/ui';
 import { seoulToday } from '../api/agreements';
 import { CODE_GROUP } from '../api/codes';
 import {
-  CERT_ITEM_LABEL, CERT_ITEMS, DISMISSAL, EXEMPT_LABEL, NOTICE_LABEL, retirementApi, toRetirementBody, validateRetirement,
+  CERT_ITEM_LABEL, CERT_ITEMS, DISMISSAL_SYS_TYPE, EXEMPT_LABEL, NOTICE_LABEL, retirementApi, toRetirementBody, validateRetirement,
   WAGE_UNIT_LABEL, won,
   type Certificate, type CertificateItem, type ChecklistTemplateItem, type NoticeExempt, type RetentionExpiredRow,
   type Retirement, type RetirementApi,
@@ -31,10 +31,11 @@ export function RetirementsPage() {
       </>
     );
   }
-  return <RetirementWorkspace api={retirementApi} reasons={codes.map((c) => ({ code: c.code, name: c.name }))} today={seoulToday()} />;
+  return <RetirementWorkspace api={retirementApi} reasons={codes.map((c) => ({ code: c.code, name: c.name, sysType: c.sysType }))} today={seoulToday()} />;
 }
 
-export interface Reason { code: string; name: string }
+/** @property sysType 퇴직사유 처리방식(#141). 해고 여부는 코드값이 아니라 이것으로 판단한다 */
+export interface Reason { code: string; name: string; sysType: string | null }
 
 const errorOf = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
@@ -68,7 +69,7 @@ function RegisterCard({ api, reasons, today, onDone }: {
   const [template, setTemplate] = useState<ChecklistTemplateItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const dismissal = reasonCode === DISMISSAL;
+  const dismissal = reasons.find((r) => r.code === reasonCode)?.sysType === DISMISSAL_SYS_TYPE;
 
   useEffect(() => {
     if (!reasonCode) { setTemplate([]); return; }
@@ -83,12 +84,12 @@ function RegisterCard({ api, reasons, today, onDone }: {
       empId: Number(empId.trim()), retireDate, reasonCode, reasonDetail,
       dismissalNoticeDate: noticeDate || null, writtenNoticeDate: writtenDate || null, noticeExempt: exempt || null,
     };
-    const err = validateRetirement(input);
+    const err = validateRetirement(input, dismissal);
     if (err) { setError(err); return; }
     setBusy(true);
     setError(null);
     try {
-      onDone(await api.register(toRetirementBody(input)));
+      onDone(await api.register(toRetirementBody(input, dismissal)));
     } catch (ex) {
       setError(errorOf(ex, '퇴직 처리를 하지 못했어요'));
     } finally {

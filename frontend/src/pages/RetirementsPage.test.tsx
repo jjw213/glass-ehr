@@ -68,16 +68,16 @@ describe('퇴직 처리 메뉴 권한', () => {
 describe('퇴직 처리 입력 검사', () => {
   it('해고는 예고일·서면통지일이 필수이고 해고일보다 늦을 수 없다', () => {
     const d = { ...base, reasonCode: 'DISMISSAL' };
-    expect(validateRetirement(d)).toMatch('제26조');
-    expect(validateRetirement({ ...d, dismissalNoticeDate: '2026-11-01' })).toMatch('제27조');
-    expect(validateRetirement({ ...d, dismissalNoticeDate: '2026-12-01', writtenNoticeDate: '2026-11-01' })).toMatch('예고일');
-    expect(validateRetirement({ ...d, dismissalNoticeDate: '2026-11-01', writtenNoticeDate: '2026-12-01' })).toMatch('서면통지일');
-    expect(validateRetirement({ ...d, dismissalNoticeDate: '2026-11-01', writtenNoticeDate: '2026-11-01' })).toBeNull();
+    expect(validateRetirement(d, true)).toMatch('제26조');
+    expect(validateRetirement({ ...d, dismissalNoticeDate: '2026-11-01' }, true)).toMatch('제27조');
+    expect(validateRetirement({ ...d, dismissalNoticeDate: '2026-12-01', writtenNoticeDate: '2026-11-01' }, true)).toMatch('예고일');
+    expect(validateRetirement({ ...d, dismissalNoticeDate: '2026-11-01', writtenNoticeDate: '2026-12-01' }, true)).toMatch('서면통지일');
+    expect(validateRetirement({ ...d, dismissalNoticeDate: '2026-11-01', writtenNoticeDate: '2026-11-01' }, true)).toBeNull();
   });
   it('해고가 아니면 예고 항목을 보내지 않는다', () => {
-    expect(validateRetirement(base)).toBeNull();
-    expect(validateRetirement({ ...base, empId: Number.NaN })).toMatch('사원 ID');
-    const body = toRetirementBody({ ...base, reasonDetail: '  ', dismissalNoticeDate: '2026-11-01', noticeExempt: 'UNAVOIDABLE' });
+    expect(validateRetirement(base, false)).toBeNull();
+    expect(validateRetirement({ ...base, empId: Number.NaN }, false)).toMatch('사원 ID');
+    const body = toRetirementBody({ ...base, reasonDetail: '  ', dismissalNoticeDate: '2026-11-01', noticeExempt: 'UNAVOIDABLE' }, false);
     expect(body.dismissalNoticeDate).toBeNull();
     expect(body.noticeExempt).toBeNull();
     expect(body.reasonDetail).toBeNull();
@@ -90,7 +90,23 @@ describe('퇴직 처리 화면', () => {
   beforeEach(() => { host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host); });
   afterEach(() => { act(() => root.unmount()); host.remove(); });
 
-  const reasons = [{ code: 'VOLUNTARY', name: '자발적 퇴사' }, { code: 'DISMISSAL', name: '해고' }];
+  const reasons = [
+    { code: 'VOLUNTARY', name: '자발적 퇴사', sysType: 'VOLUNTARY' }, { code: 'DISMISSAL', name: '해고', sysType: 'DISMISSAL' },
+    { code: 'MGMT_DISMISSAL', name: '경영상 해고', sysType: 'DISMISSAL' },
+  ];
+
+  it('관리자가 만든 해고 처리방식 코드(경영상 해고)도 예고 입력칸이 나온다(#141)', async () => {
+    const api = fakeApi();
+    act(() => root.render(<RetirementWorkspace api={api} reasons={reasons} today="2026-11-16" />));
+    await flush();
+    const form = host.querySelector('form[aria-label="퇴직 처리 등록"]') as HTMLFormElement;
+    act(() => choose(form.querySelector('select') as HTMLSelectElement, 'MGMT_DISMISSAL'));
+    await flush();
+    expect(form.querySelector('fieldset[aria-label="해고 예고·서면통지"]')).not.toBeNull();
+    act(() => choose(form.querySelector('select') as HTMLSelectElement, 'VOLUNTARY'));
+    await flush();
+    expect(form.querySelector('fieldset')).toBeNull();
+  });
 
   it('해고를 고르면 예고 입력칸이 나오고, 빠지면 서버에 보내지 않는다', async () => {
     const api = fakeApi();
