@@ -20,6 +20,7 @@ public record DailyWorkSummaryRow(
         LocalDateTime workEnd,
         Integer breakMinutes,
         Integer workedMinutes,
+        Integer recognizedMinutes,
         Integer regularMinutes,
         Integer extraMinutes,
         Integer overtimeMinutes,
@@ -33,4 +34,18 @@ public record DailyWorkSummaryRow(
         String issues,
         String calculatedBy,
         LocalDateTime calculatedAt) {
+
+    /** 정책 인정 단위 도입 전 호출부와 테스트 자료는 시간 분류 합계로 인정 시간을 채운다. */
+    public DailyWorkSummaryRow(Long empId, LocalDate workDate, String dayKind, Long patternId,
+            Integer contractMinutes, String leaveKind, Integer leaveMinutes, LocalDateTime workStart,
+            LocalDateTime workEnd, Integer breakMinutes, Integer workedMinutes, Integer regularMinutes,
+            Integer extraMinutes, Integer overtimeMinutes, Integer nightMinutes, Integer holidayMinutes,
+            Integer holidayExcessMinutes, BigDecimal overtimeRate, BigDecimal nightRate, BigDecimal holidayRate,
+            BigDecimal holidayExcessRate, String issues, String calculatedBy, LocalDateTime calculatedAt) {
+        this(empId, workDate, dayKind, patternId, contractMinutes, leaveKind, leaveMinutes, workStart, workEnd,
+                breakMinutes, workedMinutes,
+                regularMinutes + extraMinutes + overtimeMinutes + holidayMinutes + holidayExcessMinutes,
+                regularMinutes, extraMinutes, overtimeMinutes, nightMinutes, holidayMinutes, holidayExcessMinutes,
+                overtimeRate, nightRate, holidayRate, holidayExcessRate, issues, calculatedBy, calculatedAt);
+    }
 }

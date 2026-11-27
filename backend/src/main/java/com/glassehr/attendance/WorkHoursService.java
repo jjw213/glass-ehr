@@ -317,10 +317,16 @@ public class WorkHoursService {
         WorkHoursLegalRules.Rates rates = m.applied().rates();
         return new DailyWorkSummaryRow(empId, r.workDate(), r.dayKind().name(), m.patternId(), r.contractMinutes(),
                 r.leaveKind() == null ? null : r.leaveKind().name(), r.leaveMinutes(),
-                m.shift().start(), m.shift().end(), r.breakMinutes(), r.workedMinutes(), r.regularMinutes(),
-                r.extraMinutes(), r.overtimeMinutes(), r.nightMinutes(), r.holidayMinutes(), r.holidayExcessMinutes(),
+                m.shift().start(), m.shift().end(), r.breakMinutes(), r.workedMinutes(), recognizedMinutes(r),
+                r.regularMinutes(), r.extraMinutes(), r.overtimeMinutes(), r.nightMinutes(), r.holidayMinutes(),
+                r.holidayExcessMinutes(),
                 rates.overtime(), rates.night(), rates.holiday(), rates.holidayExcess(),
                 m.issues().isEmpty() ? null : String.join(",", m.issues()), actor, now);
+    }
+
+    private static int recognizedMinutes(DayResult r) {
+        return r.regularMinutes() + r.extraMinutes() + r.overtimeMinutes()
+                + r.holidayMinutes() + r.holidayExcessMinutes();
     }
 
     private static void checkRange(LocalDate from, LocalDate to) {

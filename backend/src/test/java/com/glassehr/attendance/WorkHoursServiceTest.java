@@ -71,6 +71,7 @@ class WorkHoursServiceTest {
         DailyWorkSummaryRow w = service.recalculate(ENTER, EMP, wed, wed, "hr1").get(2);
         assertThat(w.overtimeMinutes()).isEqualTo(15);
         assertThat(w.workedMinutes()).isEqualTo(487);
+        assertThat(w.recognizedMinutes()).isEqualTo(495);
         assertThat(w.workEnd()).isEqualTo(wed.atTime(18, 7));
     }
 

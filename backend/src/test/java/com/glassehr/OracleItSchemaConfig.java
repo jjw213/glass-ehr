@@ -132,7 +132,8 @@ public class OracleItSchemaConfig {
         Integer dailySummary = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM user_tables WHERE table_name = 'ATTENDANCE_DAILY_SUMMARY'", Integer.class);
         if (dailySummary == null || dailySummary == 0) {
-            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V023__attendance_daily_summary.sql"))
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V023__attendance_daily_summary.sql"),
+                    new ClassPathResource("db/oracle/V046__daily_summary_recognized_minutes.sql"))
                     .execute(dataSource);
         }
         Integer approval = jdbc.queryForObject(
