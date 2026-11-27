@@ -48,35 +48,35 @@ public class OvertimeApprovalHandler implements ApprovalCompletionHandler {
     }
 
     @Override
-    public RequestView requestDetail(long requestRef) {
-        OvertimeRequest r = requests.findById(requestRef)
+    public RequestView requestDetail(String enterCd, long requestRef) {
+        OvertimeRequest r = requests.findByEnterCdAndRequestId(enterCd, requestRef)
                 .orElseThrow(() -> new IllegalStateException("연장·휴일근로 신청이 없어요: " + requestRef));
         return view(r);
     }
 
+    /** enterCd 는 결재 문서 법인. 신청·사원·집계·승인 합계 모두 이 법인 것만 본다(#126·#127). */
     @Override
-    public void onApproved(long requestRef) {
-        OvertimeRequest r = lock(requestRef);
+    public void onApproved(String enterCd, long requestRef) {
+        OvertimeRequest r = lock(enterCd, requestRef);
         // 같은 사원의 최종 승인들을 공통 사원 행 잠금으로 직렬화한 뒤 승인 합계를 조회한다.
-        String enterCd = employees.findForUpdate(r.getEmpId())
-                .orElseThrow(() -> new IllegalStateException("사원이 없어요: " + r.getEmpId())).getEnterCd();
-        // 집계 행은 사원 법인 것만 읽는다(#126).
+        employees.findForUpdate(enterCd, r.getEmpId())
+                .orElseThrow(() -> new IllegalStateException("사원이 없어요: " + r.getEmpId()));
         limits.check(enterCd, r);
         r.decide(OvertimeRequest.Status.APPROVED, LocalDateTime.now(clock));
     }
 
     @Override
-    public void onRejected(long requestRef) {
-        lock(requestRef).decide(OvertimeRequest.Status.REJECTED, LocalDateTime.now(clock));
+    public void onRejected(String enterCd, long requestRef) {
+        lock(enterCd, requestRef).decide(OvertimeRequest.Status.REJECTED, LocalDateTime.now(clock));
     }
 
     @Override
-    public void onWithdrawn(long requestRef) {
-        lock(requestRef).decide(OvertimeRequest.Status.WITHDRAWN, LocalDateTime.now(clock));
+    public void onWithdrawn(String enterCd, long requestRef) {
+        lock(enterCd, requestRef).decide(OvertimeRequest.Status.WITHDRAWN, LocalDateTime.now(clock));
     }
 
-    private OvertimeRequest lock(long id) {
-        return requests.findForUpdate(id)
+    private OvertimeRequest lock(String enterCd, long id) {
+        return requests.findForUpdate(enterCd, id)
                 .orElseThrow(() -> new IllegalStateException("연장·휴일근로 신청이 없어요: " + id));
     }
 

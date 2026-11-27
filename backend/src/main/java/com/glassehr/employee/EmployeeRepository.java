@@ -43,10 +43,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     List<Employee> findByEnterCdAndRecordRetentionUntilBeforeOrderByRecordRetentionUntilAscEmpNoAsc(String enterCd,
             LocalDate date);
 
-    List<Employee> findAllByOrderByEmpNoAsc();
-
-    // ---- 법인 조건(#123, docs/tenant-design.md 5.2). 사원 API(조회·등록·수정·퇴직·CSV·주민등록번호)는 이것만 쓴다.
-    // 위·아래의 법인 조건 없는 메서드는 다른 모듈(발령·근태·계약 등)이 쓰며 각 모듈 법인 이슈에서 바꾼다.
+    // ---- 법인 조건(#123·#129, docs/tenant-design.md 5.2). 법인 조건 없는 조회는 위 발령 매일 반영용 키 목록뿐이다.
 
     Optional<Employee> findByEnterCdAndEmpId(String enterCd, Long empId);
 
@@ -54,30 +51,17 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     List<Employee> findByEnterCdAndRetireDateIsNullOrderByEmpNoAsc(String enterCd);
 
-    /** 사원 행 잠금(아래 법인 조건 없는 판 설명 참고)과 같되 그 법인 사원만 잠근다. 다른 법인 사원은 빈 값(→ 404). */
+    /**
+     * 사원 행 잠금(SELECT ... FOR UPDATE). 수정·퇴직 처리는 이것으로 읽어 같은 사원의 쓰기를 직렬화한다.
+     * 잠그지 않으면 퇴직 처리 전에 읽은 수정 요청이 나중에 전체 행을 덮어써 퇴직일·사유·보존기한을 지울 수 있다.
+     * 그 법인 사원만 잠근다. 다른 법인 사원은 빈 값(→ 404).
+     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Employee e WHERE e.enterCd = :enterCd AND e.empId = :empId")
     Optional<Employee> findForUpdate(@Param("enterCd") String enterCd, @Param("empId") long empId);
 
-    /** 현재 그 직책을 가진 재직자(결재자 찾기, #30). */
-    @Query("SELECT e.empId FROM Employee e WHERE e.jobTitleCode = :code AND e.empStatus = 'ACTIVE'")
-    List<Long> findActiveEmpIdsWithTitle(@Param("code") String titleCode);
-
-    List<Employee> findByRetireDateIsNullOrderByEmpNoAsc();
-
-    /**
-     * 사원 행 잠금(SELECT ... FOR UPDATE). 수정·퇴직 처리는 이것으로 읽어 같은 사원의 쓰기를 직렬화한다.
-     * 잠그지 않으면 퇴직 처리 전에 읽은 수정 요청이 나중에 전체 행을 덮어써 퇴직일·사유·보존기한을 지울 수 있다.
-     */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT e FROM Employee e WHERE e.empId = :empId")
-    Optional<Employee> findForUpdate(@Param("empId") long empId);
-
-    /**
-     * {@code date} 당일이나 그 뒤에 이 부서 소속인 사원 수(입사 예정자 포함, {@code date} 전에 퇴직한 사람 제외).
-     * 퇴직일 당일까지는 재직으로 본다.
-     */
-    @Query("SELECT COUNT(e) FROM Employee e WHERE e.currentDeptId = :deptId"
-            + " AND (e.retireDate IS NULL OR e.retireDate >= :date)")
-    long countInDeptOnOrAfter(@Param("deptId") long deptId, @Param("date") LocalDate date);
+    /** 그 법인에서 현재 그 직책을 가진 재직자(결재자 찾기, #30·#127). */
+    @Query("SELECT e.empId FROM Employee e WHERE e.enterCd = :enterCd AND e.jobTitleCode = :code"
+            + " AND e.empStatus = 'ACTIVE'")
+    List<Long> findActiveEmpIdsWithTitle(@Param("enterCd") String enterCd, @Param("code") String titleCode);
 }

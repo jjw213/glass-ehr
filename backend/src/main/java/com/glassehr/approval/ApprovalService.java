@@ -87,14 +87,16 @@ public class ApprovalService {
      * 결재를 올린다. 신청일(오늘, 서울) 기준 유효 템플릿으로 결재자를 풀어 스냅샷한다.
      * 템플릿이 없거나 결재자를 찾지 못하면 422(신청 거부). 모든 단계를 건너뛰면 바로 승인되고 핸들러가 불린다.
      *
+     * enterCd 는 신청자(문서) 법인이다(#127). 템플릿·결재자는 이 법인 안에서만 찾는다.
+     *
      * @return 결재 문서 ID
      */
     @Transactional
-    public long submit(String requestType, long requestRef, String title, long requesterEmpId) {
+    public long submit(String enterCd, String requestType, long requestRef, String title, long requesterEmpId) {
         ApprovalCompletionHandler handler = handler(requestType);
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDate today = now.toLocalDate();
-        List<ApprovalTemplate> found = templates.findEffective(requestType, today);
+        List<ApprovalTemplate> found = templates.findEffective(enterCd, requestType, today);
         if (found.isEmpty()) {
             throw ApprovalException.rejected(handler.label() + " 결재선이 설정되지 않아 신청할 수 없어요. "
                     + "관리자에게 결재선 설정을 요청해 주세요");
@@ -103,19 +105,21 @@ public class ApprovalService {
             throw ApprovalException.conflict(handler.label() + " 결재선이 " + today + "에 둘 이상 겹쳐 있어요");
         }
         ApprovalTemplate t = found.get(0);
-        List<ApproverResolver.ResolvedStep> resolved = resolver.resolve(t.getSteps(), requesterEmpId, today);
-        ApprovalDoc doc = docs.save(new ApprovalDoc(requestType, requestRef, title, requesterEmpId,
+        List<ApproverResolver.ResolvedStep> resolved = resolver.resolve(t.getSteps(), enterCd, requesterEmpId,
+                today);
+        ApprovalDoc doc = docs.save(new ApprovalDoc(enterCd, requestType, requestRef, title, requesterEmpId,
                 t.getTemplateId(), resolved, now));
         long id = doc.getApprovalId();
-        logs.save(new ApprovalActionLog(id, null, ApprovalActionLog.Action.SUBMIT, requesterEmpId, now, null));
+        logs.save(new ApprovalActionLog(enterCd, id, null, ApprovalActionLog.Action.SUBMIT, requesterEmpId, now,
+                null));
         for (ApproverResolver.ResolvedStep r : resolved) {
             if (r.skipped()) {
-                logs.save(new ApprovalActionLog(id, r.stepNo(), ApprovalActionLog.Action.SKIP, requesterEmpId, now,
-                        "신청자 본인 단계 건너뜀"));
+                logs.save(new ApprovalActionLog(enterCd, id, r.stepNo(), ApprovalActionLog.Action.SKIP,
+                        requesterEmpId, now, "신청자 본인 단계 건너뜀"));
             }
         }
         if (doc.getStatus() == ApprovalDoc.Status.APPROVED) {
-            handler.onApproved(requestRef);
+            handler.onApproved(enterCd, requestRef);
         }
         return id;
     }
@@ -123,14 +127,14 @@ public class ApprovalService {
     @Transactional
     public DocDetail approve(long approvalId, AuthUser user, String comment) {
         long emp = requireEmp(user);
-        ApprovalDoc doc = lock(approvalId);
+        ApprovalDoc doc = lock(user.enterCd(), approvalId);
         int stepNo = currentStepNo(doc);
         LocalDateTime now = LocalDateTime.now(clock);
         boolean done = doc.approve(emp, blankToNull(comment), now);
-        logs.save(new ApprovalActionLog(approvalId, stepNo, ApprovalActionLog.Action.APPROVE, emp, now,
-                blankToNull(comment)));
+        logs.save(new ApprovalActionLog(doc.getEnterCd(), approvalId, stepNo, ApprovalActionLog.Action.APPROVE, emp,
+                now, blankToNull(comment)));
         if (done) {
-            handler(doc.getRequestType()).onApproved(doc.getRequestRef());
+            handler(doc.getRequestType()).onApproved(doc.getEnterCd(), doc.getRequestRef());
         }
         return detail(doc, user);
     }
@@ -141,50 +145,53 @@ public class ApprovalService {
         if (comment == null || comment.isBlank()) {
             throw ApprovalException.badRequest("반려 사유를 적어 주세요");
         }
-        ApprovalDoc doc = lock(approvalId);
+        ApprovalDoc doc = lock(user.enterCd(), approvalId);
         int stepNo = currentStepNo(doc);
         LocalDateTime now = LocalDateTime.now(clock);
         doc.reject(emp, comment.strip(), now);
-        logs.save(new ApprovalActionLog(approvalId, stepNo, ApprovalActionLog.Action.REJECT, emp, now,
-                comment.strip()));
-        handler(doc.getRequestType()).onRejected(doc.getRequestRef());
+        logs.save(new ApprovalActionLog(doc.getEnterCd(), approvalId, stepNo, ApprovalActionLog.Action.REJECT, emp,
+                now, comment.strip()));
+        handler(doc.getRequestType()).onRejected(doc.getEnterCd(), doc.getRequestRef());
         return detail(doc, user);
     }
 
     @Transactional
     public DocDetail withdraw(long approvalId, AuthUser user) {
         long emp = requireEmp(user);
-        ApprovalDoc doc = lock(approvalId);
+        ApprovalDoc doc = lock(user.enterCd(), approvalId);
         LocalDateTime now = LocalDateTime.now(clock);
         doc.withdraw(emp, now);
-        logs.save(new ApprovalActionLog(approvalId, null, ApprovalActionLog.Action.WITHDRAW, emp, now, null));
-        handler(doc.getRequestType()).onWithdrawn(doc.getRequestRef());
+        logs.save(new ApprovalActionLog(doc.getEnterCd(), approvalId, null, ApprovalActionLog.Action.WITHDRAW, emp,
+                now, null));
+        handler(doc.getRequestType()).onWithdrawn(doc.getEnterCd(), doc.getRequestRef());
         return detail(doc, user);
     }
 
-    /** 결재함: 지금 내 차례인 문서(오래된 순). */
+    /** 결재함: 현재 법인 문서 중 지금 내 차례인 문서(오래된 순). */
     @Transactional(readOnly = true)
     public List<DocSummary> inbox(AuthUser user) {
-        return summaries(docs.findInbox(requireEmp(user)));
+        return summaries(user.enterCd(), docs.findInbox(user.enterCd(), requireEmp(user)));
     }
 
     /** 내가 처리(승인·반려)한 문서. */
     @Transactional(readOnly = true)
     public List<DocSummary> processed(AuthUser user) {
-        return summaries(docs.findProcessedBy(requireEmp(user), PageRequest.of(0, LIST_LIMIT)));
+        return summaries(user.enterCd(),
+                docs.findProcessedBy(user.enterCd(), requireEmp(user), PageRequest.of(0, LIST_LIMIT)));
     }
 
     /** 내가 올린 문서. */
     @Transactional(readOnly = true)
     public List<DocSummary> mine(AuthUser user) {
-        return summaries(docs.findByRequesterEmpIdOrderBySubmittedAtDesc(requireEmp(user),
-                PageRequest.of(0, LIST_LIMIT)));
+        return summaries(user.enterCd(), docs.findByEnterCdAndRequesterEmpIdOrderBySubmittedAtDesc(
+                user.enterCd(), requireEmp(user), PageRequest.of(0, LIST_LIMIT)));
     }
 
-    /** 상세. 신청자·결재자 후보 또는 전체 사원 조회 권한자만 볼 수 있다. */
+    /** 상세. 신청자·결재자 후보 또는 전체 사원 조회 권한자만 볼 수 있다. 다른 법인 문서는 404(#127). */
     @Transactional(readOnly = true)
     public DocDetail get(long approvalId, AuthUser user) {
-        ApprovalDoc doc = docs.findById(approvalId).orElseThrow(() -> notFound(approvalId));
+        ApprovalDoc doc = docs.findByEnterCdAndApprovalId(user.enterCd(), approvalId)
+                .orElseThrow(() -> notFound(approvalId));
         boolean involved = user.empId() != null && doc.involves(user.empId());
         if (!involved && !user.has(Permission.EMP_READ_ALL)) {
             throw ApprovalException.forbidden("이 결재 문서를 볼 권한이 없어요");
@@ -194,8 +201,8 @@ public class ApprovalService {
 
     /** 모듈이 원본 신청의 결재 문서를 찾을 때. */
     @Transactional(readOnly = true)
-    public ApprovalDoc findByRequest(String requestType, long requestRef) {
-        return docs.findByRequestTypeAndRequestRef(requestType, requestRef).orElse(null);
+    public ApprovalDoc findByRequest(String enterCd, String requestType, long requestRef) {
+        return docs.findByEnterCdAndRequestTypeAndRequestRef(enterCd, requestType, requestRef).orElse(null);
     }
 
     private ApprovalCompletionHandler handler(String requestType) {
@@ -206,8 +213,9 @@ public class ApprovalService {
         return h;
     }
 
-    private ApprovalDoc lock(long approvalId) {
-        return docs.findForUpdate(approvalId).orElseThrow(() -> notFound(approvalId));
+    /** 현재 법인 문서만 잠근다. 다른 법인 문서 ID 는 404(존재 여부를 드러내지 않음, #127). */
+    private ApprovalDoc lock(String enterCd, long approvalId) {
+        return docs.findForUpdate(enterCd, approvalId).orElseThrow(() -> notFound(approvalId));
     }
 
     private static int currentStepNo(ApprovalDoc doc) {
@@ -229,10 +237,10 @@ public class ApprovalService {
         return s == null || s.isBlank() ? null : s.strip();
     }
 
-    private List<DocSummary> summaries(List<ApprovalDoc> list) {
+    private List<DocSummary> summaries(String enterCd, List<ApprovalDoc> list) {
         Set<Long> ids = new HashSet<>();
         list.forEach(d -> ids.add(d.getRequesterEmpId()));
-        Map<Long, String> names = names(ids);
+        Map<Long, String> names = names(enterCd, ids);
         return list.stream().map(d -> summary(d, names)).toList();
     }
 
@@ -245,7 +253,7 @@ public class ApprovalService {
 
     private DocDetail detail(ApprovalDoc d, AuthUser user) {
         List<ApprovalActionLog> history = d.getApprovalId() == null ? List.of()
-                : logs.findByApprovalIdOrderByActionId(d.getApprovalId());
+                : logs.findByEnterCdAndApprovalIdOrderByActionId(d.getEnterCd(), d.getApprovalId());
         Set<Long> ids = new HashSet<>();
         ids.add(d.getRequesterEmpId());
         for (ApprovalDocStep s : d.getSteps()) {
@@ -255,7 +263,7 @@ public class ApprovalService {
             }
         }
         history.forEach(l -> ids.add(l.getActorEmpId()));
-        Map<Long, String> names = names(ids);
+        Map<Long, String> names = names(d.getEnterCd(), ids);
         List<StepView> steps = d.getSteps().stream().map(s -> new StepView(s.getStepNo(), s.getApproverKind(),
                 s.getApproverRef(), s.getStepStatus(),
                 s.getApproverEmpIds().stream().sorted().map(e -> person(e, names)).toList(),
@@ -272,13 +280,14 @@ public class ApprovalService {
                 && d.getRequesterEmpId().equals(me)
                 && d.getSteps().stream().noneMatch(s -> s.getStepStatus() == ApprovalDocStep.Status.APPROVED);
         ApprovalCompletionHandler h = handlers.get(d.getRequestType());
-        Object requestDetail = h == null ? null : h.requestDetail(d.getRequestRef());
+        Object requestDetail = h == null ? null : h.requestDetail(d.getEnterCd(), d.getRequestRef());
         return new DocDetail(summary(d, names), requestDetail, steps, logViews, canAct, canWithdraw);
     }
 
-    private Map<Long, String> names(Collection<Long> ids) {
+    /** 이름은 문서 법인 사원에서만 읽는다(#127). */
+    private Map<Long, String> names(String enterCd, Collection<Long> ids) {
         Map<Long, String> m = new HashMap<>();
-        for (Employee e : employees.findAllById(ids)) {
+        for (Employee e : employees.findByEnterCdAndEmpIdIn(enterCd, ids)) {
             m.put(e.getEmpId(), e.getName());
         }
         return m;

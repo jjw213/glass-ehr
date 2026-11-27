@@ -49,7 +49,7 @@ public class CommonCode {
     private Boolean system = Boolean.FALSE;
 
     /**
-     * 처리방식(sys_type). 근태코드 그룹(V041, #143)과 고용형태·퇴직사유(V047, #141, {@link CodeSysTypes})만 값이 있고
+     * 처리방식(sys_type). 근태코드 그룹(V041, #143)과 고용형태·퇴직사유(V050, #141, {@link CodeSysTypes})만 값이 있고
      * 다른 그룹은 null. 로직은 코드값이 아니라 이 값을 본다.
      */
     @Column(name = "process_type")

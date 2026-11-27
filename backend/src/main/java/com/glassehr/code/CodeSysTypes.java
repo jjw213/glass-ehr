@@ -9,7 +9,7 @@ import java.util.Map;
  * 관리자는 같은 처리방식의 코드를 새로 만들 수 있지만 처리방식 목록 자체는 바꾸지 않는다(서버 고정).
  *
  * <p>저장 컬럼은 #143 이 만든 {@code common_code.process_type}이다(같은 개념이라 컬럼을 하나 더 두지 않는다).
- * 목록은 DB CHECK {@code ck_common_code_process}(V047)와 같아야 한다(CodeSysTypesSchemaScriptTest).
+ * 목록은 DB CHECK {@code ck_common_code_process}(V050)와 같아야 한다(CodeSysTypesSchemaScriptTest).
  * 근태코드 그룹(LEAVE_TYPE·ATTENDANCE_TYPE)의 처리방식은 {@link AttendanceCodeService#PROCESS_TYPES}가 정하고
  * 근태코드 관리 화면에서 다룬다.
  */
@@ -104,7 +104,7 @@ public final class CodeSysTypes {
         }
         String t = c.getProcessType();
         if (t == null) {
-            // V047 CHECK 가 막으므로 생기지 않는다. 생기면 조용히 일반 처리하지 않고 드러낸다.
+            // V050 CHECK 가 막으므로 생기지 않는다. 생기면 조용히 일반 처리하지 않고 드러낸다.
             throw new IllegalStateException("처리방식이 없는 코드예요: " + group + "/" + c.getCode());
         }
         return t;

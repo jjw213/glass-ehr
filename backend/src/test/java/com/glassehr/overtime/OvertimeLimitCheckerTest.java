@@ -61,12 +61,13 @@ class OvertimeLimitCheckerTest {
         when(legalRates.getEffective(eq(LegalRateItem.WEEKLY_STANDARD_WORK_HOURS), any(LocalDate.class)))
                 .thenReturn(rate("WEEKLY_STANDARD_WORK_HOURS", 2));
         when(summaries.findRange(any(), anyLong(), any(), any())).thenReturn(List.of());
-        when(requests.findByEmpIdAndWorkDateBetweenAndStatusIn(anyLong(), any(), any(), any())).thenReturn(List.of());
+        when(requests.findByEnterCdAndEmpIdAndWorkDateBetweenAndStatusIn(any(), anyLong(), any(), any(), any()))
+                .thenReturn(List.of());
     }
 
     static OvertimeRequest req(long id, OvertimeRequest.Kind kind, LocalDate d, int minutes) {
         LocalDateTime start = d.atStartOfDay();
-        OvertimeRequest r = new OvertimeRequest(EMP, kind, start, start.plusMinutes(minutes), 0, "사유",
+        OvertimeRequest r = new OvertimeRequest(ENTER, EMP, kind, start, start.plusMinutes(minutes), 0, "사유",
                 start.minusDays(1));
         ReflectionTestUtils.setField(r, "requestId", id);
         return r;
@@ -84,7 +85,7 @@ class OvertimeLimitCheckerTest {
     }
 
     private void approved(OvertimeRequest... rs) {
-        when(requests.findByEmpIdAndWorkDateBetweenAndStatusIn(EMP, MON, MON.plusDays(6),
+        when(requests.findByEnterCdAndEmpIdAndWorkDateBetweenAndStatusIn(ENTER, EMP, MON, MON.plusDays(6),
                 List.of(OvertimeRequest.Status.APPROVED))).thenReturn(List.of(rs));
     }
 
@@ -111,10 +112,10 @@ class OvertimeLimitCheckerTest {
     @Test
     void 실적에_포함된_신청은_중복하지_않고_아직_근무하지_않은_신청은_더한다() {
         LocalDateTime start = MON.atTime(9, 0);
-        OvertimeRequest reflected = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, start, start.plusMinutes(30),
+        OvertimeRequest reflected = new OvertimeRequest(ENTER, EMP, OvertimeRequest.Kind.OVERTIME, start, start.plusMinutes(30),
                 0, "사유", start.minusDays(1));
         ReflectionTestUtils.setField(reflected, "requestId", 1L);
-        OvertimeRequest future = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, start.plusHours(3),
+        OvertimeRequest future = new OvertimeRequest(ENTER, EMP, OvertimeRequest.Kind.OVERTIME, start.plusHours(3),
                 start.plusHours(3).plusMinutes(30), 0, "사유", start.minusDays(1));
         ReflectionTestUtils.setField(future, "requestId", 2L);
         approved(reflected, future);
@@ -133,13 +134,13 @@ class OvertimeLimitCheckerTest {
         when(legalRates.getEffective(LegalRateItem.WEEKLY_STANDARD_WORK_HOURS, MON))
                 .thenReturn(rate("WEEKLY_STANDARD_WORK_HOURS", 10));
         LocalDateTime requestStart = MON.atTime(12, 0);
-        OvertimeRequest request = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, requestStart,
+        OvertimeRequest request = new OvertimeRequest(ENTER, EMP, OvertimeRequest.Kind.OVERTIME, requestStart,
                 requestStart.plusHours(3), 60, "사유", requestStart.minusDays(1));
         ReflectionTestUtils.setField(request, "requestId", 1L);
         WorkPattern pattern = new WorkPattern("C001", "DAY", "주간", new WorkPatternRules.Spec(540, 1080, 720, 60, "WWWWWOO"),
                 new WorkPatternRules.Result(480, 2400, List.of()), true, null, requestStart.minusDays(10));
         ReflectionTestUtils.setField(pattern, "patternId", 1L);
-        when(patterns.findById(1L)).thenReturn(Optional.of(pattern));
+        when(patterns.findByEnterCdAndPatternId("C001", 1L)).thenReturn(Optional.of(pattern));
         when(summaries.findRange(ENTER, EMP, MON.minusDays(1), MON.plusDays(6)))
                 .thenReturn(List.of(actual(MON, "WORKDAY", 180, MON.atTime(9, 0), MON.atTime(13, 0))));
 
@@ -149,7 +150,7 @@ class OvertimeLimitCheckerTest {
     @Test
     void 전날_시작한_야간조_실적과_다음날_신청의_겹침도_반영분으로_차감한다() {
         LocalDateTime start = MON.atTime(2, 0);
-        OvertimeRequest request = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, start, start.plusHours(2),
+        OvertimeRequest request = new OvertimeRequest(ENTER, EMP, OvertimeRequest.Kind.OVERTIME, start, start.plusHours(2),
                 0, "사유", start.minusDays(1));
         ReflectionTestUtils.setField(request, "requestId", 1L);
         when(summaries.findRange(ENTER, EMP, MON.minusDays(1), MON.plusDays(6))).thenReturn(List.of(

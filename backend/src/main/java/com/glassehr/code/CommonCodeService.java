@@ -206,7 +206,7 @@ public class CommonCodeService {
 
     /**
      * 처리방식이 있는 그룹(고용형태·퇴직사유)은 목록 안의 값이 꼭 있어야 하고, 다른 그룹은 처리방식을 두지 않는다
-     * (DB CHECK ck_common_code_process, V047). 근태코드 그룹은 공통코드 API 로 고치지 않으므로 여기 오지 않는다.
+     * (DB CHECK ck_common_code_process, V050). 근태코드 그룹은 공통코드 API 로 고치지 않으므로 여기 오지 않는다.
      */
     private static String requireSysType(String groupCode, String sysType) {
         String t = blankToNull(sysType);

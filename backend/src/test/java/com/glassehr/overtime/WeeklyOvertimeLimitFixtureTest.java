@@ -141,7 +141,7 @@ class WeeklyOvertimeLimitFixtureTest {
     private static OvertimeRequest request(String spec) {
         String[] p = spec.split(":");
         LocalDateTime start = LocalDate.parse(p[0]).atStartOfDay();
-        OvertimeRequest r = new OvertimeRequest(EMP, OvertimeRequest.Kind.valueOf(p[1]), start,
+        OvertimeRequest r = new OvertimeRequest("C001", EMP, OvertimeRequest.Kind.valueOf(p[1]), start,
                 start.plusMinutes(Integer.parseInt(p[2])), 0, "fixture", start.minusDays(1));
         ReflectionTestUtils.setField(r, "requestId", nextId++);
         return r;
@@ -167,7 +167,7 @@ class WeeklyOvertimeLimitFixtureTest {
         OvertimeRequestRepository requests = mock(OvertimeRequestRepository.class);
         when(summaries.findRange(eq("C001"), anyLong(), any(), any()))
                 .thenReturn(items(daily).stream().map(WeeklyOvertimeLimitFixtureTest::record).toList());
-        when(requests.findByEmpIdAndWorkDateBetweenAndStatusIn(anyLong(), any(), any(), any()))
+        when(requests.findByEnterCdAndEmpIdAndWorkDateBetweenAndStatusIn(eq("C001"), anyLong(), any(), any(), any()))
                 .thenReturn(items(approvedSpec).stream().map(WeeklyOvertimeLimitFixtureTest::request).toList());
         OvertimeLimitChecker checker = new OvertimeLimitChecker(seededRates(seedRows()), summaries, requests,
                 mock(WorkPatternRepository.class));

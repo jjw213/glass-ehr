@@ -87,11 +87,10 @@ class FamilyLeaveServiceTest {
         when(e.getEmpId()).thenReturn(1L);
         when(e.getEnterCd()).thenReturn(ENTER);
         when(e.getHireDate()).thenReturn(HIRE);
-        when(employees.findForUpdate(1L)).thenReturn(Optional.of(e));
-        when(employees.findById(1L)).thenReturn(Optional.of(e));
-        when(employees.existsById(1L)).thenReturn(true);
+        when(employees.findForUpdate(ENTER, 1L)).thenReturn(Optional.of(e));
+        when(employees.findByEnterCdAndEmpId(ENTER, 1L)).thenReturn(Optional.of(e));
 
-        when(requests.findByEmpIdOrderByStartDateAscReqIdAsc(1L)).thenAnswer(i -> List.copyOf(store));
+        when(requests.findByEnterCdAndEmpIdOrderByStartDateAscReqIdAsc(ENTER, 1L)).thenAnswer(i -> List.copyOf(store));
         when(requests.saveAndFlush(any())).thenAnswer(i -> {
             FamilyLeaveRequest r = i.getArgument(0);
             if (r.getReqId() == null) {
@@ -100,9 +99,11 @@ class FamilyLeaveServiceTest {
             }
             return r;
         });
-        when(requests.findEmpIdByReqId(anyLong())).thenReturn(Optional.of(1L));
-        when(requests.findForUpdate(anyLong())).thenAnswer(i -> store.stream()
-                .filter(r -> r.getReqId() == (long) i.getArgument(0)).findFirst());
+        when(requests.findEmpIdByReqId(eq(ENTER), anyLong())).thenReturn(Optional.of(1L));
+        when(requests.findForUpdate(eq(ENTER), anyLong())).thenAnswer(i -> store.stream()
+                .filter(r -> r.getReqId() == (long) i.getArgument(1)).findFirst());
+        when(requests.findByEnterCdAndReqId(eq(ENTER), anyLong())).thenAnswer(i -> store.stream()
+                .filter(r -> r.getReqId() == (long) i.getArgument(1)).findFirst());
         when(appointments.create(eq("C001"), eq(1L), any())).thenAnswer(i -> appt(apptIds.getAndIncrement(), i.getArgument(2)));
 
         // 테스트용 임의 기준값(법령 정답 아님)
@@ -152,7 +153,7 @@ class FamilyLeaveServiceTest {
 
     /** 승인된 휴직을 만들고 휴직 발령 이력이 신청 기간 그대로라고 둔다. */
     private RequestView approvedLeave(CreateRequest req) {
-        RequestView v = service.approve(service.create(1L, req, "hr1").reqId(), "hr1");
+        RequestView v = service.approve(ENTER,service.create(ENTER, 1L, req, "hr1").reqId(), "hr1");
         List<LeavePeriodView> periods = store.stream().filter(r -> r.getLeaveApptId() != null)
                 .map(r -> new LeavePeriodView(1, r.getLeaveApptId(), r.getStartDate(), r.getEndDate(), r.getEndDate(),
                         null, "r"))
@@ -170,7 +171,7 @@ class FamilyLeaveServiceTest {
 
     @Test
     void 육아휴직_신청은_대기로_저장하고_자녀_나이를_넘으면_학년_확인_경고를_남긴다() {
-        RequestView v = service.create(1L, parental("첫째", LocalDate.of(2020, 1, 1), START, START.plusMonths(2)), "hr1");
+        RequestView v = service.create(ENTER, 1L, parental("첫째", LocalDate.of(2020, 1, 1), START, START.plusMonths(2)), "hr1");
         assertThat(v.status()).isEqualTo(Status.REQUESTED);
         assertThat(v.requestedBy()).isEqualTo("hr1");
         assertThat(v.warnings()).singleElement().asString().contains("만 7세", "만 5세", "학년");
@@ -183,52 +184,52 @@ class FamilyLeaveServiceTest {
         when(e.getEmpId()).thenReturn(2L);
         when(e.getEnterCd()).thenReturn(ENTER);
         when(e.getHireDate()).thenReturn(START.minusMonths(1));
-        when(employees.findForUpdate(2L)).thenReturn(Optional.of(e));
-        RequestView v = service.create(2L, care(START, START.plusDays(29)), "hr1");
+        when(employees.findForUpdate(ENTER, 2L)).thenReturn(Optional.of(e));
+        RequestView v = service.create(ENTER, 2L, care(START, START.plusDays(29)), "hr1");
         assertThat(v.warnings()).singleElement().asString().contains("계속근로가 1개월", "3개월 미만");
     }
 
     @Test
     void 자격_기준값이_없으면_경고로_알린다() {
         noRate(LegalRateItem.PARENTAL_LEAVE_CHILD_MAX_AGE);
-        RequestView v = service.create(1L, parental("첫째", LocalDate.of(2026, 1, 1), START, START.plusMonths(2)), "hr1");
+        RequestView v = service.create(ENTER, 1L, parental("첫째", LocalDate.of(2026, 1, 1), START, START.plusMonths(2)), "hr1");
         assertThat(v.warnings()).singleElement().asString().contains("PARENTAL_LEAVE_CHILD_MAX_AGE");
     }
 
     @Test
     void 출생_전_육아휴직은_임신_중_신청인지_확인하라고_알린다() {
-        RequestView v = service.create(1L, parental("둘째", null, START, START.plusMonths(2)), "hr1");
+        RequestView v = service.create(ENTER, 1L, parental("둘째", null, START, START.plusMonths(2)), "hr1");
         assertThat(v.warnings()).singleElement().asString().contains("임신 중");
     }
 
     @Test
     void 종류별_필수값이_없으면_400() {
-        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 new CreateRequest(Kind.PARENTAL_LEAVE, " ", null, null, START, START.plusMonths(1), null, null, "r"), "hr1"));
         assertStatus(t, HttpStatus.BAD_REQUEST);
-        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 new CreateRequest(Kind.FAMILY_CARE_LEAVE, null, null, null, START, START.plusMonths(1), null, null, "r"), "hr1"));
         assertStatus(t, HttpStatus.BAD_REQUEST);
-        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 new CreateRequest(Kind.CHILDCARE_REDUCED_HOURS, "첫째", LocalDate.of(2025, 1, 1), null, START,
                         START.plusMonths(3), null, null, "r"), "hr1"));
         assertStatus(t, HttpStatus.BAD_REQUEST);
-        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 new CreateRequest(Kind.FAMILY_CARE_LEAVE, null, null, "부모", START, START.plusMonths(1), null, true, "r"), "hr1"));
         assertStatus(t, HttpStatus.BAD_REQUEST);
-        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 parental("첫째", null, START, START.minusDays(1)), "hr1"));
         assertStatus(t, HttpStatus.BAD_REQUEST);
-        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 parental("첫째", null, HIRE.minusDays(1), START), "hr1"));
         assertStatus(t, HttpStatus.BAD_REQUEST);
     }
 
     @Test
     void 기간이_겹치는_신청은_409() {
-        service.create(1L, parental("첫째", null, START, START.plusMonths(2)), "hr1");
+        service.create(ENTER, 1L, parental("첫째", null, START, START.plusMonths(2)), "hr1");
         Throwable t = org.assertj.core.api.Assertions.catchThrowable(
-                () -> service.create(1L, care(START.plusMonths(1), START.plusMonths(3)), "hr1"));
+                () -> service.create(ENTER, 1L, care(START.plusMonths(1), START.plusMonths(3)), "hr1"));
         assertStatus(t, HttpStatus.CONFLICT);
     }
 
@@ -237,12 +238,12 @@ class FamilyLeaveServiceTest {
     @Test
     void 육아휴직_한도_개월을_넘으면_409이고_추가기간_요건이_확인되면_늘어난다() {
         // 임의 한도 10개월: 10개월 1일은 거부
-        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 parental("첫째", null, START, START.plusMonths(10)), "hr1"));
         assertStatus(t, HttpStatus.CONFLICT);
         assertThat(t).hasMessageContaining("10개월");
         // 추가기간(임의 4개월) 요건 확인 시 14개월까지
-        RequestView v = service.create(1L, new CreateRequest(Kind.PARENTAL_LEAVE, "첫째", null, null, START,
+        RequestView v = service.create(ENTER, 1L, new CreateRequest(Kind.PARENTAL_LEAVE, "첫째", null, null, START,
                 START.plusMonths(14).minusDays(1), null, true, "양육"), "hr1");
         assertThat(v.extension()).isTrue();
     }
@@ -252,18 +253,18 @@ class FamilyLeaveServiceTest {
         // 임의 분할 1회 = 전체 2번 사용
         approvedLeave(parental("첫째", null, START, START.plusMonths(1).minusDays(1)));
         approvedLeave(parental("첫째", null, START.plusMonths(2), START.plusMonths(3).minusDays(1)));
-        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 parental("첫째", null, START.plusMonths(4), START.plusMonths(5).minusDays(1)), "hr1"));
         assertStatus(t, HttpStatus.CONFLICT);
         assertThat(t).hasMessageContaining("1회까지");
         // 다른 자녀는 따로 센다
-        service.create(1L, parental("둘째", null, START.plusMonths(4), START.plusMonths(5).minusDays(1)), "hr1");
+        service.create(ENTER, 1L, parental("둘째", null, START.plusMonths(4), START.plusMonths(5).minusDays(1)), "hr1");
     }
 
     @Test
     void 한도_기준값이_없으면_409() {
         noRate(LegalRateItem.PARENTAL_LEAVE_MAX_MONTHS);
-        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 parental("첫째", null, START, START.plusMonths(1)), "hr1"));
         assertStatus(t, HttpStatus.CONFLICT);
     }
@@ -272,9 +273,9 @@ class FamilyLeaveServiceTest {
     void 이미_가산_기간을_단축에_쓴_뒤에는_그_기간을_육아휴직으로_다시_쓸_수_없다() {
         patternsForReduced(20);
         LocalDate reducedEnd = START.plusMonths(12).minusDays(1);
-        service.approve(service.create(1L, reduced(START, reducedEnd, 10L), "hr1").reqId(), "hr1");
+        service.approve(ENTER,service.create(ENTER, 1L, reduced(START, reducedEnd, 10L), "hr1").reqId(), "hr1");
 
-        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 parental("첫째", null, reducedEnd.plusDays(1), reducedEnd.plusMonths(10)), "hr1"));
 
         assertStatus(t, HttpStatus.CONFLICT);
@@ -286,13 +287,13 @@ class FamilyLeaveServiceTest {
     @Test
     void 휴직_승인은_휴직_발령을_확정하고_종료일_다음날_복직_발령을_예정으로_만든다() {
         LocalDate end = START.plusMonths(3).minusDays(1);
-        long id = service.create(1L, parental("첫째", null, START, end), "hr1").reqId();
-        RequestView v = service.approve(id, "boss");
+        long id = service.create(ENTER, 1L, parental("첫째", null, START, end), "hr1").reqId();
+        RequestView v = service.approve(ENTER,id, "boss");
 
         ArgumentCaptor<AppointmentRequest> captor = ArgumentCaptor.forClass(AppointmentRequest.class);
         InOrder order = inOrder(orgLock, employees, appointments);
         order.verify(orgLock).acquire();
-        order.verify(employees).findForUpdate(1L);
+        order.verify(employees).findForUpdate(ENTER, 1L);
         order.verify(appointments).create(eq("C001"), eq(1L), captor.capture());
         order.verify(appointments).confirm(eq("C001"), eq(100L));
         order.verify(appointments).create(eq("C001"), eq(1L), captor.capture());
@@ -317,23 +318,23 @@ class FamilyLeaveServiceTest {
     @Test
     void 처리된_신청은_다시_승인하거나_반려할_수_없다() {
         long id = approvedLeave(care(START, START.plusDays(29))).reqId();
-        assertStatus(org.assertj.core.api.Assertions.catchThrowable(() -> service.approve(id, "hr1")),
+        assertStatus(org.assertj.core.api.Assertions.catchThrowable(() -> service.approve(ENTER,id, "hr1")),
                 HttpStatus.CONFLICT);
-        assertStatus(org.assertj.core.api.Assertions.catchThrowable(() -> service.reject(id, "x", "hr1")),
+        assertStatus(org.assertj.core.api.Assertions.catchThrowable(() -> service.reject(ENTER,id, "x", "hr1")),
                 HttpStatus.CONFLICT);
     }
 
     @Test
     void 반려는_사유가_필요하고_취소는_대기_신청만_한다() {
-        long id = service.create(1L, care(START, START.plusDays(29)), "hr1").reqId();
-        assertStatus(org.assertj.core.api.Assertions.catchThrowable(() -> service.reject(id, " ", "hr1")),
+        long id = service.create(ENTER, 1L, care(START, START.plusDays(29)), "hr1").reqId();
+        assertStatus(org.assertj.core.api.Assertions.catchThrowable(() -> service.reject(ENTER,id, " ", "hr1")),
                 HttpStatus.BAD_REQUEST);
-        RequestView v = service.reject(id, "서류 미비", "hr1");
+        RequestView v = service.reject(ENTER,id, "서류 미비", "hr1");
         assertThat(v.status()).isEqualTo(Status.REJECTED);
         assertThat(v.decisionNote()).isEqualTo("서류 미비");
         // 반려된 신청은 겹침 검사에서 빠진다
-        long id2 = service.create(1L, care(START, START.plusDays(29)), "hr1").reqId();
-        assertThat(service.cancel(id2, null, "hr1").status()).isEqualTo(Status.CANCELLED);
+        long id2 = service.create(ENTER, 1L, care(START, START.plusDays(29)), "hr1").reqId();
+        assertThat(service.cancel(ENTER,id2, null, "hr1").status()).isEqualTo(Status.CANCELLED);
         verify(appointments, never()).create(eq("C001"), anyLong(), any());
     }
 
@@ -365,8 +366,8 @@ class FamilyLeaveServiceTest {
     void 단축_승인은_단축_근무유형을_배정하고_종료일_다음날_원래_근무유형으로_되돌린다() {
         patternsForReduced(20);
         LocalDate end = START.plusMonths(3).minusDays(1);
-        long id = service.create(1L, reduced(START, end, 10L), "hr1").reqId();
-        RequestView v = service.approve(id, "hr1");
+        long id = service.create(ENTER, 1L, reduced(START, end, 10L), "hr1").reqId();
+        RequestView v = service.approve(ENTER,id, "hr1");
 
         ArgumentCaptor<AssignRequest> captor = ArgumentCaptor.forClass(AssignRequest.class);
         verify(workPatterns, org.mockito.Mockito.times(2)).assign(eq(ENTER), eq(1L), captor.capture(), eq("hr1"));
@@ -383,10 +384,10 @@ class FamilyLeaveServiceTest {
     void 직전_단축의_복원일에_이어지는_단축은_복원_배정을_바꾼다() {
         patternsForReduced(20);
         LocalDate firstEnd = START.plusMonths(2).minusDays(1);
-        service.approve(service.create(1L, reduced(START, firstEnd, 10L), "hr1").reqId(), "hr1");
+        service.approve(ENTER,service.create(ENTER, 1L, reduced(START, firstEnd, 10L), "hr1").reqId(), "hr1");
         LocalDate secondEnd = firstEnd.plusMonths(2);
 
-        service.approve(service.create(1L, reduced(firstEnd.plusDays(1), secondEnd, 10L), "hr1").reqId(), "hr1");
+        service.approve(ENTER,service.create(ENTER, 1L, reduced(firstEnd.plusDays(1), secondEnd, 10L), "hr1").reqId(), "hr1");
 
         verify(workPatterns).replaceLatest(eq(ENTER), eq(1L), eq(51L),
                 org.mockito.ArgumentMatchers.argThat(r -> r.validFrom().equals(firstEnd.plusDays(1))));
@@ -395,7 +396,7 @@ class FamilyLeaveServiceTest {
     @Test
     void 단축_근무유형의_주_소정근로시간이_기준_밖이면_400() {
         patternsForReduced(31);
-        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 reduced(START, START.plusMonths(3).minusDays(1), 10L), "hr1"));
         assertStatus(t, HttpStatus.BAD_REQUEST);
         assertThat(t).hasMessageContaining("10시간 이상 30시간 이하");
@@ -404,7 +405,7 @@ class FamilyLeaveServiceTest {
     @Test
     void 단축_1회_최소_기간보다_짧으면_400() {
         patternsForReduced(20);
-        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 reduced(START, START.plusMonths(2).minusDays(2), 10L), "hr1"));
         assertStatus(t, HttpStatus.BAD_REQUEST);
         assertThat(t).hasMessageContaining("2개월 이상");
@@ -416,27 +417,27 @@ class FamilyLeaveServiceTest {
         // 육아휴직 임의 한도 10개월 중 8개월 사용 → 미사용 2개월 × 임의 배수 3 + 임의 기본 6 = 12개월
         approvedLeave(parental("첫째", null, START, START.plusMonths(8).minusDays(1)));
         LocalDate s = START.plusMonths(8);
-        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 reduced(s, s.plusMonths(12), 10L), "hr1"));
         assertStatus(t, HttpStatus.CONFLICT);
         assertThat(t).hasMessageContaining("12개월");
-        service.create(1L, reduced(s, s.plusMonths(12).minusDays(1), 10L), "hr1");
+        service.create(ENTER, 1L, reduced(s, s.plusMonths(12).minusDays(1), 10L), "hr1");
     }
 
     // ---------------------------------------------------------------- 가족돌봄휴직
 
     @Test
     void 가족돌봄휴직은_1회_최소_일수와_연간_한도를_검사한다() {
-        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        Throwable t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 care(START, START.plusDays(18)), "hr1"));
         assertStatus(t, HttpStatus.BAD_REQUEST);
         approvedLeave(care(START, START.plusDays(29)));
         // 같은 해 30일 + 21일 = 51일 > 임의 한도 50일
-        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(1L,
+        t = org.assertj.core.api.Assertions.catchThrowable(() -> service.create(ENTER, 1L,
                 care(START.plusMonths(2), START.plusMonths(2).plusDays(20)), "hr1"));
         assertStatus(t, HttpStatus.CONFLICT);
         // 연도를 넘으면 해마다 나누어 센다: 2027년 12월 11일 + 2028년 10일
-        service.create(1L, care(LocalDate.of(2027, 12, 21), LocalDate.of(2028, 1, 10)), "hr1");
+        service.create(ENTER, 1L, care(LocalDate.of(2027, 12, 21), LocalDate.of(2028, 1, 10)), "hr1");
     }
 
     // ---------------------------------------------------------------- 남은 기간
@@ -445,7 +446,7 @@ class FamilyLeaveServiceTest {
     void 남은_기간은_자녀별_육아휴직_단축과_그해_가족돌봄휴직을_보여준다() {
         approvedLeave(parental("첫째", null, START, START.plusMonths(3).minusDays(1)));
         approvedLeave(care(START.plusMonths(4), START.plusMonths(4).plusDays(24)));
-        BalanceView b = service.balance(1L, LocalDate.of(2027, 6, 1));
+        BalanceView b = service.balance(ENTER,1L, LocalDate.of(2027, 6, 1));
 
         assertThat(b.children()).singleElement().satisfies(c -> {
             assertThat(c.childLabel()).isEqualTo("첫째");
@@ -469,7 +470,7 @@ class FamilyLeaveServiceTest {
         approvedLeave(parental("첫째", null, START, START.plusMonths(3).minusDays(1)));
         noRate(LegalRateItem.CHILDCARE_REDUCED_UNUSED_LEAVE_MULTIPLIER);
         noRate(LegalRateItem.FAMILY_CARE_LEAVE_OF_ABSENCE_DAYS_PER_YEAR);
-        BalanceView b = service.balance(1L, LocalDate.of(2027, 6, 1));
+        BalanceView b = service.balance(ENTER,1L, LocalDate.of(2027, 6, 1));
         assertThat(b.children().get(0).reducedHours().limitMonths()).isNull();
         assertThat(b.children().get(0).reducedHours().remainingMonths()).isNull();
         assertThat(b.familyCareLeave().limitDays()).isNull();
@@ -484,10 +485,10 @@ class FamilyLeaveServiceTest {
         // 3개월 만에 복직 발령으로 끝남
         when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenReturn(List.of(new LeavePeriodView(1,
                 r.getLeaveApptId(), START, r.getEndDate(), START.plusMonths(3).minusDays(1), 999L, "r")));
-        assertThat(service.balance(1L, START).children().get(0).parentalLeave().usedMonths()).isEqualTo(3);
+        assertThat(service.balance(ENTER,1L, START).children().get(0).parentalLeave().usedMonths()).isEqualTo(3);
         // 발령 취소로 이력에 없음
         when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenReturn(List.of());
-        assertThat(service.balance(1L, START).children().get(0).parentalLeave().usedMonths()).isZero();
+        assertThat(service.balance(ENTER,1L, START).children().get(0).parentalLeave().usedMonths()).isZero();
     }
 
     @Test
@@ -498,11 +499,11 @@ class FamilyLeaveServiceTest {
         when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenReturn(List.of(new LeavePeriodView(1,
                 r.getLeaveApptId(), START, r.getEndDate(), START.plusMonths(3).minusDays(1), 999L, "조기 복직")));
 
-        service.create(1L, reduced(START.plusMonths(4), START.plusMonths(6).minusDays(1), 10L), "hr1");
+        service.create(ENTER, 1L, reduced(START.plusMonths(4), START.plusMonths(6).minusDays(1), 10L), "hr1");
 
         store.remove(1);
         when(appointments.leavePeriods(eq("C001"), eq(1L), any(), any())).thenReturn(List.of());
-        service.create(1L, care(START.plusMonths(1), START.plusMonths(2).minusDays(1)), "hr1");
+        service.create(ENTER, 1L, care(START.plusMonths(1), START.plusMonths(2).minusDays(1)), "hr1");
     }
 
     @Test
@@ -510,7 +511,21 @@ class FamilyLeaveServiceTest {
         when(rates.findEffective(eq(LegalRateItem.PARENTAL_LEAVE_MAX_MONTHS.code()), any())).thenReturn(Optional.of(
                 new LegalRateRow("PARENTAL_LEAVE_MAX_MONTHS", LocalDate.of(2000, 1, 1), null, BigDecimal.TEN, "DAYS",
                         "테스트", "https://example.test")));
-        assertThatThrownBy(() -> service.create(1L, parental("첫째", null, START, START.plusMonths(1)), "hr1"))
+        assertThatThrownBy(() -> service.create(ENTER, 1L, parental("첫째", null, START, START.plusMonths(1)), "hr1"))
                 .isInstanceOf(FamilyLeaveException.class).hasMessageContaining("단위");
+    }
+
+    @Test
+    void 다른_법인_신청_ID는_조회도_승인도_404다() {
+        long id = service.create(ENTER, 1L, care(START, START.plusDays(29)), "hr1").reqId();
+        assertThat(service.get(ENTER, id).reqId()).isEqualTo(id);
+        assertStatus(org.assertj.core.api.Assertions.catchThrowable(() -> service.get("C002", id)),
+                HttpStatus.NOT_FOUND);
+        assertStatus(org.assertj.core.api.Assertions.catchThrowable(() -> service.approve("C002", id, "hr1")),
+                HttpStatus.NOT_FOUND);
+        assertStatus(org.assertj.core.api.Assertions.catchThrowable(() -> service.listByEmployee("C002", 1L)),
+                HttpStatus.NOT_FOUND);
+        assertThat(store.get(0).getStatus()).isEqualTo(Status.REQUESTED);
+        verify(orgLock, never()).acquire();
     }
 }

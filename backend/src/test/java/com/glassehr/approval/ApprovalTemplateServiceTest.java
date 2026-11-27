@@ -15,6 +15,7 @@ import com.glassehr.auth.AuthUser;
 import com.glassehr.employee.EmployeeRepository;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,8 +53,8 @@ class ApprovalTemplateServiceTest {
 
     @Test
     void 새_템플릿은_앞_템플릿을_전날까지로_닫고_단계번호를_1부터_매긴다() {
-        ApprovalTemplate prev = new ApprovalTemplate("TEST", TODAY.minusDays(30), List.of(), "hr1");
-        when(templates.lockByRequestType("TEST")).thenReturn(List.of(prev));
+        ApprovalTemplate prev = new ApprovalTemplate("C001", "TEST", TODAY.minusDays(30), List.of(), "hr1");
+        when(templates.lockByRequestType("C001", "TEST")).thenReturn(List.of(prev));
         TemplateView v = service.create(req(TODAY.plusDays(1), s(ApproverKind.DEPT_HEAD, null),
                 s(ApproverKind.ROLE, "HR")), admin);
         assertThat(prev.getValidTo()).isEqualTo(TODAY.plusDays(1));
@@ -67,8 +68,8 @@ class ApprovalTemplateServiceTest {
     void 지난_날짜나_앞_템플릿보다_이른_시작일은_거부한다() {
         assertThatThrownBy(() -> service.create(req(TODAY.minusDays(1), s(ApproverKind.DEPT_HEAD, null)), admin))
                 .isInstanceOf(ApprovalException.class).hasMessageContaining("오늘");
-        ApprovalTemplate prev = new ApprovalTemplate("TEST", TODAY.plusDays(5), List.of(), "hr1");
-        when(templates.lockByRequestType("TEST")).thenReturn(List.of(prev));
+        ApprovalTemplate prev = new ApprovalTemplate("C001", "TEST", TODAY.plusDays(5), List.of(), "hr1");
+        when(templates.lockByRequestType("C001", "TEST")).thenReturn(List.of(prev));
         assertThatThrownBy(() -> service.create(req(TODAY.plusDays(5), s(ApproverKind.DEPT_HEAD, null)), admin))
                 .isInstanceOf(ApprovalException.class).hasMessageContaining("늦어야");
         assertThat(prev.getValidTo()).isNull();
@@ -76,7 +77,7 @@ class ApprovalTemplateServiceTest {
 
     @Test
     void 지정_방식에_맞지_않는_대상값은_거부한다() {
-        when(templates.lockByRequestType("TEST")).thenReturn(List.of());
+        when(templates.lockByRequestType("C001", "TEST")).thenReturn(List.of());
         assertThatThrownBy(() -> service.create(req(TODAY, s(ApproverKind.DEPT_HEAD, "X")), admin))
                 .hasMessageContaining("넣지 않아요");
         assertThatThrownBy(() -> service.create(req(TODAY, s(ApproverKind.POSITION, " ")), admin))
@@ -85,7 +86,7 @@ class ApprovalTemplateServiceTest {
                 .hasMessageContaining("역할은");
         assertThatThrownBy(() -> service.create(req(TODAY, s(ApproverKind.EMPLOYEE, "abc")), admin))
                 .hasMessageContaining("숫자");
-        when(employees.existsById(42L)).thenReturn(false);
+        when(employees.findByEnterCdAndEmpId("C001", 42L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.create(req(TODAY, s(ApproverKind.EMPLOYEE, "42")), admin))
                 .hasMessageContaining("찾을 수 없어요");
         verify(templates, never()).saveAndFlush(any());
@@ -93,7 +94,7 @@ class ApprovalTemplateServiceTest {
 
     @Test
     void 알_수_없는_신청_유형은_거부한다() {
-        assertThatThrownBy(() -> service.list("NOPE")).isInstanceOf(ApprovalException.class);
+        assertThatThrownBy(() -> service.list("C001", "NOPE")).isInstanceOf(ApprovalException.class);
         assertThatThrownBy(() -> service.create(new TemplateRequest("NOPE", TODAY,
                 List.of(s(ApproverKind.DEPT_HEAD, null))), admin)).isInstanceOf(ApprovalException.class);
     }

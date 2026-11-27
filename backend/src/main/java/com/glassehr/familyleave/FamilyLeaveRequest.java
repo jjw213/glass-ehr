@@ -50,6 +50,10 @@ public class FamilyLeaveRequest {
     @Column(name = "req_id", nullable = false, updatable = false)
     private Long reqId;
 
+    /** 신청자 법인(#127). 복합 FK (enter_cd, emp_id)·발령·근무유형 FK 로 다른 법인 행을 가리킬 수 없다. */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
@@ -119,9 +123,10 @@ public class FamilyLeaveRequest {
     protected FamilyLeaveRequest() {
     }
 
-    FamilyLeaveRequest(long empId, Kind kind, String childLabel, LocalDate childBirthDate, String familyRelation,
-            LocalDate startDate, LocalDate endDate, Long workPatternId, boolean extension, String reason,
-            String warnings, String requestedBy, LocalDateTime requestedAt) {
+    FamilyLeaveRequest(String enterCd, long empId, Kind kind, String childLabel, LocalDate childBirthDate,
+            String familyRelation, LocalDate startDate, LocalDate endDate, Long workPatternId, boolean extension,
+            String reason, String warnings, String requestedBy, LocalDateTime requestedAt) {
+        this.enterCd = enterCd;
         this.empId = empId;
         this.kind = kind;
         this.childLabel = childLabel;
@@ -165,6 +170,10 @@ public class FamilyLeaveRequest {
 
     public Long getReqId() {
         return reqId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public Long getEmpId() {

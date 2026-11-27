@@ -72,23 +72,29 @@ public class OvertimeService {
         if (OvertimeRequest.plannedMinutes(start, end, breaks) <= 0) {
             throw bad("휴게시간을 빼면 근로시간이 남지 않아요");
         }
-        if (!requests.findOverlapping(emp, start, end, ACTIVE).isEmpty()) {
+        // 신청·결재는 로그인 세션의 현재 법인으로만 만든다(#127).
+        String enterCd = user.enterCd();
+        if (!requests.findOverlapping(enterCd, emp, start, end, ACTIVE).isEmpty()) {
             throw new ApprovalException(HttpStatus.CONFLICT, "같은 시간대에 결재 중이거나 승인된 신청이 있어요");
         }
         OvertimeRequest r = requests.saveAndFlush(
-                new OvertimeRequest(emp, req.workKind(), start, end, breaks, req.reason().strip(), now));
+                new OvertimeRequest(enterCd, emp, req.workKind(), start, end, breaks, req.reason().strip(), now));
         String title = (r.getWorkKind() == OvertimeRequest.Kind.OVERTIME ? "연장근로" : "휴일근로") + " "
                 + r.getWorkDate() + " " + start.format(HM) + "~" + end.format(HM);
-        long approvalId = approvals.submit(OvertimeApprovalHandler.REQUEST_TYPE, r.getRequestId(), title, emp);
+        long approvalId = approvals.submit(enterCd, OvertimeApprovalHandler.REQUEST_TYPE, r.getRequestId(), title,
+                emp);
         return view(r, approvalId);
     }
 
     @Transactional(readOnly = true)
     public List<RequestView> mine(AuthUser user) {
         long emp = requireEmp(user);
-        return requests.findByEmpIdOrderByWorkDateDescStartAtDesc(emp, PageRequest.of(0, LIST_LIMIT)).stream()
+        String enterCd = user.enterCd();
+        return requests.findByEnterCdAndEmpIdOrderByWorkDateDescStartAtDesc(enterCd, emp,
+                        PageRequest.of(0, LIST_LIMIT)).stream()
                 .map(r -> {
-                    ApprovalDoc d = approvals.findByRequest(OvertimeApprovalHandler.REQUEST_TYPE, r.getRequestId());
+                    ApprovalDoc d = approvals.findByRequest(enterCd, OvertimeApprovalHandler.REQUEST_TYPE,
+                            r.getRequestId());
                     return view(r, d == null ? null : d.getApprovalId());
                 })
                 .toList();
@@ -104,21 +110,23 @@ public class OvertimeService {
             throw bad("종료일은 시작일과 같거나 뒤여야 해요");
         }
         String authNo = req.authNo().strip();
-        if (auths.existsByAuthNo(authNo)) {
+        String enterCd = user.enterCd();
+        if (auths.existsByEnterCdAndAuthNo(enterCd, authNo)) {
             throw new ApprovalException(HttpStatus.CONFLICT, "이미 등록된 인가 번호예요: " + authNo);
         }
-        if (employees.findAllById(req.empIds()).size() != req.empIds().size()) {
+        // 대상은 현재 법인 사원만(#127). 다른 법인 사원은 없는 사원과 같이 답한다.
+        if (employees.findByEnterCdAndEmpIdIn(enterCd, req.empIds()).size() != req.empIds().size()) {
             throw bad("없는 사원이 대상에 들어 있어요");
         }
-        SpecialOvertimeAuth a = auths.save(new SpecialOvertimeAuth(req.authKind(), authNo, req.laborOffice().strip(),
+        SpecialOvertimeAuth a = auths.save(new SpecialOvertimeAuth(enterCd, req.authKind(), authNo, req.laborOffice().strip(),
                 req.authorizedOn(), req.periodFrom(), req.periodTo(), req.reason().strip(), req.empIds(),
                 user.loginId(), LocalDateTime.now(clock.withZone(SEOUL))));
         return authView(a);
     }
 
     @Transactional(readOnly = true)
-    public List<AuthView> auths() {
-        return auths.findAllByOrderByPeriodFromDesc().stream().map(OvertimeService::authView).toList();
+    public List<AuthView> auths(AuthUser user) {
+        return auths.findByEnterCdOrderByPeriodFromDesc(user.enterCd()).stream().map(OvertimeService::authView).toList();
     }
 
     private static RequestView view(OvertimeRequest r, Long approvalId) {
