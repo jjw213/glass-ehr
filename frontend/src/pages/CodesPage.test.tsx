@@ -16,7 +16,12 @@ function type(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-const buttonByText = (host: HTMLElement, text: string) =>
+function select(el: HTMLSelectElement, value: string) {
+  Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value);
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+const buttonByText =(host: HTMLElement, text: string) =>
   [...host.querySelectorAll('button')].find((b) => b.textContent?.includes(text))!;
 
 describe('공통코드 메뉴 권한', () => {
@@ -134,13 +139,32 @@ describe('CodeManager', () => {
     await act(async () => { type(inputs[0], 'intern'); type(inputs[1], '인턴'); });
     expect(inputs[0].value).toBe('INTERN');   // 대문자로 바꿔 넣는다
     expect(inputs[2].value).toBe('40');       // 다음 정렬 순서 제안
+    // 처리방식이 있는 그룹은 처리방식을 골라야 저장된다(#141)
+    await act(async () => { host.querySelector<HTMLFormElement>('.modal form')!.requestSubmit(); });
+    await flush();
+    expect(host.querySelector('.modal [role="alert"]')?.textContent).toBe('처리방식을 선택해 주세요');
+    await act(async () => { select(host.querySelector<HTMLSelectElement>('.modal select[aria-label="처리방식"]')!, 'FIXED_TERM'); });
     await act(async () => { host.querySelector<HTMLFormElement>('.modal form')!.requestSubmit(); });
     await flush();
 
     expect(toast).toHaveBeenCalledWith('코드 INTERN를 추가했어요');
     expect(host.querySelector('.modal')).toBeNull();
     expect((await api.activeCodes(['EMPLOYMENT_TYPE'])).EMPLOYMENT_TYPE.map((c) => c.code)).toEqual(['REGULAR', 'FIXED_TERM', 'PART_TIME', 'INTERN']);
-    expect([...host.querySelectorAll('tbody code')].map((c) => c.textContent)).toContain('INTERN');
+    expect((await api.codes('EMPLOYMENT_TYPE', true)).find((c) => c.code === 'INTERN')?.sysType).toBe('FIXED_TERM');
+    const row = [...host.querySelectorAll('tbody tr')].find((tr) => tr.querySelector('code')?.textContent === 'INTERN')!;
+    expect(row.textContent).toContain('기간제');
+  });
+
+  it('처리방식: 있는 그룹만 열이 보이고, 기본 코드는 처리방식을 바꿀 수 없다', async () => {
+    await mount();
+    expect([...host.querySelectorAll('thead th')].map((t) => t.textContent)).not.toContain('처리방식');
+    await act(async () => { buttonByText(host, '퇴직사유').click(); });
+    await flush();
+    expect([...host.querySelectorAll('thead th')].map((t) => t.textContent)).toContain('처리방식');
+    await act(async () => { button('해고 수정').click(); });
+    const sel = host.querySelector<HTMLSelectElement>('.modal select[aria-label="처리방식"]')!;
+    expect(sel.value).toBe('DISMISSAL');
+    expect(sel.disabled).toBe(true);
   });
 
   it('잘못된 입력은 저장하지 않고 폼에 오류를 보인다', async () => {

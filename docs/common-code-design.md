@@ -21,6 +21,11 @@
   - `edit_page`: 다른 모듈 화면에서 편집하는 그룹의 화면 키(예: 근태코드). NULL이면 공통코드 화면에서 편집. 값이 있으면 공통코드 화면은 보기·사용처만 보이고 '○○에서 편집' 링크를 띄운다.
   - **edit_page 규칙 (#143)**: 값이 있는 그룹은 공통코드 API(`/api/code-groups/{group}` 수정, 그 그룹의 코드 추가·수정·삭제)가 409로 막는다. 그 화면이 처리방식·상세 설정을 함께 저장하기 때문이다. 조회·사용처 API는 그대로 쓴다. 삭제 규칙(기본 코드·참조 중 409)과 참조 목록은 전용 API도 공통코드와 같은 것(`CommonCodeService.requireDeletable`, `CodeReferences`)을 쓴다. 지금 값: `attendanceCodes`(LEAVE_TYPE·ATTENDANCE_TYPE, `docs/attendance-code-design.md`).
 - **코드 삭제 (#140)**: (1) 어떤 테이블에서도 참조하지 않는 코드만 물리 삭제 (2) 참조 중이면 409 "사용 중이라 삭제할 수 없어요. 사용 안 함으로 바꿔 주세요" + 사용처 건수 (3) `system_yn = 'Y'` **기본 코드**(로직이 코드값을 직접 참조: APPOINTMENT_TYPE 7개, `RetirementChecklist`가 참조하는 RETIREMENT_REASON 7개, EMPLOYMENT_TYPE FIXED_TERM·PART_TIME)는 삭제 불가, 사용 안 함만.
+- **처리방식 (#141, V050)**: 로직은 코드값이 아니라 그 코드의 처리방식(sys_type)을 본다. 저장 컬럼은 #143의 `common_code.process_type`을 그대로 쓴다(같은 개념이라 컬럼을 하나 더 두지 않는다). 처리방식 목록은 서버 고정(`CodeSysTypes`, DB CHECK `ck_common_code_process`와 같음, `GET /api/code-groups/{group}/sys-types`).
+  - `EMPLOYMENT_TYPE`: `REGULAR`·`FIXED_TERM`(기간제법 제2조 제1호)·`PART_TIME`(제2호)·`FIXED_TERM_PART_TIME`(둘 다). 기간제 2년 검사·계약기간 필수는 기간제 처리방식, 단시간 검사는 단시간 처리방식으로 판단.
+  - `RETIREMENT_REASON`: `VOLUNTARY`·`RECOMMENDED`·`RETIREMENT_AGE`·`CONTRACT_END`·`DISMISSAL`(근로기준법 제26·27조 체크리스트)·`TRANSFER`(기존 전적 코드의 체크리스트 유지)·`DEATH`·`OTHER`.
+  - 처리방식이 있는 그룹은 코드 추가·수정에 `sysType` 필수, 다른 그룹은 둘 수 없다(400). 기본 코드는 처리방식을 바꿀 수 없다(409). 처리방식마다 사용 중인 코드가 남아야 할 필요는 없다.
+  - 기존 시드는 같은 뜻의 처리방식으로 채웠고, 회사가 추가한 코드는 지금까지 동작과 같게 `REGULAR`·`OTHER`로 채웠다.
 - **참조 목록**: 참조 검사·사용처는 `CodeReferences`(그룹 → 테이블·컬럼) 한 곳에서 한다. 새 테이블이 공통코드를 참조하면 이 목록에 추가한다. `CodeReferencesSchemaScriptTest`가 마이그레이션의 `*_code` 컬럼을 찾아 목록(또는 '공통코드 아님' 목록)과 비교해 누락을 잡는다.
 - **사용처**: 테이블별 건수는 코드 조회 권한이면 누구나, 행 목록(사번·이름·일자)은 `EMP_READ_ALL` 권한이 있을 때만(없으면 403, 화면은 건수만). 행 목록은 사원 목록 화면과 같은 식별 최소 항목이라 기존 규칙(다운로드·인적사항 조회만 기록)대로 개인정보 조회 로그 대상이 아니다.
 - 시드: `V007__common_code_seed.sql`. 직급·근무지 등은 일반적인 예시라서 회사가 화면에서 고친다. 프론트 데모 시드(`frontend/src/data/codes.ts`)는 테스트가 V007과 비교한다.

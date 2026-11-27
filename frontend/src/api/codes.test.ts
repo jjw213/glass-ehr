@@ -5,7 +5,16 @@ import { CODE_GROUP, createMockCodeApi, validateCode } from './codes';
 import { ApiError } from './types';
 
 import systemSql from '../../../backend/src/main/resources/db/oracle/V037__common_code_system_edit_page.sql?raw';
+import sysTypeSeedSql from '../../../backend/src/main/resources/db/oracle/V050__common_code_sys_type.sql?raw';
 
+/** V050 이 채우는 처리방식: 그룹 → (코드값 → 처리방식, 나머지) */
+const sysTypeSql = sysTypeSeedSql.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
+const sysTypeRules = new Map([...sysTypeSql.matchAll(/SET process_type = CASE code([^;]*?)ELSE '(\w+)' END\s+WHERE group_code = '(\w+)'/g)]
+  .map((m) => [m[3], { cases: new Map([...m[1].matchAll(/WHEN '(\w+)' THEN '(\w+)'/g)].map((w) => [w[1], w[2]])), other: m[2] }]));
+const seedSysType = (group: string, code: string) => {
+  const r = sysTypeRules.get(group);
+  return r ? r.cases.get(code) ?? r.other : null;
+};
 const sql = seedSql.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
 const sysSql = systemSql.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
 const quoted = (s: string) => [...s.matchAll(/'([^']*)'/g)].map((m) => m[1]);
@@ -24,6 +33,7 @@ const codeRows = [...sql.matchAll(/INSERT INTO common_code \(([^)]*)\) VALUES\s*
   return {
     groupCode: row.group_code, code: row.code, name: row.code_name, description: row.description ?? null, sortOrder: row.sort_order, active: true,
     system: wholeSystemGroups.has(String(row.group_code)) || systemCodes.has(`${row.group_code}/${row.code}`),
+    sysType: seedSysType(String(row.group_code), String(row.code)),
   };
 });
 
@@ -61,12 +71,25 @@ describe('validateCode', () => {
 describe('mock 공통코드 API', () => {
   it('추가하면 정렬 순서대로 조회되고, 중복 코드값은 409', async () => {
     const api = createMockCodeApi();
-    await api.create('EMPLOYMENT_TYPE', { code: 'INTERN', name: ' 인턴 ', description: ' ', sortOrder: 15, active: true });
+    await api.create('EMPLOYMENT_TYPE', { code: 'INTERN', name: ' 인턴 ', description: ' ', sortOrder: 15, active: true, sysType: 'FIXED_TERM' });
     const list = await api.activeCodes(['EMPLOYMENT_TYPE']);
     expect(list.EMPLOYMENT_TYPE.map((c) => c.code)).toEqual(['REGULAR', 'INTERN', 'FIXED_TERM', 'PART_TIME']);
-    expect(list.EMPLOYMENT_TYPE[1]).toMatchObject({ name: '인턴', description: null });
-    await expect(api.create('EMPLOYMENT_TYPE', { code: 'INTERN', name: '인턴', description: null, sortOrder: 1, active: true }))
+    expect(list.EMPLOYMENT_TYPE[1]).toMatchObject({ name: '인턴', description: null, sysType: 'FIXED_TERM' });
+    await expect(api.create('EMPLOYMENT_TYPE', { code: 'INTERN', name: '인턴', description: null, sortOrder: 1, active: true, sysType: 'REGULAR' }))
       .rejects.toMatchObject({ status: 409 });
+  });
+
+  it('처리방식(#141): 있는 그룹은 필수·목록 안의 값만, 없는 그룹은 둘 수 없고, 기본 코드는 바꿀 수 없다', async () => {
+    const api = createMockCodeApi();
+    const base = { code: 'X1', name: '테스트', description: null, sortOrder: 99, active: true };
+    expect((await api.sysTypes('RETIREMENT_REASON')).map((t) => t.code)).toContain('DISMISSAL');
+    expect(await api.sysTypes('JOB_GRADE')).toEqual([]);
+    await expect(api.create('EMPLOYMENT_TYPE', base)).rejects.toMatchObject({ status: 400 });
+    await expect(api.create('EMPLOYMENT_TYPE', { ...base, sysType: 'DISMISSAL' })).rejects.toMatchObject({ status: 400 });
+    await expect(api.create('JOB_GRADE', { ...base, sysType: 'REGULAR' })).rejects.toMatchObject({ status: 400 });
+    await expect(api.update('RETIREMENT_REASON', 'DISMISSAL', { name: '해고', description: null, sortOrder: 50, active: true, sysType: 'OTHER' }))
+      .rejects.toMatchObject({ status: 409 });
+    expect(await api.create('RETIREMENT_REASON', { ...base, code: 'MGMT_DISMISSAL', sysType: 'DISMISSAL' })).toMatchObject({ sysType: 'DISMISSAL' });
   });
 
   it('사용 중지하면 훅용 조회에서 빠지고 관리 조회에는 남는다', async () => {

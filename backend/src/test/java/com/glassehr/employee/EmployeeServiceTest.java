@@ -58,8 +58,16 @@ class EmployeeServiceTest {
     private EmployeeService service;
 
     private void code(String group, String code, boolean active) {
+        code(group, code, active, null);
+    }
+
+    /** sysType: 처리방식(#141). 고용형태 코드는 처리방식이 있다 */
+    private void code(String group, String code, boolean active, String sysType) {
         CommonCode c = mock(CommonCode.class);
         when(c.isActive()).thenReturn(active);
+        when(c.getGroupCode()).thenReturn(group);
+        when(c.getCode()).thenReturn(code);
+        when(c.getProcessType()).thenReturn(sysType);
         codeStore.put(new CommonCodeId("C001", group, code), c);
     }
 
@@ -104,9 +112,11 @@ class EmployeeServiceTest {
         when(rrns.save(any(), anyLong(), any(), any())).thenReturn("000000-*******");
         retention = mock(RecordRetentionCalculator.class);
 
-        code(CodeGroups.EMPLOYMENT_TYPE, "REGULAR", true);
-        code(CodeGroups.EMPLOYMENT_TYPE, "FIXED_TERM", true);
-        code(CodeGroups.EMPLOYMENT_TYPE, "OLD_TYPE", false);
+        code(CodeGroups.EMPLOYMENT_TYPE, "REGULAR", true, "REGULAR");
+        code(CodeGroups.EMPLOYMENT_TYPE, "FIXED_TERM", true, "FIXED_TERM");
+        code(CodeGroups.EMPLOYMENT_TYPE, "OLD_TYPE", false, "REGULAR");
+        // 관리자가 추가한 코드(#141): 코드값은 달라도 처리방식이 기간제면 기간제로 검사한다
+        code(CodeGroups.EMPLOYMENT_TYPE, "INTERN_CONTRACT", true, "FIXED_TERM_PART_TIME");
         code(CodeGroups.JOB_FAMILY, "ENGINEERING", true);
         code(CodeGroups.WORK_LOCATION, "HQ", true);
         code(CodeGroups.JOB_GRADE, "STAFF", true);
@@ -174,6 +184,7 @@ class EmployeeServiceTest {
         assertStatus(() -> service.create("C001",create("REGULAR", null, null, 11L, null), HR), HttpStatus.BAD_REQUEST);
         // 기간제는 계약기간 필수, 종료일만 있으면 거부, 종료일이 시작일보다 앞이면 거부
         assertStatus(() -> service.create("C001",create("FIXED_TERM", null, null, 10L, null), HR), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create("C001",create("INTERN_CONTRACT", null, null, 10L, null), HR), HttpStatus.BAD_REQUEST);
         assertStatus(() -> service.create("C001",create("REGULAR", null, HIRE, 10L, null), HR), HttpStatus.BAD_REQUEST);
         assertStatus(() -> service.create("C001",create("FIXED_TERM", HIRE, HIRE.minusDays(1), 10L, null), HR),
                 HttpStatus.BAD_REQUEST);

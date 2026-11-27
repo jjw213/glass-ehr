@@ -3,7 +3,7 @@ import { LuExternalLink,LuPencil, LuPlus, LuRefreshCw, LuShieldAlert, LuTrash2 }
 import { Badge, Card, CardHead, Modal, PageHead, Toggle, cx } from '../components/ui';
 import {
   codeApi, MAX_SORT_ORDER, validateCode, validateGroup,
-  type CodeApi, type CodeGroup, type CodeListItem, type UsagePage, type UsageSummary,
+  type CodeApi, type CodeGroup, type CodeListItem, type SysType, type UsagePage, type UsageSummary,
 } from '../api/codes';
 import { invalidateCodes } from '../hooks/useCodes';
 import { canManageCodes, NAV } from '../nav';
@@ -30,18 +30,19 @@ export function CodesPage() {
   return <CodeManager api={codeApi} toast={toast} />;
 }
 
-interface Draft { key: string; name: string; description: string; sortOrder: string; active: boolean }
+/** @property sysType 처리방식(#141). 처리방식이 없는 그룹·코드그룹 편집에서는 '' */
+interface Draft { key: string; name: string; description: string; sortOrder: string; active: boolean; sysType: string }
 type Editing =
   | { kind: 'code'; mode: 'create' } | { kind: 'code'; mode: 'edit'; code: CodeListItem }
   | { kind: 'group'; mode: 'create' } | { kind: 'group'; mode: 'edit'; group: CodeGroup };
 type Deleting = { kind: 'code'; code: CodeListItem } | { kind: 'group'; group: CodeGroup };
 
-const emptyDraft = (next: number): Draft => ({ key: '', name: '', description: '', sortOrder: String(next), active: true });
+const emptyDraft = (next: number): Draft => ({ key: '', name: '', description: '', sortOrder: String(next), active: true, sysType: '' });
 const nextSort = (xs: { sortOrder: number }[]) => Math.min(MAX_SORT_ORDER, xs.reduce((m, c) => Math.max(m, c.sortOrder), 0) + 10);
 const errText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
 /** 삭제 버튼을 막는 이유. null 이면 삭제할 수 있다. */
-export function codeDeleteBlock(c: CodeListItem): string | null {
+export function codeDeleteBlock(c: Pick<CodeListItem, 'system' | 'inUse' | 'usageCount'>): string | null {
   if (c.system) return '기본 코드라 삭제할 수 없어요. 사용 안 함으로 바꿔 주세요';
   if (c.inUse) return `사용 중(${c.usageCount}건)이라 삭제할 수 없어요. 사용 안 함으로 바꿔 주세요`;
   return null;
@@ -60,6 +61,7 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
   const [groups, setGroups] = useState<CodeGroup[] | null>(null);
   const [group, setGroup] = useState<string | null>(null);
   const [codes, setCodes] = useState<CodeListItem[] | null>(null);
+  const [sysTypes, setSysTypes] = useState<SysType[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft(10));
@@ -90,6 +92,17 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
     return () => { alive = false; };
   }, [api, group, reload, fail]);
 
+  useEffect(() => {
+    setSysTypes([]);
+    if (!group) return;
+    let alive = true;
+    api.sysTypes(group).then((t) => { if (alive) setSysTypes(t); }, fail);
+    return () => { alive = false; };
+  }, [api, group, fail]);
+
+  const hasSysType = sysTypes.length > 0;
+  const sysTypeLabel = (t: string | null) => sysTypes.find((s) => s.code === t)?.name ?? t ?? '—';
+
   const current = groups?.find((g) => g.groupCode === group);
   const readOnly = !!current?.editPage;   // 다른 화면에서 편집하는 그룹
   const visible = (codes ?? []).filter((c) => showInactive || c.active);
@@ -99,13 +112,13 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
 
   const openCreate = () => { setDraft(emptyDraft(nextSort(codes ?? []))); setFormError(null); setEditing({ kind: 'code', mode: 'create' }); };
   const openEdit = (c: CodeListItem) => {
-    setDraft({ key: c.code, name: c.name, description: c.description ?? '', sortOrder: String(c.sortOrder), active: c.active });
+    setDraft({ key: c.code, name: c.name, description: c.description ?? '', sortOrder: String(c.sortOrder), active: c.active, sysType: c.sysType ?? '' });
     setFormError(null);
     setEditing({ kind: 'code', mode: 'edit', code: c });
   };
   const openGroupCreate = () => { setDraft(emptyDraft(nextSort(groups ?? []))); setFormError(null); setEditing({ kind: 'group', mode: 'create' }); };
   const openGroupEdit = (g: CodeGroup) => {
-    setDraft({ key: g.groupCode, name: g.name, description: g.description ?? '', sortOrder: String(g.sortOrder), active: g.active });
+    setDraft({ key: g.groupCode, name: g.name, description: g.description ?? '', sortOrder: String(g.sortOrder), active: g.active, sysType: '' });
     setFormError(null);
     setEditing({ kind: 'group', mode: 'edit', group: g });
   };
@@ -125,8 +138,10 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
     const input = { name: draft.name, description: draft.description.trim() || null, sortOrder, active: draft.active };
     const err = editing.kind === 'group'
       ? validateGroup(editing.mode === 'create' ? { ...input, groupCode: draft.key } : input)
-      : validateCode(editing.mode === 'create' ? { ...input, code: draft.key } : input);
+      : validateCode(editing.mode === 'create' ? { ...input, code: draft.key } : input)
+        ?? (hasSysType && !draft.sysType ? '처리방식을 선택해 주세요' : null);
     if (err) { setFormError(err); return; }
+    const codeInput = { ...input, sysType: hasSysType ? draft.sysType : null };
     setSaving(true);
     try {
       if (editing.kind === 'group') {
@@ -143,10 +158,10 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
         setGroupReload((n) => n + 1);
       } else if (group) {
         if (editing.mode === 'create') {
-          await api.create(group, { ...input, code: draft.key });
+          await api.create(group, { ...codeInput, code: draft.key });
           saved(group, `코드 ${draft.key}를 추가했어요`);
         } else {
-          await api.update(group, editing.code.code, input);
+          await api.update(group, editing.code.code, codeInput);
           saved(group, `코드 ${editing.code.code}를 수정했어요`);
         }
       }
@@ -160,7 +175,7 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
 
   const toggleActive = async (c: CodeListItem, active: boolean) => {
     try {
-      await api.update(c.groupCode, c.code, { name: c.name, description: c.description, sortOrder: c.sortOrder, active });
+      await api.update(c.groupCode, c.code, { name: c.name, description: c.description, sortOrder: c.sortOrder, active, sysType: c.sysType });
       saved(c.groupCode, active ? `${c.name} 코드를 다시 사용해요` : `${c.name} 코드를 사용 중지했어요`);
     } catch (e) { fail(e); }
   };
@@ -253,7 +268,7 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
           ) : (
             <table className="code-table">
               <thead>
-                <tr><th>순서</th><th>코드값</th><th>코드명</th><th className="hide-sm">설명</th><th>사용 중</th><th>사용</th><th /></tr>
+                <tr><th>순서</th><th>코드값</th><th>코드명</th>{hasSysType && <th>처리방식</th>}<th className="hide-sm">설명</th><th>사용 중</th><th>사용</th><th /></tr>
               </thead>
               <tbody>
                 {visible.map((c) => {
@@ -263,6 +278,7 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
                       <td className="num">{c.sortOrder}</td>
                       <td><code>{c.code}</code></td>
                       <td>{c.name} {c.system && <Badge tone="blue">기본</Badge>} {!c.active && <Badge tone="amber">사용 중지</Badge>}</td>
+                      {hasSysType && <td className="sm">{sysTypeLabel(c.sysType)}</td>}
                       <td className="hide-sm muted sm">{c.description}</td>
                       <td className="num">
                         {c.inUse
@@ -310,6 +326,19 @@ export function CodeManager({ api, toast }: { api: CodeApi; toast: (text: string
             <span className="field__label">{editing?.kind === 'group' ? '그룹명' : '코드명'}</span>
             <input className="input" value={draft.name} maxLength={100} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="화면에 보일 이름" />
           </label>
+          {editing?.kind === 'code' && hasSysType && (
+            <label className="field">
+              <span className="field__label">
+                처리방식 (로직이 이 값으로 판단해요{editing.mode === 'edit' && editing.code.system ? ', 기본 코드는 바꿀 수 없어요' : ''})
+              </span>
+              <select className="input" aria-label="처리방식" value={draft.sysType}
+                disabled={editing.mode === 'edit' && editing.code.system}
+                onChange={(e) => setDraft({ ...draft, sysType: e.target.value })}>
+                <option value="">선택해 주세요</option>
+                {sysTypes.map((t) => <option key={t.code} value={t.code}>{t.name} ({t.code})</option>)}
+              </select>
+            </label>
+          )}
           <label className="field">
             <span className="field__label">설명 (선택)</span>
             <textarea className="input" rows={2} value={draft.description} maxLength={500} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
