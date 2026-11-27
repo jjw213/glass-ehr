@@ -80,8 +80,8 @@ class CommonCodeOracleTest {
         }
         // 사용자 그룹: 추가 → 코드 추가 → 코드 삭제 → 그룹 삭제
         service.createGroup(E, new CodeDtos.GroupCreateRequest("ZZ_IT_USER", "IT 사용자 그룹", null, 999, true));
-        service.create(E, "ZZ_IT_USER", new CodeCreateRequest("A1", "가", null, 0, true));
-        service.create(E, "ZZ_IT_USER", new CodeCreateRequest("A2", "나", null, 1, true));
+        service.create(E, "ZZ_IT_USER", new CodeCreateRequest("A1", "가", null, 0, true, null));
+        service.create(E, "ZZ_IT_USER", new CodeCreateRequest("A2", "나", null, 1, true, null));
         service.deleteCode(E, "ZZ_IT_USER", "A1");
         service.deleteGroup(E, "ZZ_IT_USER");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM common_code WHERE enter_cd = ? AND group_code = 'ZZ_IT_USER'",
@@ -90,11 +90,11 @@ class CommonCodeOracleTest {
 
     @Test
     void 추가_수정_사용중지가_조회에_반영된다() {
-        service.create(E, CodeGroups.JOB_GRADE, new CodeCreateRequest("ZZ_IT_GRADE", "IT 테스트 직급", null, 0, true));
+        service.create(E, CodeGroups.JOB_GRADE, new CodeCreateRequest("ZZ_IT_GRADE", "IT 테스트 직급", null, 0, true, null));
         assertThat(service.activeCodes(E, List.of(CodeGroups.JOB_GRADE)).get(CodeGroups.JOB_GRADE).get(0).code())
                 .isEqualTo("ZZ_IT_GRADE");
 
-        service.update(E, CodeGroups.JOB_GRADE, "ZZ_IT_GRADE", new CodeUpdateRequest("IT 테스트 직급", null, 0, false));
+        service.update(E, CodeGroups.JOB_GRADE, "ZZ_IT_GRADE", new CodeUpdateRequest("IT 테스트 직급", null, 0, false, null));
 
         assertThat(service.activeCodes(E, List.of(CodeGroups.JOB_GRADE)).get(CodeGroups.JOB_GRADE))
                 .extracting(CodeView::code).doesNotContain("ZZ_IT_GRADE");
@@ -107,7 +107,7 @@ class CommonCodeOracleTest {
 
     @Test
     void 중복_코드값은_409() {
-        assertThatThrownBy(() -> service.create(E, CodeGroups.JOB_GRADE, new CodeCreateRequest("STAFF", "사원", null, 1, true)))
+        assertThatThrownBy(() -> service.create(E, CodeGroups.JOB_GRADE, new CodeCreateRequest("STAFF", "사원", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
     }
 

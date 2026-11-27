@@ -62,8 +62,8 @@ class CodeSiteTenantOracleTest {
     void 법인_A_세션은_법인_B의_코드그룹을_조회_수정할_수_없다_404() {
         assertNotFound(() -> codes.listCodes(A, "ZZ_IT_ONLY_B", true));
         assertNotFound(() -> codes.activeCodes(A, List.of("ZZ_IT_ONLY_B")));
-        assertNotFound(() -> codes.update(A, "ZZ_IT_ONLY_B", "X1", new CodeUpdateRequest("바꿈", null, 0, false)));
-        assertNotFound(() -> codes.create(A, "ZZ_IT_ONLY_B", new CodeCreateRequest("X2", "나", null, 0, true)));
+        assertNotFound(() -> codes.update(A, "ZZ_IT_ONLY_B", "X1", new CodeUpdateRequest("바꿈", null, 0, false, null)));
+        assertNotFound(() -> codes.create(A, "ZZ_IT_ONLY_B", new CodeCreateRequest("X2", "나", null, 0, true, null)));
         assertThat(codes.listGroups(A)).extracting(g -> g.groupCode()).doesNotContain("ZZ_IT_ONLY_B");
         assertThat(jdbc.queryForObject("SELECT code_name FROM common_code WHERE enter_cd = ? AND code = 'X1'",
                 String.class, B)).isEqualTo("가");
@@ -89,9 +89,9 @@ class CodeSiteTenantOracleTest {
     void 같은_그룹의_코드도_법인_A에는_A_것만_보이고_B_코드는_수정할_수_없다() {
         assertThat(codes.listCodes(A, "JOB_GRADE", true)).extracting(CodeListItem::code).doesNotContain("ZZ_B_GRADE");
         assertThat(codes.listCodes(B, "JOB_GRADE", true)).extracting(CodeListItem::code).containsExactly("ZZ_B_GRADE");
-        assertNotFound(() -> codes.update(A, "JOB_GRADE", "ZZ_B_GRADE", new CodeUpdateRequest("바꿈", null, 0, false)));
+        assertNotFound(() -> codes.update(A, "JOB_GRADE", "ZZ_B_GRADE", new CodeUpdateRequest("바꿈", null, 0, false, null)));
         // 법인 B 에 같은 코드값(STAFF)을 따로 만들 수 있다.
-        codes.create(B, "JOB_GRADE", new CodeCreateRequest("STAFF", "B 사원", null, 1, true));
+        codes.create(B, "JOB_GRADE", new CodeCreateRequest("STAFF", "B 사원", null, 1, true, null));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM common_code WHERE group_code = 'JOB_GRADE' AND code = 'STAFF'",
                 Integer.class)).isEqualTo(2);
     }

@@ -48,8 +48,8 @@ public class RetirementController {
 
     @RequiresPermission(Permission.EMP_WRITE)
     @GetMapping("/api/retirements/checklist-template")
-    public List<ChecklistTemplateItem> template(@RequestParam("reasonCode") String reasonCode) {
-        return service.template(reasonCode);
+    public List<ChecklistTemplateItem> template(@RequestParam("reasonCode") String reasonCode, AuthUser user) {
+        return service.template(user.enterCd(), reasonCode);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)

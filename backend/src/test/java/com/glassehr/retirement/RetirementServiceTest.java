@@ -91,9 +91,20 @@ class RetirementServiceTest {
     }
 
     private void code(String group, String code, String name) {
+        code(group, code, name, null);
+    }
+
+    private void code(String group, String code, String name, String sysType) {
         CommonCode c = mock(CommonCode.class);
+        when(c.getGroupCode()).thenReturn(group);
+        when(c.getCode()).thenReturn(code);
         when(c.getCodeName()).thenReturn(name);
+        when(c.getProcessType()).thenReturn(sysType);
         codeStore.put(new CommonCodeId("C001", group, code), c);
+    }
+
+    private void reason(String code, String sysType) {
+        code(CodeGroups.RETIREMENT_REASON, code, code, sysType);
     }
 
     private void contract(long empId, LocalDate start, Long wage) {
@@ -150,7 +161,11 @@ class RetirementServiceTest {
         when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenAnswer(inv -> Optional.ofNullable(codeStore.get(
                 new CommonCodeId(inv.<String>getArgument(0), inv.<String>getArgument(1), inv.<String>getArgument(2)))));
         code(CodeGroups.JOB_GRADE, "STAFF", "사원");
-        code(CodeGroups.RETIREMENT_REASON, "VOLUNTARY", "자발적 퇴사(개인 사정)");
+        code(CodeGroups.RETIREMENT_REASON, "VOLUNTARY", "자발적 퇴사(개인 사정)", "VOLUNTARY");
+        reason("CONTRACT_EXPIRED", "CONTRACT_END");
+        reason("RETIREMENT_AGE", "RETIREMENT_AGE");
+        reason("DISMISSAL", "DISMISSAL");
+        reason("OTHER", "OTHER");
 
         checker = mock(DismissalNoticeChecker.class);
         service = new RetirementService(employeeService, employees, cases, checklist, certs, contracts, codes, checker,
@@ -190,15 +205,49 @@ class RetirementServiceTest {
 
     @Test
     void 유형마다_체크리스트가_다르다() {
-        assertThat(service.template("CONTRACT_EXPIRED")).extracting(i -> i.itemCode()).contains("CONTRACT_END_CHECK");
-        assertThat(service.template("RETIREMENT_AGE")).extracting(i -> i.itemCode()).contains("RETIREMENT_AGE_CHECK");
-        assertThat(service.template("DISMISSAL")).extracting(i -> i.itemCode())
+        assertThat(service.template("C001", "CONTRACT_EXPIRED")).extracting(i -> i.itemCode()).contains("CONTRACT_END_CHECK");
+        assertThat(service.template("C001", "RETIREMENT_AGE")).extracting(i -> i.itemCode()).contains("RETIREMENT_AGE_CHECK");
+        assertThat(service.template("C001", "DISMISSAL")).extracting(i -> i.itemCode())
                 .contains("DISMISSAL_CAUSE", "DISMISSAL_NOTICE", "DISMISSAL_WRITTEN", "NOTICE_ALLOWANCE");
-        assertThat(service.template("OTHER")).extracting(i -> i.itemCode())
+        assertThat(service.template("C001", "OTHER")).extracting(i -> i.itemCode())
                 .containsExactly("HANDOVER", "ASSET_RETURN", "SETTLEMENT", "INSURANCE_LOSS", "CERTIFICATE_GUIDE",
                         "RECORD_RETENTION");
-        assertThat(service.template("DISMISSAL")).filteredOn(i -> i.itemCode().equals("DISMISSAL_WRITTEN"))
+        assertThat(service.template("C001", "DISMISSAL")).filteredOn(i -> i.itemCode().equals("DISMISSAL_WRITTEN"))
                 .singleElement().extracting(i -> i.legalBasis()).isEqualTo("근로기준법 제27조");
+    }
+
+    @Test
+    void 체크리스트는_코드값이_아니라_처리방식으로_정한다() {
+        // 관리자가 만든 '경영상 해고'(처리방식 DISMISSAL)도 해고 예고·서면통지 항목이 나온다(#141)
+        reason("MGMT_DISMISSAL", "DISMISSAL");
+        assertThat(service.template("C001", "MGMT_DISMISSAL")).extracting(i -> i.itemCode())
+                .contains("DISMISSAL_CAUSE", "DISMISSAL_NOTICE", "DISMISSAL_WRITTEN", "NOTICE_ALLOWANCE");
+        // 코드값이 DISMISSAL 이어도 처리방식이 다르면 그 처리방식을 따른다
+        reason("DISMISSAL", "OTHER");
+        assertThat(service.template("C001", "DISMISSAL")).extracting(i -> i.itemCode())
+                .doesNotContain("DISMISSAL_NOTICE");
+        // 그 법인에 없는 코드는 400
+        assertStatus(() -> service.template("C002", "MGMT_DISMISSAL"), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.template("C001", "NOPE"), HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void 새_해고_처리방식_코드로_퇴직_처리하면_예고_검사와_체크리스트가_적용된다() {
+        reason("MGMT_DISMISSAL", "DISMISSAL");
+        emp(1, RETIRE, "MGMT_DISMISSAL", RETIRE.plusYears(1));
+        // 근로기준법 제26조·제27조: 예고일·서면통지일 없으면 400
+        assertStatus(() -> service.register("C001", req("MGMT_DISMISSAL", null, RETIRE.minusDays(1), null), "hr1"),
+                HttpStatus.BAD_REQUEST);
+        verify(employeeService, never()).retire(any(), anyLong(), any());
+
+        when(checker.check(any(), any(), any(), any())).thenReturn(new Result(NoticeCheck.OK, 10, 30, null, List.of()));
+        RetirementView v = service.register("C001",
+                req("MGMT_DISMISSAL", RETIRE.minusDays(30), RETIRE.minusDays(30), null), "hr1");
+        verify(checker).check(HIRE, RETIRE.minusDays(30), RETIRE, null);
+        assertThat(v.checklist()).extracting(ChecklistItemView::itemCode)
+                .contains("DISMISSAL_CAUSE", "DISMISSAL_NOTICE", "DISMISSAL_WRITTEN");
+        assertThat(v.checklist()).filteredOn(i -> RetirementChecklist.autoDone(i.itemCode()))
+                .hasSize(2).allMatch(ChecklistItemView::done);
     }
 
     @Test

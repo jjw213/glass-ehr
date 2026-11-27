@@ -290,7 +290,7 @@ class CommonCodeServiceTest {
         when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
         when(codes.existsByEnterCdAndGroupCodeAndCode(E, "JOB_GRADE", "INTERN")).thenReturn(false);
 
-        CodeView v = service.create(E, "JOB_GRADE", new CodeCreateRequest("INTERN", "  인턴 ", "   ", 5, true));
+        CodeView v = service.create(E, "JOB_GRADE", new CodeCreateRequest("INTERN", "  인턴 ", "   ", 5, true, null));
 
         assertThat(v.name()).isEqualTo("인턴");
         assertThat(v.description()).isNull();
@@ -303,7 +303,7 @@ class CommonCodeServiceTest {
         when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
         when(codes.existsByEnterCdAndGroupCodeAndCode(E, "JOB_GRADE", "STAFF")).thenReturn(true);
 
-        assertThatThrownBy(() -> service.create(E, "JOB_GRADE", new CodeCreateRequest("STAFF", "사원", null, 1, true)))
+        assertThatThrownBy(() -> service.create(E, "JOB_GRADE", new CodeCreateRequest("STAFF", "사원", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
         verify(codes, never()).saveAndFlush(any());
     }
@@ -315,9 +315,9 @@ class CommonCodeServiceTest {
         when(codes.findByEnterCdAndGroupCodeAndCode(E, "LEAVE_TYPE", "SICK"))
                 .thenReturn(Optional.of(code("LEAVE_TYPE", "SICK", 10, true)));
 
-        assertThatThrownBy(() -> service.create(E, "LEAVE_TYPE", new CodeCreateRequest("REFRESH", "리프레시 휴가", null, 1, true)))
+        assertThatThrownBy(() -> service.create(E, "LEAVE_TYPE", new CodeCreateRequest("REFRESH", "리프레시 휴가", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
-        assertThatThrownBy(() -> service.update(E, "LEAVE_TYPE", "SICK", new CodeUpdateRequest("병가", null, 1, true)))
+        assertThatThrownBy(() -> service.update(E, "LEAVE_TYPE", "SICK", new CodeUpdateRequest("병가", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
         assertThatThrownBy(() -> service.deleteCode(E, "LEAVE_TYPE", "SICK"))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
@@ -328,7 +328,7 @@ class CommonCodeServiceTest {
     @Test
     void 없는_그룹에_추가는_404() {
         when(groups.existsByEnterCdAndGroupCode(E, "NOPE")).thenReturn(false);
-        assertThatThrownBy(() -> service.create(E, "NOPE", new CodeCreateRequest("A", "에이", null, 1, true)))
+        assertThatThrownBy(() -> service.create(E, "NOPE", new CodeCreateRequest("A", "에이", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
@@ -338,7 +338,7 @@ class CommonCodeServiceTest {
         when(codes.findByEnterCdAndGroupCodeAndCode(E, "JOB_GRADE", "STAFF"))
                 .thenReturn(Optional.of(code("JOB_GRADE", "STAFF", 10, true)));
 
-        CodeView v = service.update(E, "JOB_GRADE", "STAFF", new CodeUpdateRequest("사원(구)", "개편 전 직급", 99, false));
+        CodeView v = service.update(E, "JOB_GRADE", "STAFF", new CodeUpdateRequest("사원(구)", "개편 전 직급", 99, false, null));
 
         assertThat(v.code()).isEqualTo("STAFF");
         assertThat(v.name()).isEqualTo("사원(구)");
@@ -351,7 +351,7 @@ class CommonCodeServiceTest {
     void 없는_코드_수정은_404() {
         when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
         when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.update(E, "JOB_GRADE", "NOPE", new CodeUpdateRequest("x", null, 1, true)))
+        assertThatThrownBy(() -> service.update(E, "JOB_GRADE", "NOPE", new CodeUpdateRequest("x", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
