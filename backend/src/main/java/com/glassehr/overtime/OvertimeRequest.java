@@ -136,6 +136,10 @@ public class OvertimeRequest {
         return plannedMinutes;
     }
 
+    public String getEnterCd() {
+        return enterCd;
+    }
+
     public String getReason() {
         return reason;
     }

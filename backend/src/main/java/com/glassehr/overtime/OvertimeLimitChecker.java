@@ -134,7 +134,8 @@ public class OvertimeLimitChecker {
             if (overlapEnd.isAfter(overlapStart)) {
                 int overlap = Math.toIntExact(Duration.between(overlapStart, overlapEnd).toMinutes());
                 if (row.patternId() != null) {
-                    WorkPattern pattern = patterns.findById(row.patternId()).orElse(null);
+                    WorkPattern pattern = patterns.findByEnterCdAndPatternId(request.getEnterCd(), row.patternId())
+                            .orElse(null);
                     if (pattern != null && pattern.spec().breakStartMin() != null) {
                         LocalDate breakDay = pattern.spec().breakStartMin() >= pattern.spec().workStartMin()
                                 ? row.workDate() : row.workDate().plusDays(1);

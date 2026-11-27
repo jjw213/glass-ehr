@@ -60,17 +60,17 @@ class ApprovalOracleTest {
                 }
 
                 @Override
-                public void onApproved(long ref) {
+                public void onApproved(String enterCd, long ref) {
                     CALLS.add("approved:" + ref);
                 }
 
                 @Override
-                public void onRejected(long ref) {
+                public void onRejected(String enterCd, long ref) {
                     CALLS.add("rejected:" + ref);
                 }
 
                 @Override
-                public void onWithdrawn(long ref) {
+                public void onWithdrawn(String enterCd, long ref) {
                     CALLS.add("withdrawn:" + ref);
                 }
             };
@@ -141,13 +141,13 @@ class ApprovalOracleTest {
 
     @Test
     void 템플릿이_없으면_신청_거부() {
-        assertStatus(() -> service.submit(TYPE, 1, "결재선 없음", requester), HttpStatus.UNPROCESSABLE_ENTITY);
+        assertStatus(() -> service.submit("C001", TYPE,1, "결재선 없음", requester), HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     @Test
     void 순차_승인_후_최종_승인에_핸들러가_한_번_불리고_이력이_쌓인다() {
         template(today(), first, second);
-        long id = service.submit(TYPE, 101, "시험 문서", requester);
+        long id = service.submit("C001", TYPE,101, "시험 문서", requester);
 
         assertThat(ids(service.inbox(as(first)))).contains(id);
         assertThat(ids(service.inbox(as(second)))).doesNotContain(id);
@@ -179,7 +179,7 @@ class ApprovalOracleTest {
     @Test
     void 반려는_사유가_필수이고_문서_전체가_반려된다() {
         template(today(), first, second);
-        long id = service.submit(TYPE, 102, "반려 문서", requester);
+        long id = service.submit("C001", TYPE,102, "반려 문서", requester);
 
         assertStatus(() -> service.reject(id, as(first), "  "), HttpStatus.BAD_REQUEST);
         assertStatus(() -> service.reject(id, as(outsider), "남의 문서"), HttpStatus.FORBIDDEN);
@@ -196,7 +196,7 @@ class ApprovalOracleTest {
     @Test
     void 회수는_신청자만_첫_결재_전에() {
         template(today(), first);
-        long id = service.submit(TYPE, 103, "회수 문서", requester);
+        long id = service.submit("C001", TYPE,103, "회수 문서", requester);
 
         assertStatus(() -> service.withdraw(id, as(first)), HttpStatus.FORBIDDEN);
         DocDetail d = service.withdraw(id, as(requester));
@@ -209,7 +209,7 @@ class ApprovalOracleTest {
     @Test
     void 상세는_관련자만_볼_수_있다() {
         template(today(), first);
-        long id = service.submit(TYPE, 104, "상세 문서", requester);
+        long id = service.submit("C001", TYPE,104, "상세 문서", requester);
 
         assertThat(service.get(id, as(requester)).canWithdraw()).isTrue();
         assertThat(service.get(id, as(first)).canAct()).isTrue();
@@ -220,15 +220,15 @@ class ApprovalOracleTest {
     @Test
     void 신청일_기준_템플릿을_쓰고_진행_중_문서는_스냅샷을_유지한다() {
         // 어제까지 유효한 옛 템플릿과 오늘부터 유효한 새 템플릿(유효기간 [from, to))
-        jdbc.update("INSERT INTO approval_template (request_type, valid_from, valid_to, created_by) "
-                + "VALUES (?, ?, ?, 'it')", TYPE, today().minusDays(10), today());
-        Long oldId = jdbc.queryForObject("SELECT template_id FROM approval_template WHERE request_type = ?",
-                Long.class, TYPE);
-        jdbc.update("INSERT INTO approval_template_step (template_id, step_no, approver_kind, approver_ref, "
-                + "skip_if_self) VALUES (?, 1, 'EMPLOYEE', ?, 'N')", oldId, Long.toString(outsider));
+        jdbc.update("INSERT INTO approval_template (enter_cd, request_type, valid_from, valid_to, created_by) "
+                + "VALUES ('C001', ?, ?, ?, 'it')", TYPE, today().minusDays(10), today());
+        Long oldId = jdbc.queryForObject("SELECT template_id FROM approval_template WHERE enter_cd = 'C001'"
+                + " AND request_type = ?", Long.class, TYPE);
+        jdbc.update("INSERT INTO approval_template_step (enter_cd, template_id, step_no, approver_kind, approver_ref, "
+                + "skip_if_self) VALUES ('C001', ?, 1, 'EMPLOYEE', ?, 'N')", oldId, Long.toString(outsider));
         template(today(), first);
 
-        long id = service.submit(TYPE, 105, "스냅샷 문서", requester);
+        long id = service.submit("C001", TYPE,105, "스냅샷 문서", requester);
         assertThat(ids(service.inbox(as(first)))).contains(id);
         assertThat(ids(service.inbox(as(outsider)))).doesNotContain(id);
 
@@ -242,7 +242,7 @@ class ApprovalOracleTest {
     @Test
     void 처리_이력은_추가만_하고_같은_신청에_결재_문서는_하나() {
         template(today(), first);
-        long id = service.submit(TYPE, 106, "이력 문서", requester);
+        long id = service.submit("C001", TYPE,106, "이력 문서", requester);
         service.approve(id, as(first), "승인");
 
         Integer before = jdbc.queryForObject("SELECT COUNT(*) FROM approval_action_log WHERE approval_id = ?",
@@ -250,8 +250,8 @@ class ApprovalOracleTest {
         service.get(id, as(requester)); // 조회는 이력을 바꾸지 않는다
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM approval_action_log WHERE approval_id = ?",
                 Integer.class, id)).isEqualTo(before);
-        assertThat(service.findByRequest(TYPE, 106).getApprovalId()).isEqualTo(id);
+        assertThat(service.findByRequest("C001", TYPE, 106).getApprovalId()).isEqualTo(id);
         // uq_approval_doc_ref: 같은 원본 신청으로 두 번 올릴 수 없다
-        assertThatThrownBy(() -> service.submit(TYPE, 106, "중복", requester)).isNotNull();
+        assertThatThrownBy(() -> service.submit("C001", TYPE,106, "중복", requester)).isNotNull();
     }
 }

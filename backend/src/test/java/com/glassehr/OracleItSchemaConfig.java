@@ -270,6 +270,14 @@ public class OracleItSchemaConfig {
                     new ClassPathResource("db/oracle/V043__attendance_record_flex_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer approvalDocKeyCols = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_APPROVAL_DOC'", Integer.class);
+        if (approvalDocKeyCols == null || approvalDocKeyCols < 2) {
+            // #127: 결재·연장근로·특별연장근로 인가·가족돌봄휴직 키와 내부 FK 에 법인
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V046__approval_overtime_family_leave_enter_cd.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

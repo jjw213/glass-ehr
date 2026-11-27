@@ -160,7 +160,7 @@ class FamilyLeaveBalanceFixtureTest {
         });
 
         FamilyLeaveRequestRepository requests = mock(FamilyLeaveRequestRepository.class);
-        when(requests.findByEmpIdOrderByStartDateAscReqIdAsc(1L)).thenAnswer(i -> List.copyOf(store));
+        when(requests.findByEnterCdAndEmpIdOrderByStartDateAscReqIdAsc("C001", 1L)).thenAnswer(i -> List.copyOf(store));
         when(requests.saveAndFlush(any())).thenAnswer(i -> {
             FamilyLeaveRequest r = i.getArgument(0);
             if (r.getReqId() == null) {
@@ -169,18 +169,17 @@ class FamilyLeaveBalanceFixtureTest {
             }
             return r;
         });
-        when(requests.findEmpIdByReqId(anyLong())).thenReturn(Optional.of(1L));
-        when(requests.findForUpdate(anyLong())).thenAnswer(i -> store.stream()
-                .filter(r -> r.getReqId() == (long) i.getArgument(0)).findFirst());
+        when(requests.findEmpIdByReqId(eq("C001"), anyLong())).thenReturn(Optional.of(1L));
+        when(requests.findForUpdate(eq("C001"), anyLong())).thenAnswer(i -> store.stream()
+                .filter(r -> r.getReqId() == (long) i.getArgument(1)).findFirst());
 
         EmployeeRepository employees = mock(EmployeeRepository.class);
         Employee e = mock(Employee.class);
         when(e.getEmpId()).thenReturn(1L);
         when(e.getEnterCd()).thenReturn("C001");
         when(e.getHireDate()).thenReturn(LocalDate.of(2015, 1, 1));
-        when(employees.findForUpdate(1L)).thenReturn(Optional.of(e));
-        when(employees.findById(1L)).thenReturn(Optional.of(e));
-        when(employees.existsById(1L)).thenReturn(true);
+        when(employees.findForUpdate("C001", 1L)).thenReturn(Optional.of(e));
+        when(employees.findByEnterCdAndEmpId("C001", 1L)).thenReturn(Optional.of(e));
 
         WorkPatternRepository patterns = mock(WorkPatternRepository.class);
         WorkPattern current = pattern("FULL", CURRENT_WEEKLY_MINUTES);
@@ -232,7 +231,7 @@ class FamilyLeaveBalanceFixtureTest {
 
     private FamilyLeaveRequest entity(Kind kind, LocalDate start, LocalDate end, boolean extension) {
         boolean child = kind != Kind.FAMILY_CARE_LEAVE;
-        FamilyLeaveRequest r = new FamilyLeaveRequest(1L, kind, child ? CHILD : null, child ? CHILD_BIRTH : null,
+        FamilyLeaveRequest r = new FamilyLeaveRequest("C001", 1L, kind, child ? CHILD : null, child ? CHILD_BIRTH : null,
                 child ? null : "부모", start, end, kind == Kind.CHILDCARE_REDUCED_HOURS ? REDUCED_PATTERN : null,
                 extension, "fixture", null, "hr1", LocalDateTime.of(2015, 1, 1, 9, 0));
         r.withId(ids.getAndIncrement());
@@ -283,7 +282,7 @@ class FamilyLeaveBalanceFixtureTest {
                 c.start(), c.end(), c.kind() == Kind.CHILDCARE_REDUCED_HOURS ? REDUCED_PATTERN : null,
                 c.kind() == Kind.PARENTAL_LEAVE && c.extension() ? Boolean.TRUE : null, "fixture");
 
-        Throwable t = catchThrowable(() -> service.approve(service.create(1L, req, "hr1").reqId(), "hr1"));
+        Throwable t = catchThrowable(() -> service.approve("C001", service.create("C001", 1L, req, "hr1").reqId(), "hr1"));
         if (c.allow()) {
             assertThat(t).as("허용돼야 한다").isNull();
         } else {
@@ -292,7 +291,7 @@ class FamilyLeaveBalanceFixtureTest {
             entity(c.kind(), c.start(), c.end(), c.extension());
         }
 
-        BalanceView b = service.balance(1L, c.asOf());
+        BalanceView b = service.balance("C001", 1L, c.asOf());
         if (c.kind() == Kind.FAMILY_CARE_LEAVE) {
             assertThat(b.familyCareLeave().year()).isEqualTo(c.asOf().getYear());
             assertThat(b.familyCareLeave().remainingDays() + "일").isEqualTo(c.remaining());
