@@ -1,4 +1,4 @@
--- V047 (#131): 법인별 회사 설정(docs/tenant-design.md 7장).
+-- V049 (#131): 법인별 회사 설정(docs/tenant-design.md 7장).
 -- 상시근로자 수·알림 일수·주 52시간 근접 기준처럼 application.yml 한 곳에 있던 회사 설정을 법인마다 적용시작일을 가진 값으로 둔다.
 -- 법정 수치가 아니다. 법정 기준값(적용 규모 하한 등)은 legal_rate 에만 둔다.
 -- 법인에 값이 없으면 application.yml(glassehr.*) 값을 기본값으로 쓴다(EnterSettingService).

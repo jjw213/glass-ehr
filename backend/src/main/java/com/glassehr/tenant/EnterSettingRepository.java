@@ -9,7 +9,7 @@ import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-/** enter_setting·enter_setting_hist(V047). 모든 쿼리는 enter_cd 조건을 건다(docs/tenant-design.md 5.2). */
+/** enter_setting·enter_setting_hist(V049). 모든 쿼리는 enter_cd 조건을 건다(docs/tenant-design.md 5.2). */
 @Repository
 public class EnterSettingRepository {
 
@@ -37,7 +37,7 @@ public class EnterSettingRepository {
     }
 
     /** 그 법인의 모든 값. 키, 적용시작일 순. */
-    public List<Entry> findAll(String enterCd) {
+    public List<Entry> findByEnterCd(String enterCd) {
         return jdbc.query("SELECT setting_key, effective_from, setting_value, updated_by, updated_at FROM enter_setting"
                 + " WHERE enter_cd = ? ORDER BY setting_key, effective_from",
                 (rs, i) -> new Entry(rs.getString(1), rs.getDate(2).toLocalDate(), rs.getInt(3), rs.getString(4),

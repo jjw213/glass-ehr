@@ -123,7 +123,7 @@ public class EnterSettingService {
     public List<SettingView> list(String enterCd) {
         LocalDate today = today();
         Map<String, List<SettingEntry>> byKey = new HashMap<>();
-        for (EnterSettingRepository.Entry e : repo.findAll(enterCd)) {
+        for (EnterSettingRepository.Entry e : repo.findByEnterCd(enterCd)) {
             byKey.computeIfAbsent(e.key(), k -> new ArrayList<>())
                     .add(new SettingEntry(e.effectiveFrom(), e.value(), e.updatedBy(), e.updatedAt()));
         }

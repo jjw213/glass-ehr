@@ -70,7 +70,7 @@ class EnterSettingServiceTest {
     @Test
     void 목록은_오늘_적용값과_앞으로_적용될_값을_함께_보여준다() {
         LocalDateTime t = LocalDateTime.of(2099, 1, 1, 9, 0);
-        when(repo.findAll(A)).thenReturn(List.of(
+        when(repo.findByEnterCd(A)).thenReturn(List.of(
                 new EnterSettingRepository.Entry("WORKPLACE_REGULAR_HEADCOUNT", LocalDate.of(2099, 1, 1), 20, "hr", t),
                 new EnterSettingRepository.Entry("WORKPLACE_REGULAR_HEADCOUNT", LocalDate.of(2099, 6, 1), 40, "hr", t),
                 new EnterSettingRepository.Entry("WORKPLACE_REGULAR_HEADCOUNT", LocalDate.of(2099, 7, 1), 50, "hr", t)));

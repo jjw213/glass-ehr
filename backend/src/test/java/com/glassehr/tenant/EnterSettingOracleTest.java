@@ -18,7 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * V047(#131): 법인별 회사 설정을 Oracle 실DB에서 검증한다. "법인 A(C001) 세션으로 법인 B(ZZIT1) 설정 조회·수정 → 보이지 않고
+ * V049(#131): 법인별 회사 설정을 Oracle 실DB에서 검증한다. "법인 A(C001) 세션으로 법인 B(ZZIT1) 설정 조회·수정 → 보이지 않고
  * 바뀌지 않음", 이력 FK 가 다른 법인 설정을 가리킬 수 없음을 본다. 실행 조건: {@code ORACLE_IT=true}. 각 테스트는 롤백한다.
  * 1900년대 날짜, ZZIT 코드만 쓴다.
  */
