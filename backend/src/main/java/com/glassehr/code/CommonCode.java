@@ -48,7 +48,10 @@ public class CommonCode {
     @Column(name = "system_yn", nullable = false, updatable = false)
     private Boolean system = Boolean.FALSE;
 
-    /** 근태코드 그룹(LEAVE_TYPE·ATTENDANCE_TYPE)의 처리방식(V041, #143). 다른 그룹은 null. */
+    /**
+     * 처리방식(sys_type). 근태코드 그룹(V041, #143)과 고용형태·퇴직사유(V047, #141, {@link CodeSysTypes})만 값이 있고
+     * 다른 그룹은 null. 로직은 코드값이 아니라 이 값을 본다.
+     */
     @Column(name = "process_type")
     private String processType;
 
@@ -74,7 +77,10 @@ public class CommonCode {
         this.updatedAt = now;
     }
 
-    /** 근태코드 추가(#143). 처리방식은 {@link AttendanceCodeService#PROCESS_TYPES} 안의 값이다. */
+    /**
+     * 처리방식이 있는 코드 추가. 근태코드는 {@link AttendanceCodeService#PROCESS_TYPES}(#143),
+     * 고용형태·퇴직사유는 {@link CodeSysTypes}(#141) 안의 값이다. 처리방식이 없는 그룹은 null.
+     */
     CommonCode(String enterCd, String groupCode, String code, String codeName, String description, int sortOrder,
             boolean active, String processType, LocalDateTime now) {
         this(enterCd, groupCode, code, codeName, description, sortOrder, active, now);

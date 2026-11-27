@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -178,8 +179,9 @@ public class CommonCodeService {
         if (codes.existsByEnterCdAndGroupCodeAndCode(enterCd, groupCode, req.code())) {
             throw CodeException.duplicate(groupCode, req.code());
         }
+        String sysType = requireSysType(groupCode, req.sysType());
         CommonCode c = new CommonCode(enterCd, groupCode, req.code(), req.name().strip(), blankToNull(req.description()),
-                req.sortOrder(), req.active(), now());
+                req.sortOrder(), req.active(), sysType, now());
         return CodeView.of(codes.saveAndFlush(c));
     }
 
@@ -187,8 +189,40 @@ public class CommonCodeService {
     public CodeView update(String enterCd, String groupCode, String code, CodeUpdateRequest req) {
         requireCodesEditableHere(enterCd, groupCode);
         CommonCode c = findCode(enterCd, groupCode, code);
+        String sysType = requireSysType(groupCode, req.sysType());
+        if (c.isSystem() && !Objects.equals(sysType, c.getProcessType())) {
+            throw CodeException.conflict("기본 코드는 처리방식을 바꿀 수 없어요");
+        }
         c.change(req.name().strip(), blankToNull(req.description()), req.sortOrder(), req.active(), now());
+        c.changeProcessType(sysType);
         return CodeView.of(codes.saveAndFlush(c));
+    }
+
+    /** 그룹의 처리방식 목록(#141). 처리방식이 없는 그룹은 빈 목록. 다른 법인·없는 그룹은 404. */
+    public List<CodeSysTypes.SysType> sysTypes(String enterCd, String groupCode) {
+        requireGroup(enterCd, groupCode);
+        return CodeSysTypes.of(groupCode);
+    }
+
+    /**
+     * 처리방식이 있는 그룹(고용형태·퇴직사유)은 목록 안의 값이 꼭 있어야 하고, 다른 그룹은 처리방식을 두지 않는다
+     * (DB CHECK ck_common_code_process, V047). 근태코드 그룹은 공통코드 API 로 고치지 않으므로 여기 오지 않는다.
+     */
+    private static String requireSysType(String groupCode, String sysType) {
+        String t = blankToNull(sysType);
+        if (!CodeSysTypes.required(groupCode)) {
+            if (t != null) {
+                throw CodeException.badRequest("이 코드그룹은 처리방식을 쓰지 않아요");
+            }
+            return null;
+        }
+        if (t == null) {
+            throw CodeException.badRequest("처리방식을 선택해 주세요");
+        }
+        if (!CodeSysTypes.allowed(groupCode, t)) {
+            throw CodeException.badRequest("이 그룹에 없는 처리방식이에요: " + t);
+        }
+        return t;
     }
 
     /**

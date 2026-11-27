@@ -1,5 +1,6 @@
 package com.glassehr.contract;
 
+import com.glassehr.code.CodeSysTypes.EmploymentType;
 import com.glassehr.contract.ContractTermsChecker.MissingTerm;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
@@ -72,13 +73,14 @@ public final class ContractDtos {
             String workDaysText, String holidayText, String leaveText, String workPlace, String jobDuty,
             String otherTerms, LocalDate writtenDeliveredDate, List<MissingTerm> missingTerms) {
 
-        static ContractView of(EmploymentContract c) {
+        /** @param type 계약 고용형태 코드의 처리방식(#141). 명시사항 검사가 쓴다. */
+        static ContractView of(EmploymentContract c, EmploymentType type) {
             EmploymentContract.Terms t = c.terms();
             return new ContractView(c.getContractId(), c.getEmpId(), t.contractTypeCode(), t.contractDate(),
                     t.startDate(), t.endDate(), t.wageAmount(), t.wageUnitCode(), t.wageComponents(),
                     t.wageCalcMethod(), t.wagePaymentMethod(), t.weeklyContractMinutes(), t.workHoursText(),
                     t.workDaysText(), t.holidayText(), t.leaveText(), t.workPlace(), t.jobDuty(), t.otherTerms(),
-                    c.getWrittenDeliveredDate(), ContractTermsChecker.check(t));
+                    c.getWrittenDeliveredDate(), ContractTermsChecker.check(t, type));
         }
     }
 
