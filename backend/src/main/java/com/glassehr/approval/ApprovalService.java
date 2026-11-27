@@ -287,10 +287,8 @@ public class ApprovalService {
     /** 이름은 문서 법인 사원에서만 읽는다(#127). */
     private Map<Long, String> names(String enterCd, Collection<Long> ids) {
         Map<Long, String> m = new HashMap<>();
-        for (Employee e : employees.findAllById(ids)) {
-            if (enterCd.equals(e.getEnterCd())) {
-                m.put(e.getEmpId(), e.getName());
-            }
+        for (Employee e : employees.findByEnterCdAndEmpIdIn(enterCd, ids)) {
+            m.put(e.getEmpId(), e.getName());
         }
         return m;
     }

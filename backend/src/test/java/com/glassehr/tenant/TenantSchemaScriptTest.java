@@ -136,6 +136,164 @@ class TenantSchemaScriptTest {
         }
     }
 
+    /** 마이그레이션을 순서대로 따라가 만든 최종 PK·FK(#129). */
+    record Fk(String table, String name, List<String> cols, String refTable, List<String> refCols) {}
+
+    record Keys(Map<String, List<String>> pk, Map<String, Fk> fk) {}
+
+    private static final Pattern TARGET = Pattern.compile("(?is)^(?:CREATE TABLE|ALTER TABLE)\\s+\"?(\\w+)\"?\\b.*");
+    private static final Pattern DROP_TABLE = Pattern.compile("(?is)^DROP TABLE\\s+(\\w+).*");
+    private static final Pattern NAMED_PK =
+            Pattern.compile("(?is)CONSTRAINT\\s+(\\w+)\\s+PRIMARY KEY\\s*\\(([^)]*)\\)");
+    private static final Pattern NAMED_FK = Pattern.compile(
+            "(?is)CONSTRAINT\\s+(\\w+)\\s+FOREIGN KEY\\s*\\(([^)]*)\\)\\s*REFERENCES\\s+(\\w+)\\s*\\(([^)]*)\\)");
+    /**
+     * 열 정의 안의 FK: {@code enter_cd ... CONSTRAINT fk_x_enter REFERENCES enter_company (enter_cd)}.
+     * 자식 열 이름은 읽지 않고 "?"로 둔다. 법인별 테이블을 이렇게 참조하면 아래 FK 검사에서 실패한다.
+     */
+    private static final Pattern INLINE_FK =
+            Pattern.compile("(?is)CONSTRAINT\\s+(\\w+)\\s+REFERENCES\\s+(\\w+)\\s*\\(([^)]*)\\)");
+    private static final Pattern DROP_CONSTRAINT = Pattern.compile("(?is)DROP CONSTRAINT\\s+(\\w+)");
+
+    private static List<String> cols(String s) {
+        List<String> out = new ArrayList<>();
+        for (String c : s.split(",")) {
+            out.add(c.strip().replace("\"", "").toLowerCase(Locale.ROOT));
+        }
+        return out;
+    }
+
+    private static int count(Pattern p, String s) {
+        Matcher m = p.matcher(s);
+        int n = 0;
+        while (m.find()) {
+            n++;
+        }
+        return n;
+    }
+
+    /** 주석(-- 끝까지)을 지우고 ; 로 나눈다. 패키지 본문 등 DDL 이 아닌 문장은 아래 패턴에 걸리지 않는다. */
+    private static List<String> ddlStatements(String sql) {
+        String noComments = sql.replaceAll("--[^\n]*", "");
+        List<String> out = new ArrayList<>();
+        for (String s : noComments.split(";")) {
+            if (!s.isBlank()) {
+                out.add(s.strip());
+            }
+        }
+        return out;
+    }
+
+    static Keys finalKeys() throws IOException {
+        Map<String, List<String>> pk = new java.util.TreeMap<>();
+        Map<String, String> pkName = new java.util.HashMap<>();
+        Map<String, Fk> fk = new java.util.TreeMap<>();
+        List<String> unparsed = new ArrayList<>();
+        for (Map.Entry<String, String> file : migrations().entrySet()) {
+            for (String st : ddlStatements(file.getValue())) {
+                Matcher dropTable = DROP_TABLE.matcher(st);
+                if (dropTable.matches()) {
+                    String t = dropTable.group(1).toLowerCase(Locale.ROOT);
+                    pk.remove(t);
+                    fk.values().removeIf(f -> f.table().equals(t));
+                    continue;
+                }
+                Matcher target = TARGET.matcher(st);
+                if (!target.matches()) {
+                    continue;
+                }
+                String t = target.group(1).toLowerCase(Locale.ROOT);
+                Matcher d = DROP_CONSTRAINT.matcher(st);
+                while (d.find()) {
+                    String name = d.group(1).toLowerCase(Locale.ROOT);
+                    fk.remove(name);
+                    if (name.equals(pkName.get(t))) {
+                        pk.remove(t);
+                        pkName.remove(t);
+                    }
+                }
+                if (st.toUpperCase(Locale.ROOT).contains("DROP PRIMARY KEY")) {
+                    pk.remove(t);
+                    pkName.remove(t);
+                }
+                Matcher p = NAMED_PK.matcher(st);
+                int pks = 0;
+                while (p.find()) {
+                    pks++;
+                    pk.put(t, cols(p.group(2)));
+                    pkName.put(t, p.group(1).toLowerCase(Locale.ROOT));
+                }
+                Matcher f = NAMED_FK.matcher(st);
+                int fks = 0;
+                while (f.find()) {
+                    fks++;
+                    String name = f.group(1).toLowerCase(Locale.ROOT);
+                    fk.put(name, new Fk(t, name, cols(f.group(2)), f.group(3).toLowerCase(Locale.ROOT),
+                            cols(f.group(4))));
+                }
+                Matcher i = INLINE_FK.matcher(st);
+                while (i.find()) {
+                    fks++;
+                    String name = i.group(1).toLowerCase(Locale.ROOT);
+                    fk.put(name, new Fk(t, name, List.of("?"), i.group(2).toLowerCase(Locale.ROOT),
+                            cols(i.group(3))));
+                }
+                // 이름 없는 PK·FK 나 이 검사가 모르는 모양이면 알 수 없으므로 실패로 알린다.
+                if (count(Pattern.compile("(?i)\\bPRIMARY KEY\\b"), st) != pks
+                        || count(Pattern.compile("(?i)\\bREFERENCES\\b"), st) != fks) {
+                    unparsed.add(file.getKey() + ": " + st.lines().findFirst().orElse(st));
+                }
+            }
+        }
+        assertThat(unparsed).as("PK·FK 를 읽지 못한 문장(이름 있는 CONSTRAINT 로 쓴다)").isEmpty();
+        return new Keys(pk, fk);
+    }
+
+    @Test
+    void 법인별_테이블의_PK_첫_컬럼은_enter_cd다() throws IOException {
+        Keys keys = finalKeys();
+        List<String> wrong = new ArrayList<>();
+        for (String t : tenantTables()) {
+            List<String> cols = keys.pk().get(t);
+            if (NULLABLE_NO_FK.contains(t)) {
+                // login_access_log 는 없는 법인으로 시도한 로그인도 남기므로 PK 를 log_id 로 둔다(3.2 ※※).
+                assertThat(cols).as(t).containsExactly("log_id");
+                continue;
+            }
+            if (cols == null || !cols.get(0).equals("enter_cd")) {
+                wrong.add(t + " " + cols);
+            }
+        }
+        assertThat(wrong).as("PK 첫 컬럼이 enter_cd 가 아닌 법인별 테이블").isEmpty();
+        // 전체 공통 테이블에는 enter_cd 를 키로 넣지 않는다(법인 마스터 자신은 enter_cd 가 PK).
+        assertThat(keys.pk().get("enter_company")).containsExactly("enter_cd");
+        assertThat(keys.pk().get("app_role")).containsExactly("role_code");
+    }
+
+    @Test
+    void 법인별_테이블을_참조하는_FK는_enter_cd를_포함한다() throws IOException {
+        Keys keys = finalKeys();
+        Set<String> tenant = tenantTables();
+        List<String> wrong = new ArrayList<>();
+        int checked = 0;
+        for (Fk f : keys.fk().values()) {
+            if (!tenant.contains(f.refTable())) {
+                continue;
+            }
+            checked++;
+            int i = f.cols().indexOf("enter_cd");
+            if (i < 0 || i >= f.refCols().size() || !f.refCols().get(i).equals("enter_cd")) {
+                wrong.add(f.name() + " " + f.table() + f.cols() + " → " + f.refTable() + f.refCols());
+            }
+        }
+        // 3.2 표의 사원·부서·결재·메시지 등 복합 FK 수십 개가 있다.
+        assertThat(checked).isGreaterThan(40);
+        assertThat(wrong).as("enter_cd 없이 법인별 테이블을 참조하는 FK").isEmpty();
+        // 전체 공통 테이블이 법인별 테이블을 참조하면 법인 경계가 깨진다.
+        assertThat(keys.fk().values()).filteredOn(f -> COMMON.contains(f.table()) && tenant.contains(f.refTable()))
+                .isEmpty();
+    }
+
     @Test
     void V031은_기존_행을_C001로_채우고_C001_법인을_넣는다() throws IOException {
         String sql = new ClassPathResource("db/oracle/V031__enter_company_enter_cd.sql")

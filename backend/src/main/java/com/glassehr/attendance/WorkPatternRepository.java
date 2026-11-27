@@ -9,8 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /**
- * 근무유형은 법인마다 따로 둔다. 근무유형 API 는 법인 조건이 있는 메서드만 쓴다(#125, docs/tenant-design.md 5.2).
- * 상속한 findById 는 같은 법인 행이 복합 FK 로 가리키는 pattern_id(집계 행·가족돌봄 신청·배정)를 따라갈 때만 쓴다.
+ * 근무유형은 법인마다 따로 둔다. 법인 조건이 있는 메서드만 쓴다(#125·#129, docs/tenant-design.md 5.2).
+ * 상속한 findById 등은 쓰지 않는다(TenantQueryScanTest 가 검사).
  */
 public interface WorkPatternRepository extends JpaRepository<WorkPattern, Long> {
 

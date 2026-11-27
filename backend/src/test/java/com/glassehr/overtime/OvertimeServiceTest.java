@@ -122,8 +122,7 @@ class OvertimeServiceTest {
                 LocalDate.of(2099, 3, 1), LocalDate.of(2099, 3, 2), LocalDate.of(2099, 3, 8), "설비 고장", Set.of(EMP),
                 true);
         com.glassehr.employee.Employee target = mock(com.glassehr.employee.Employee.class);
-        when(target.getEnterCd()).thenReturn(ENTER);
-        when(employees.findAllById(Set.of(EMP))).thenReturn(List.of(target));
+        when(employees.findByEnterCdAndEmpIdIn(ENTER, Set.of(EMP))).thenReturn(List.of(target));
         when(auths.save(any())).thenAnswer(inv -> {
             SpecialOvertimeAuth saved = inv.getArgument(0);
             org.springframework.test.util.ReflectionTestUtils.setField(saved, "authId", 31L); // DB 시퀀스 부여 흉내
