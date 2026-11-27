@@ -26,16 +26,13 @@ class ApproverResolverTest {
         final Map<String, Set<Long>> titles = new HashMap<>(Map.of("T1", Set.of(50L)));
         final Set<Long> inactive = new HashSet<>();
         LocalDate seenDate;
+        String seenEnterCd;
 
         @Override
-        public Optional<Long> deptOf(long empId, LocalDate date) {
+        public Optional<Long> deptOf(String enterCd, long empId, LocalDate date) {
             seenDate = date;
+            seenEnterCd = enterCd;
             return Optional.ofNullable(deptOf.get(empId));
-        }
-
-        @Override
-        public Optional<String> enterOf(long empId) {
-            return Optional.of("C001");
         }
 
         @Override
@@ -44,20 +41,22 @@ class ApproverResolverTest {
         }
 
         @Override
-        public Set<Long> activeWithTitle(String titleCode) {
+        public Set<Long> activeWithTitle(String enterCd, String titleCode) {
             return titles.getOrDefault(titleCode, Set.of());
         }
 
         @Override
-        public Set<Long> activeWithRole(String roleCode) {
+        public Set<Long> activeWithRole(String enterCd, String roleCode) {
             return roles.getOrDefault(roleCode, Set.of());
         }
 
         @Override
-        public boolean isActive(long empId, LocalDate date) {
-            return !inactive.contains(empId);
+        public boolean isActive(String enterCd, long empId, LocalDate date) {
+            return ENTER.equals(enterCd) && !inactive.contains(empId);
         }
     }
+
+    static final String ENTER = "C001";
 
     final FakeDirectory dir = new FakeDirectory();
     final ApproverResolver resolver = new ApproverResolver(dir);
@@ -73,18 +72,26 @@ class ApproverResolverTest {
                 step(2, ApproverKind.UPPER_DEPT_HEAD, null, false),
                 step(3, ApproverKind.POSITION, "T1", false),
                 step(4, ApproverKind.ROLE, "HR", false),
-                step(5, ApproverKind.EMPLOYEE, "42", false)), 5L, D);
+                step(5, ApproverKind.EMPLOYEE, "42", false)), ENTER, 5L, D);
         assertThat(r).extracting(ApproverResolver.ResolvedStep::approverEmpIds)
                 .containsExactly(Set.of(7L), Set.of(2L), Set.of(50L), Set.of(100L, 101L), Set.of(42L));
         assertThat(r).noneMatch(ApproverResolver.ResolvedStep::skipped);
         assertThat(dir.seenDate).isEqualTo(D);
+        assertThat(dir.seenEnterCd).isEqualTo(ENTER);
+    }
+
+    @Test
+    void 다른_법인_사원은_결재자가_될_수_없다() {
+        assertThatThrownBy(() -> resolver.resolve(
+                List.of(step(1, ApproverKind.EMPLOYEE, "42", false)), "C002", 5L, D))
+                .isInstanceOf(ApprovalException.class).hasMessageContaining("사원 42");
     }
 
     @Test
     void 신청자가_부서장이면_skip_if_self_단계는_건너뛴다() {
         List<ApproverResolver.ResolvedStep> r = resolver.resolve(List.of(
                 step(1, ApproverKind.DEPT_HEAD, null, true),
-                step(2, ApproverKind.UPPER_DEPT_HEAD, null, false)), 7L, D);
+                step(2, ApproverKind.UPPER_DEPT_HEAD, null, false)), ENTER, 7L, D);
         assertThat(r.get(0).skipped()).isTrue();
         assertThat(r.get(0).approverEmpIds()).isEmpty();
         assertThat(r.get(1).approverEmpIds()).containsExactly(2L);
@@ -92,14 +99,14 @@ class ApproverResolverTest {
 
     @Test
     void 신청자가_유일한_결재자이고_건너뛰기가_아니면_거부한다() {
-        assertThatThrownBy(() -> resolver.resolve(List.of(step(1, ApproverKind.DEPT_HEAD, null, false)), 7L, D))
+        assertThatThrownBy(() -> resolver.resolve(List.of(step(1, ApproverKind.DEPT_HEAD, null, false)), ENTER, 7L, D))
                 .isInstanceOf(ApprovalException.class).hasMessageContaining("본인뿐");
     }
 
     @Test
     void 역할_후보에서_신청자_본인은_빠진다() {
         List<ApproverResolver.ResolvedStep> r = resolver.resolve(
-                List.of(step(1, ApproverKind.ROLE, "HR", true)), 100L, D);
+                List.of(step(1, ApproverKind.ROLE, "HR", true)), ENTER, 100L, D);
         assertThat(r.get(0).approverEmpIds()).containsExactly(101L);
         assertThat(r.get(0).skipped()).isFalse();
     }
@@ -107,30 +114,30 @@ class ApproverResolverTest {
     @Test
     void 부서장_공석이면_신청을_거부한다() {
         dir.depts.put(10L, new ApproverResolver.DeptInfo(null, 1L));
-        assertThatThrownBy(() -> resolver.resolve(List.of(step(1, ApproverKind.DEPT_HEAD, null, false)), 5L, D))
+        assertThatThrownBy(() -> resolver.resolve(List.of(step(1, ApproverKind.DEPT_HEAD, null, false)), ENTER, 5L, D))
                 .isInstanceOf(ApprovalException.class).hasMessageContaining("1단계 결재자(부서장)를 찾지 못해");
     }
 
     @Test
     void 최상위_부서라_상위_부서장이_없으면_거부한다() {
         assertThatThrownBy(() -> resolver.resolve(
-                List.of(step(1, ApproverKind.UPPER_DEPT_HEAD, null, false)), 2L, D))
+                List.of(step(1, ApproverKind.UPPER_DEPT_HEAD, null, false)), ENTER, 2L, D))
                 .isInstanceOf(ApprovalException.class).hasMessageContaining("상위 부서장");
     }
 
     @Test
     void 휴직_퇴직자는_결재자가_될_수_없다() {
         dir.inactive.add(7L);
-        assertThatThrownBy(() -> resolver.resolve(List.of(step(1, ApproverKind.DEPT_HEAD, null, false)), 5L, D))
+        assertThatThrownBy(() -> resolver.resolve(List.of(step(1, ApproverKind.DEPT_HEAD, null, false)), ENTER, 5L, D))
                 .isInstanceOf(ApprovalException.class);
         dir.inactive.add(100L);
-        assertThat(resolver.resolve(List.of(step(1, ApproverKind.ROLE, "HR", false)), 5L, D).get(0)
+        assertThat(resolver.resolve(List.of(step(1, ApproverKind.ROLE, "HR", false)), ENTER, 5L, D).get(0)
                 .approverEmpIds()).containsExactly(101L);
     }
 
     @Test
     void 역할_보유자가_없으면_거부한다() {
-        assertThatThrownBy(() -> resolver.resolve(List.of(step(1, ApproverKind.ROLE, "PAYROLL", false)), 5L, D))
+        assertThatThrownBy(() -> resolver.resolve(List.of(step(1, ApproverKind.ROLE, "PAYROLL", false)), ENTER, 5L, D))
                 .isInstanceOf(ApprovalException.class).hasMessageContaining("역할 PAYROLL");
     }
 }

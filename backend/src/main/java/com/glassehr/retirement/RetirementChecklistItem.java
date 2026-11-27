@@ -39,6 +39,13 @@ public class RetirementChecklistItem {
         }
     }
 
+    /**
+     * 사원 법인(#124). PK 는 DB 에서 (enter_cd, case_id, item_code), FK 는 (enter_cd, case_id) → retirement_case.
+     * case_id 는 전체에서 유일하므로 JPA 키는 (case_id, item_code) 로 둔다.
+     */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Id
     @Column(name = "case_id", nullable = false, updatable = false)
     private Long caseId;
@@ -68,7 +75,8 @@ public class RetirementChecklistItem {
     protected RetirementChecklistItem() {
     }
 
-    RetirementChecklistItem(long caseId, RetirementChecklist.Item item) {
+    RetirementChecklistItem(String enterCd, long caseId, RetirementChecklist.Item item) {
+        this.enterCd = enterCd;
         this.caseId = caseId;
         this.itemCode = item.code();
         this.sortOrder = item.sortOrder();

@@ -155,7 +155,7 @@ public class WorkHoursService {
                     () -> new IllegalStateException("배정된 근무유형이 없어요: " + id)));
         }
         Map<LocalDate, Leave> leaveByDate = leaves.approvedLeaves(empId, weekStart, weekEnd);
-        Set<LocalDate> approvedOvertime = overtimes.approvedDates(empId, weekStart, weekEnd);
+        Set<LocalDate> approvedOvertime = overtimes.approvedDates(enterCd, empId, weekStart, weekEnd);
         LocalDateTime now = LocalDateTime.now(clock.withZone(SEOUL)).truncatedTo(ChronoUnit.MICROS);
 
         List<DailyWorkSummaryRow> rows = new ArrayList<>();

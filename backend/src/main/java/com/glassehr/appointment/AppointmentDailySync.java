@@ -32,9 +32,11 @@ public class AppointmentDailySync {
     public void run() {
         int changed = 0;
         int failed = 0;
-        for (Long empId : employees.findAllEmpIds()) {
+        // 법인별로 그 법인 발령 이력만 보고 반영한다(#124, docs/tenant-design.md 8장)
+        for (EmployeeRepository.EmpKey key : employees.findAllByOrderByEnterCdAscEmpIdAsc()) {
+            Long empId = key.getEmpId();
             try {
-                if (service.syncEmployee(empId)) {
+                if (service.syncEmployee(key.getEnterCd(), empId)) {
                     changed++;
                 }
             } catch (RuntimeException ex) {

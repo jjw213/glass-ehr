@@ -16,7 +16,7 @@ public class EmployeeDeptMemberChecker implements DeptMemberChecker {
     }
 
     @Override
-    public long countMembersOnOrAfter(long deptId, LocalDate date) {
-        return appointments.countDeptMembersOnOrAfter(deptId, date);
+    public long countMembersOnOrAfter(String enterCd, long deptId, LocalDate date) {
+        return appointments.countDeptMembersOnOrAfter(enterCd, deptId, date);
     }
 }

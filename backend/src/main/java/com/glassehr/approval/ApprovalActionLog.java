@@ -25,6 +25,9 @@ public class ApprovalActionLog {
     @Column(name = "action_id", nullable = false, updatable = false)
     private Long actionId;
 
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "approval_id", nullable = false, updatable = false)
     private Long approvalId;
 
@@ -47,8 +50,9 @@ public class ApprovalActionLog {
     protected ApprovalActionLog() {
     }
 
-    ApprovalActionLog(long approvalId, Integer stepNo, Action action, long actorEmpId, LocalDateTime actedAt,
-            String comment) {
+    ApprovalActionLog(String enterCd, long approvalId, Integer stepNo, Action action, long actorEmpId,
+            LocalDateTime actedAt, String comment) {
+        this.enterCd = enterCd;
         this.approvalId = approvalId;
         this.stepNo = stepNo;
         this.action = action;

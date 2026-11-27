@@ -21,13 +21,27 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("UPDATE Employee e SET e.currentDeptId = :deptId, e.jobGradeCode = :grade, e.jobTitleCode = :title, "
-            + "e.empStatus = :status, e.updatedAt = :now WHERE e.empId = :empId")
-    int applyAppointment(@Param("empId") long empId, @Param("deptId") Long deptId, @Param("grade") String grade,
-            @Param("title") String title, @Param("status") String status, @Param("now") LocalDateTime now);
+            + "e.empStatus = :status, e.updatedAt = :now WHERE e.enterCd = :enterCd AND e.empId = :empId")
+    int applyAppointment(@Param("enterCd") String enterCd, @Param("empId") long empId, @Param("deptId") Long deptId,
+            @Param("grade") String grade, @Param("title") String title, @Param("status") String status,
+            @Param("now") LocalDateTime now);
 
-    /** 모든 사원 ID(발령 매일 반영용). 엔티티를 올리지 않는다. */
-    @Query("SELECT e.empId FROM Employee e ORDER BY e.empId")
-    List<Long> findAllEmpIds();
+    /** 사원 법인·ID(발령 매일 반영용). 엔티티를 올리지 않는다. */
+    interface EmpKey {
+        String getEnterCd();
+
+        Long getEmpId();
+    }
+
+    /** 모든 법인의 사원 키(발령 매일 반영을 법인별로 돌리려고, docs/tenant-design.md 8장). */
+    List<EmpKey> findAllByOrderByEnterCdAscEmpIdAsc();
+
+    /** 그 법인 사원 중 ids 에 든 것. 다른 법인 ID 는 빠진다(#124). */
+    List<Employee> findByEnterCdAndEmpIdIn(String enterCd, java.util.Collection<Long> empIds);
+
+    /** 그 법인에서 보존기한(근로기준법 제42조)이 {@code date}보다 앞선 퇴직자. 보존기한 당일까지는 보존 대상이다(#18, #124). */
+    List<Employee> findByEnterCdAndRecordRetentionUntilBeforeOrderByRecordRetentionUntilAscEmpNoAsc(String enterCd,
+            LocalDate date);
 
     List<Employee> findAllByOrderByEmpNoAsc();
 
@@ -40,19 +54,17 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     List<Employee> findByEnterCdAndRetireDateIsNullOrderByEmpNoAsc(String enterCd);
 
-    /** {@link #findForUpdate(long)}와 같되 그 법인 사원만 잠근다. 다른 법인 사원은 빈 값(→ 404). */
+    /** 사원 행 잠금(아래 법인 조건 없는 판 설명 참고)과 같되 그 법인 사원만 잠근다. 다른 법인 사원은 빈 값(→ 404). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Employee e WHERE e.enterCd = :enterCd AND e.empId = :empId")
     Optional<Employee> findForUpdate(@Param("enterCd") String enterCd, @Param("empId") long empId);
 
-    /** 현재 그 직책을 가진 재직자(결재자 찾기, #30). */
-    @Query("SELECT e.empId FROM Employee e WHERE e.jobTitleCode = :code AND e.empStatus = 'ACTIVE'")
-    List<Long> findActiveEmpIdsWithTitle(@Param("code") String titleCode);
+    /** 그 법인에서 현재 그 직책을 가진 재직자(결재자 찾기, #30·#127). */
+    @Query("SELECT e.empId FROM Employee e WHERE e.enterCd = :enterCd AND e.jobTitleCode = :code"
+            + " AND e.empStatus = 'ACTIVE'")
+    List<Long> findActiveEmpIdsWithTitle(@Param("enterCd") String enterCd, @Param("code") String titleCode);
 
     List<Employee> findByRetireDateIsNullOrderByEmpNoAsc();
-
-    /** 보존기한(근로기준법 제42조)이 {@code date}보다 앞선 퇴직자. 보존기한 당일까지는 보존 대상이다(#18). */
-    List<Employee> findByRecordRetentionUntilBeforeOrderByRecordRetentionUntilAscEmpNoAsc(LocalDate date);
 
     /**
      * 사원 행 잠금(SELECT ... FOR UPDATE). 수정·퇴직 처리는 이것으로 읽어 같은 사원의 쓰기를 직렬화한다.

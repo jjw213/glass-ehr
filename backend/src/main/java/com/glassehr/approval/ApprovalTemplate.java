@@ -34,6 +34,10 @@ public class ApprovalTemplate {
     /** 결재 단계 설정. */
     @Embeddable
     public static class Step {
+        /** 템플릿 법인(#127). 복합 FK (enter_cd, template_id) 로 다른 법인 템플릿에 붙지 않는다. */
+        @Column(name = "enter_cd", nullable = false, updatable = false)
+        private String enterCd;
+
         @Column(name = "step_no", nullable = false)
         private int stepNo;
 
@@ -60,6 +64,12 @@ public class ApprovalTemplate {
             this.skipIfSelf = skipIfSelf;
         }
 
+        private Step in(String enterCd) {
+            Step s = new Step(stepNo, approverKind, approverRef, skipIfSelf);
+            s.enterCd = enterCd;
+            return s;
+        }
+
         public int getStepNo() {
             return stepNo;
         }
@@ -81,6 +91,9 @@ public class ApprovalTemplate {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "template_id", nullable = false, updatable = false)
     private Long templateId;
+
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
 
     @Column(name = "request_type", nullable = false, updatable = false)
     private String requestType;
@@ -105,10 +118,12 @@ public class ApprovalTemplate {
     protected ApprovalTemplate() {
     }
 
-    public ApprovalTemplate(String requestType, LocalDate validFrom, List<Step> steps, String createdBy) {
+    public ApprovalTemplate(String enterCd, String requestType, LocalDate validFrom, List<Step> steps,
+            String createdBy) {
+        this.enterCd = enterCd;
         this.requestType = requestType;
         this.validFrom = validFrom;
-        this.steps = new ArrayList<>(steps);
+        this.steps = new ArrayList<>(steps.stream().map(s -> s.in(enterCd)).toList());
         this.createdBy = createdBy;
     }
 
@@ -119,6 +134,10 @@ public class ApprovalTemplate {
 
     public Long getTemplateId() {
         return templateId;
+    }
+
+    public String getEnterCd() {
+        return enterCd;
     }
 
     public String getRequestType() {

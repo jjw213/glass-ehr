@@ -85,7 +85,7 @@ public class OvertimeLimitChecker {
             }
         }
         Map<LocalDate, Integer> planned = new HashMap<>();
-        List<OvertimeRequest> approved = requests.findByEmpIdAndWorkDateBetweenAndStatusIn(target.getEmpId(),
+        List<OvertimeRequest> approved = requests.findByEnterCdAndEmpIdAndWorkDateBetweenAndStatusIn(enterCd, target.getEmpId(),
                 monday, sunday, List.of(OvertimeRequest.Status.APPROVED));
         for (OvertimeRequest r : approved) {
             if (!r.getRequestId().equals(target.getRequestId())) {
@@ -134,7 +134,8 @@ public class OvertimeLimitChecker {
             if (overlapEnd.isAfter(overlapStart)) {
                 int overlap = Math.toIntExact(Duration.between(overlapStart, overlapEnd).toMinutes());
                 if (row.patternId() != null) {
-                    WorkPattern pattern = patterns.findById(row.patternId()).orElse(null);
+                    WorkPattern pattern = patterns.findByEnterCdAndPatternId(request.getEnterCd(), row.patternId())
+                            .orElse(null);
                     if (pattern != null && pattern.spec().breakStartMin() != null) {
                         LocalDate breakDay = pattern.spec().breakStartMin() >= pattern.spec().workStartMin()
                                 ? row.workDate() : row.workDate().plusDays(1);

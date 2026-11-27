@@ -49,7 +49,7 @@ class AppointmentApplyCancelControllerTest {
                 new Snapshot(20L, "STAFF", null, EmpStatus.ACTIVE), new Snapshot(10L, "STAFF", null, EmpStatus.ACTIVE),
                 "발령 착오", null, null, false, null, LocalDateTime.of(2026, 11, 13, 9, 0),
                 LocalDateTime.of(2026, 11, 13, 9, 0), 7L, null);
-        when(service.cancel(eq(7L), any())).thenReturn(v);
+        when(service.cancel(eq("C001"), eq(7L), any())).thenReturn(v);
         mvc.perform(post("/api/appointments/7/cancel").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"발령 착오\"}"))
                 .andExpect(status().isCreated())
@@ -62,12 +62,12 @@ class AppointmentApplyCancelControllerTest {
         mvc.perform(post("/api/appointments/7/cancel").contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\" \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("발령 사유를 입력해 주세요(근로기준법 제23조)"));
-        verify(service, never()).cancel(anyLong(), any());
+        verify(service, never()).cancel(any(), anyLong(), any());
     }
 
     @Test
     void 기준일_조회와_휴직_기간_조회() throws Exception {
-        when(service.assignmentOn(1L, D)).thenReturn(new AssignmentView(1, D, 20L, "MANAGER", null, EmpStatus.ON_LEAVE));
+        when(service.assignmentOn("C001", 1L, D)).thenReturn(new AssignmentView(1, D, 20L, "MANAGER", null, EmpStatus.ON_LEAVE));
         mvc.perform(get("/api/employees/1/assignment").param("date", "2026-11-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deptId").value(20))
@@ -75,12 +75,12 @@ class AppointmentApplyCancelControllerTest {
         mvc.perform(get("/api/employees/1/assignment")).andExpect(status().isBadRequest());
 
         LeavePeriodView p = new LeavePeriodView(1, 5, D, LocalDate.of(2027, 4, 30), LocalDate.of(2027, 1, 31), 6L, "육아휴직");
-        when(service.leavePeriods(1L, D, LocalDate.of(2026, 12, 31))).thenReturn(List.of(p));
+        when(service.leavePeriods("C001", 1L, D, LocalDate.of(2026, 12, 31))).thenReturn(List.of(p));
         mvc.perform(get("/api/employees/1/leave-periods").param("from", "2026-11-01").param("to", "2026-12-31"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].endDate").value("2027-01-31"))
                 .andExpect(jsonPath("$[0].endedByApptId").value(6));
-        when(service.leavePeriods(D, LocalDate.of(2026, 12, 31))).thenReturn(List.of(p));
+        when(service.leavePeriods("C001", D, LocalDate.of(2026, 12, 31))).thenReturn(List.of(p));
         mvc.perform(get("/api/leave-periods").param("from", "2026-11-01").param("to", "2026-12-31"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].empId").value(1));

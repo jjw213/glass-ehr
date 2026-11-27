@@ -9,6 +9,6 @@ import java.util.Set;
  */
 public interface ApprovedOvertimeProvider {
 
-    /** [from, to](양 끝 포함) 중 승인된 신청이 있는 근로일. */
-    Set<LocalDate> approvedDates(long empId, LocalDate from, LocalDate to);
+    /** 그 법인 사원의 [from, to](양 끝 포함) 중 승인된 신청이 있는 근로일(#127). */
+    Set<LocalDate> approvedDates(String enterCd, long empId, LocalDate from, LocalDate to);
 }

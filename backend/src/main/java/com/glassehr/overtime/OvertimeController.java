@@ -48,8 +48,8 @@ public class OvertimeController {
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/special-overtime-auths")
-    public List<AuthView> auths() {
-        return service.auths();
+    public List<AuthView> auths(AuthUser user) {
+        return service.auths(user);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)

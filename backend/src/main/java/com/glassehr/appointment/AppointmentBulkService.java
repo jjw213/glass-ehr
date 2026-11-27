@@ -38,8 +38,11 @@ public class AppointmentBulkService {
         this.tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    /** 같은 사원이 두 번 오면 한 번만 처리한다(요청 순서 유지). 이 메서드 자체는 트랜잭션 밖에서 돈다. */
-    public BulkAppointmentResult createAll(BulkAppointmentRequest req) {
+    /**
+     * 같은 사원이 두 번 오면 한 번만 처리한다(요청 순서 유지). 이 메서드 자체는 트랜잭션 밖에서 돈다.
+     * 법인(#124)은 세션 현재 법인이다. 다른 법인 사원 ID 가 섞여 오면 그 사원만 '사원이 없어요'로 실패한다(존재 여부를 드러내지 않음).
+     */
+    public BulkAppointmentResult createAll(String enterCd, BulkAppointmentRequest req) {
         List<BulkItemResult> items = new ArrayList<>();
         for (Long empId : new LinkedHashSet<>(req.empIds())) {
             if (empId == null) {
@@ -51,8 +54,8 @@ public class AppointmentBulkService {
                     if (req.confirm()) {
                         orgLock.acquire();
                     }
-                    AppointmentView created = service.create(empId, req.appointment());
-                    return req.confirm() ? service.confirm(created.apptId()) : created;
+                    AppointmentView created = service.create(enterCd, empId, req.appointment());
+                    return req.confirm() ? service.confirm(enterCd, created.apptId()) : created;
                 });
                 items.add(new BulkItemResult(empId, true, v, null));
             } catch (AppointmentException e) {

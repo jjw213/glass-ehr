@@ -1,5 +1,6 @@
 package com.glassehr.contract;
 
+import com.glassehr.auth.AuthUser;
 import com.glassehr.auth.Permission;
 import com.glassehr.auth.RequiresPermission;
 import com.glassehr.contract.ContractDtos.AlertRow;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>권한(#19): 계약에는 임금 등 개인정보가 있어 조회는 전체 사원 조회 권한(관리자·인사·급여)만,
  * 등록·수정·교부 기록은 사원 쓰기 권한(관리자·인사)만 허용한다. 부서장·본인 조회는 아직 열지 않는다
  * (부서 범위 검사와 함께 후속 이슈에서 연다).
+ * <p>법인(#124)은 로그인 세션의 현재 법인으로만 정한다. 다른 법인 사원·계약 ID 는 404.
  */
 @RestController
 public class ContractController {
@@ -47,44 +49,46 @@ public class ContractController {
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/employees/{empId}/contracts")
-    public List<ContractView> list(@PathVariable long empId) {
-        return service.list(empId);
+    public List<ContractView> list(@PathVariable long empId, AuthUser user) {
+        return service.list(user.enterCd(), empId);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/api/employees/{empId}/contracts")
     @ResponseStatus(HttpStatus.CREATED)
-    public ContractView create(@PathVariable long empId, @Valid @RequestBody ContractRequest req) {
-        return service.create(empId, req);
+    public ContractView create(@PathVariable long empId, @Valid @RequestBody ContractRequest req, AuthUser user) {
+        return service.create(user.enterCd(), empId, req);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/contracts/{contractId}")
-    public ContractView get(@PathVariable long contractId) {
-        return service.get(contractId);
+    public ContractView get(@PathVariable long contractId, AuthUser user) {
+        return service.get(user.enterCd(), contractId);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PutMapping("/api/contracts/{contractId}")
-    public ContractView update(@PathVariable long contractId, @Valid @RequestBody ContractRequest req) {
-        return service.update(contractId, req);
+    public ContractView update(@PathVariable long contractId, @Valid @RequestBody ContractRequest req,
+            AuthUser user) {
+        return service.update(user.enterCd(), contractId, req);
     }
 
     @RequiresPermission(Permission.EMP_WRITE)
     @PostMapping("/api/contracts/{contractId}/delivery")
-    public ContractView recordDelivery(@PathVariable long contractId, @Valid @RequestBody DeliveryRequest req) {
-        return service.recordDelivery(contractId, req);
+    public ContractView recordDelivery(@PathVariable long contractId, @Valid @RequestBody DeliveryRequest req,
+            AuthUser user) {
+        return service.recordDelivery(user.enterCd(), contractId, req);
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/contracts/undelivered")
-    public List<UndeliveredRow> undelivered() {
-        return service.undelivered();
+    public List<UndeliveredRow> undelivered(AuthUser user) {
+        return service.undelivered(user.enterCd());
     }
 
     @RequiresPermission(Permission.EMP_READ_ALL)
     @GetMapping("/api/contracts/alerts")
-    public List<AlertRow> alerts(@RequestParam(name = "asOf", required = false) LocalDate asOf) {
-        return service.alerts(asOf);
+    public List<AlertRow> alerts(@RequestParam(name = "asOf", required = false) LocalDate asOf, AuthUser user) {
+        return service.alerts(user.enterCd(), asOf);
     }
 }

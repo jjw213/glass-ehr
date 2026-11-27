@@ -50,11 +50,11 @@ class AppointmentOracleTest {
     @Test
     void 휴직_등록_확정_조회가_된다() {
         long emp = employee();
-        AppointmentView v = service.create(emp, new AppointmentRequest("LEAVE", D0.plusDays(10), null, null, null,
+        AppointmentView v = service.create("C001", emp, new AppointmentRequest("LEAVE", D0.plusDays(10), null, null, null,
                 "육아휴직 신청", D0.plusDays(10), D0.plusMonths(6)));
         assertThat(v.apptNo()).matches(AppointmentNoGenerator.APPT_NO_PATTERN);
-        service.confirm(v.apptId());
-        assertThat(service.listByEmployee(emp)).singleElement().satisfies(a -> {
+        service.confirm("C001", v.apptId());
+        assertThat(service.listByEmployee("C001", emp)).singleElement().satisfies(a -> {
             assertThat(a.confirmed()).isTrue();
             assertThat(a.confirmedAt()).isNotNull();
             assertThat(a.after().status()).isEqualTo(EmpStatus.ON_LEAVE);
@@ -68,10 +68,10 @@ class AppointmentOracleTest {
         long dept = orgs.create("C001", new com.glassehr.org.OrgDtos.DeptCreateRequest(
                 "IT_FUTURE_APPT", "예시 미래 전입 부서", null, null, 0, D0, "IT 가상 부서")).deptId();
         LocalDate future = LocalDate.of(2199, 1, 1);
-        long appt = service.create(emp, new AppointmentRequest("TRANSFER", future, dept, null, null,
+        long appt = service.create("C001", emp, new AppointmentRequest("TRANSFER", future, dept, null, null,
                 "IT 미래 전입", null, null)).apptId();
-        service.confirm(appt);
-        assertThat(service.countDeptMembersOnOrAfter(dept, future.minusDays(1))).isEqualTo(1);
+        service.confirm("C001", appt);
+        assertThat(service.countDeptMembersOnOrAfter("C001", dept, future.minusDays(1))).isEqualTo(1);
         assertThatThrownBy(() -> orgs.close("C001", dept,new com.glassehr.org.OrgDtos.DeptCloseRequest(
                 future.minusDays(1), "IT 폐지 시도")))
                 .isInstanceOfSatisfying(com.glassehr.org.OrgException.class, e -> {
@@ -83,7 +83,7 @@ class AppointmentOracleTest {
     @Test
     void DB는_빈_사유와_휴직일_없는_휴직과_확정일시_없는_확정을_거부한다() {
         long emp = employee();
-        AppointmentView v = service.create(emp, new AppointmentRequest("LEAVE", D0.plusDays(1), null, null, null,
+        AppointmentView v = service.create("C001", emp, new AppointmentRequest("LEAVE", D0.plusDays(1), null, null, null,
                 "사유", D0.plusDays(1), D0.plusDays(2)));
         assertThatThrownBy(() -> jdbc.update("UPDATE hr_appointment SET reason = ' ' WHERE appt_id = ?", v.apptId()))
                 .isInstanceOf(DataIntegrityViolationException.class);
