@@ -15,29 +15,40 @@ import java.util.Objects;
 @IdClass(RetirementChecklistItem.Key.class)
 public class RetirementChecklistItem {
 
-    /** 복합 키(case_id, item_code). */
+    /** 복합 키(enter_cd, case_id, item_code). DB PK 와 같다(#129, tenant-design.md 5.2). */
     public static class Key implements Serializable {
+        private String enterCd;
         private Long caseId;
         private String itemCode;
 
         public Key() {
         }
 
-        public Key(Long caseId, String itemCode) {
+        public Key(String enterCd, Long caseId, String itemCode) {
+            this.enterCd = enterCd;
             this.caseId = caseId;
             this.itemCode = itemCode;
         }
 
         @Override
         public boolean equals(Object o) {
-            return o instanceof Key k && Objects.equals(caseId, k.caseId) && Objects.equals(itemCode, k.itemCode);
+            return o instanceof Key k && Objects.equals(enterCd, k.enterCd) && Objects.equals(caseId, k.caseId)
+                    && Objects.equals(itemCode, k.itemCode);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(caseId, itemCode);
+            return Objects.hash(enterCd, caseId, itemCode);
         }
     }
+
+    /**
+     * 사원 법인(#124). PK 는 (enter_cd, case_id, item_code), FK 는 (enter_cd, case_id) → retirement_case.
+     * 복합 ID 엔티티라 enter_cd 도 JPA 키에 넣는다(#129).
+     */
+    @Id
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
 
     @Id
     @Column(name = "case_id", nullable = false, updatable = false)
@@ -68,7 +79,8 @@ public class RetirementChecklistItem {
     protected RetirementChecklistItem() {
     }
 
-    RetirementChecklistItem(long caseId, RetirementChecklist.Item item) {
+    RetirementChecklistItem(String enterCd, long caseId, RetirementChecklist.Item item) {
+        this.enterCd = enterCd;
         this.caseId = caseId;
         this.itemCode = item.code();
         this.sortOrder = item.sortOrder();

@@ -48,14 +48,14 @@ class RetirementOracleTest {
     @Test
     void 사용증명서는_요구한_항목만_저장한다() {
         long emp = employee();
-        CertificateView v = service.issueCertificate(emp, new CertificateRequest(LocalDate.of(1903, 6, 1),
+        CertificateView v = service.issueCertificate("C001", emp, new CertificateRequest(LocalDate.of(1903, 6, 1),
                 EnumSet.of(CertificateItem.USE_PERIOD, CertificateItem.JOB_TYPE), "예시"), "it-hr");
-        assertThat(service.certificate(v.certId())).isEqualTo(v);
+        assertThat(service.certificate("C001", v.certId())).isEqualTo(v);
         assertThat(v.jobType()).isEqualTo("시험 업무");
         assertThat(v.positionText()).isNull();
         assertThat(jdbc.queryForObject("SELECT requested_items FROM employment_certificate WHERE cert_id = ?",
                 String.class, v.certId())).isEqualTo("USE_PERIOD,JOB_TYPE");
-        assertThat(service.certificates(emp)).hasSize(1);
+        assertThat(service.certificates("C001", emp)).hasSize(1);
     }
 
     @Test
@@ -70,6 +70,6 @@ class RetirementOracleTest {
         jdbc.update("INSERT INTO retirement_case (emp_id, retire_reason_code, retire_date, dismissal_notice_date,"
                 + " written_notice_date, notice_check, created_by) VALUES (?, 'DISMISSAL', DATE '1903-06-30',"
                 + " DATE '1903-06-01', DATE '1903-06-01', 'UNKNOWN', 'it')", emp);
-        assertThat(service.get(emp).notice().check()).isEqualTo(DismissalNoticeChecker.NoticeCheck.UNKNOWN);
+        assertThat(service.get("C001", emp).notice().check()).isEqualTo(DismissalNoticeChecker.NoticeCheck.UNKNOWN);
     }
 }

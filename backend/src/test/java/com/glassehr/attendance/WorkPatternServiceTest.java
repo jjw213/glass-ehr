@@ -292,7 +292,7 @@ class WorkPatternServiceTest {
     void 기준일_배정을_찾는다() {
         Employee e = employee(LocalDate.of(2026, 1, 2), null);
         when(employees.findByEnterCdAndEmpId(ENTER, 5L)).thenReturn(Optional.of(e));
-        when(patterns.findById(3L)).thenReturn(Optional.of(pattern(3, true)));
+        when(patterns.findByEnterCdAndPatternId(ENTER, 3L)).thenReturn(Optional.of(pattern(3, true)));
         EmpWorkPattern a = new EmpWorkPattern(ENTER, 5,3, LocalDate.of(2026, 1, 2), null, "hr", LocalDateTime.now());
         a.closeAt(LocalDate.of(2026, 7, 1));
         EmpWorkPattern b = new EmpWorkPattern(ENTER, 5,3, LocalDate.of(2026, 7, 1), null, "hr", LocalDateTime.now());

@@ -22,6 +22,10 @@ public class EmploymentCertificate {
     @Column(name = "cert_id", nullable = false, updatable = false)
     private Long certId;
 
+    /** 사원 법인(#124). PK 는 DB 에서 (enter_cd, cert_id). cert_id 는 전체에서 유일하므로 JPA 식별자는 그대로 둔다. */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
@@ -72,8 +76,9 @@ public class EmploymentCertificate {
             Long wageAmount, String wageUnitCode, String retireReason) {
     }
 
-    EmploymentCertificate(long empId, LocalDate requestedOn, String requestedItems, String purpose, Content c,
-            String issuedBy, LocalDateTime issuedAt) {
+    EmploymentCertificate(String enterCd, long empId, LocalDate requestedOn, String requestedItems, String purpose,
+            Content c, String issuedBy, LocalDateTime issuedAt) {
+        this.enterCd = enterCd;
         this.empId = empId;
         this.requestedOn = requestedOn;
         this.requestedItems = requestedItems;

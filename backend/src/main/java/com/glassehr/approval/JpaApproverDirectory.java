@@ -4,7 +4,6 @@ import com.glassehr.appointment.AppointmentException;
 import com.glassehr.appointment.AppointmentService;
 import com.glassehr.appointment.EmpStatus;
 import com.glassehr.auth.AppUserRepository;
-import com.glassehr.employee.Employee;
 import com.glassehr.employee.EmployeeRepository;
 import com.glassehr.org.OrgDeptHistRepository;
 import java.time.LocalDate;
@@ -17,6 +16,7 @@ import org.springframework.stereotype.Component;
  * 결재자 조회 구현. 소속·재직상태는 인사발령 이력(#59 {@link AppointmentService#assignmentOn}),
  * 부서장·상위 부서는 조직 이력(#8 org_dept_hist)에서 신청일 기준으로 읽는다.
  * 직책 보유자는 사원의 현재 직책(매일 발령 반영으로 오늘 값)에서 찾는다. 신청일은 항상 오늘이다.
+ * 모든 조회는 결재 문서 법인 안에서만 한다(#127). 다른 법인 사원은 재직자로 보지 않아 결재선에 들어가지 않는다.
  */
 @Component
 class JpaApproverDirectory implements ApproverResolver.Directory {
@@ -35,17 +35,12 @@ class JpaApproverDirectory implements ApproverResolver.Directory {
     }
 
     @Override
-    public Optional<Long> deptOf(long empId, LocalDate date) {
+    public Optional<Long> deptOf(String enterCd, long empId, LocalDate date) {
         try {
-            return Optional.ofNullable(appointments.assignmentOn(empId, date).deptId());
+            return Optional.ofNullable(appointments.assignmentOn(enterCd, empId, date).deptId());
         } catch (AppointmentException e) {
             return Optional.empty();
         }
-    }
-
-    @Override
-    public Optional<String> enterOf(long empId) {
-        return employees.findById(empId).map(Employee::getEnterCd);
     }
 
     @Override
@@ -57,19 +52,22 @@ class JpaApproverDirectory implements ApproverResolver.Directory {
     }
 
     @Override
-    public Set<Long> activeWithTitle(String titleCode) {
-        return new TreeSet<>(employees.findActiveEmpIdsWithTitle(titleCode));
+    public Set<Long> activeWithTitle(String enterCd, String titleCode) {
+        return new TreeSet<>(employees.findActiveEmpIdsWithTitle(enterCd, titleCode));
     }
 
     @Override
-    public Set<Long> activeWithRole(String roleCode) {
-        return new TreeSet<>(users.findActiveEmpIdsWithRole(roleCode));
+    public Set<Long> activeWithRole(String enterCd, String roleCode) {
+        return new TreeSet<>(users.findActiveEmpIdsWithRole(enterCd, roleCode));
     }
 
     @Override
-    public boolean isActive(long empId, LocalDate date) {
+    public boolean isActive(String enterCd, long empId, LocalDate date) {
+        if (employees.findByEnterCdAndEmpId(enterCd, empId).isEmpty()) {
+            return false;
+        }
         try {
-            return appointments.assignmentOn(empId, date).empStatus() == EmpStatus.ACTIVE;
+            return appointments.assignmentOn(enterCd, empId, date).empStatus() == EmpStatus.ACTIVE;
         } catch (AppointmentException e) {
             return false;
         }

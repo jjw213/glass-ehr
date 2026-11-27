@@ -133,7 +133,7 @@ public class OracleItSchemaConfig {
                 "SELECT COUNT(*) FROM user_tables WHERE table_name = 'ATTENDANCE_DAILY_SUMMARY'", Integer.class);
         if (dailySummary == null || dailySummary == 0) {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V023__attendance_daily_summary.sql"),
-                    new ClassPathResource("db/oracle/V046__daily_summary_recognized_minutes.sql"))
+                    new ClassPathResource("db/oracle/V047__daily_summary_recognized_minutes.sql"))
                     .execute(dataSource);
         }
         Integer approval = jdbc.queryForObject(
@@ -276,6 +276,14 @@ public class OracleItSchemaConfig {
         if (workPolicy == null || workPolicy == 0) {
             // #159: 근무 정책(기록·인정 규칙)
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V045__work_policy.sql"))
+                    .execute(dataSource);
+        }
+        Integer approvalDocKeyCols = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_cons_columns WHERE constraint_name = 'PK_APPROVAL_DOC'", Integer.class);
+        if (approvalDocKeyCols == null || approvalDocKeyCols < 2) {
+            // #127: 결재·연장근로·특별연장근로 인가·가족돌봄휴직 키와 내부 FK 에 법인
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V046__approval_overtime_family_leave_enter_cd.sql"))
                     .execute(dataSource);
         }
         return new Applied();

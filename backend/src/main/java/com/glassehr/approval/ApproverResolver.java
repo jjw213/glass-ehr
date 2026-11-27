@@ -19,25 +19,25 @@ import java.util.TreeSet;
  */
 public class ApproverResolver {
 
-    /** 결재자 조회에 필요한 인사·조직 정보. */
+    /**
+     * 결재자 조회에 필요한 인사·조직 정보. 모든 조회는 결재 문서 법인(enterCd) 안에서만 한다(#122·#127).
+     * 다른 법인 사원은 재직자가 아니라고 답해 결재선에 들어가지 않게 한다.
+     */
     public interface Directory {
-        /** 기준일 소속 부서(없으면 empty). */
-        Optional<Long> deptOf(long empId, LocalDate date);
-
-        /** 사원의 법인(없으면 empty). 부서·상위 부서는 신청자 법인 조직도에서만 찾는다(#122). */
-        Optional<String> enterOf(long empId);
+        /** 기준일 그 법인 사원의 소속 부서(없으면 empty). */
+        Optional<Long> deptOf(String enterCd, long empId, LocalDate date);
 
         /** 기준일 그 법인의 부서 정보(없으면 empty). */
         Optional<DeptInfo> dept(String enterCd, long deptId, LocalDate date);
 
-        /** 그 직책을 가진 재직자. */
-        Set<Long> activeWithTitle(String titleCode);
+        /** 그 법인에서 그 직책을 가진 재직자. */
+        Set<Long> activeWithTitle(String enterCd, String titleCode);
 
-        /** 그 역할을 받은 사용 중 계정의 재직자. */
-        Set<Long> activeWithRole(String roleCode);
+        /** 그 법인에서 그 역할을 받은 사용 중 계정의 재직자. */
+        Set<Long> activeWithRole(String enterCd, String roleCode);
 
-        /** 기준일에 재직(휴직·퇴직 아님)인가. */
-        boolean isActive(long empId, LocalDate date);
+        /** 그 법인 사원이고 기준일에 재직(휴직·퇴직 아님)인가. */
+        boolean isActive(String enterCd, long empId, LocalDate date);
     }
 
     /** 부서장(공석이면 null)과 상위 부서(최상위면 null). */
@@ -54,12 +54,14 @@ public class ApproverResolver {
         this.dir = dir;
     }
 
-    public List<ResolvedStep> resolve(List<ApprovalTemplate.Step> steps, long requesterEmpId, LocalDate date) {
+    /** enterCd 는 결재 문서(신청자) 법인. 그 법인 재직자만 결재자가 된다. */
+    public List<ResolvedStep> resolve(List<ApprovalTemplate.Step> steps, String enterCd, long requesterEmpId,
+            LocalDate date) {
         List<ResolvedStep> out = new ArrayList<>();
         for (ApprovalTemplate.Step s : steps) {
             Set<Long> found = new TreeSet<>();
-            for (Long e : candidates(s, requesterEmpId, date)) {
-                if (e != null && dir.isActive(e, date)) {
+            for (Long e : candidates(s, enterCd, requesterEmpId, date)) {
+                if (e != null && dir.isActive(enterCd, e, date)) {
                     found.add(e);
                 }
             }
@@ -79,20 +81,20 @@ public class ApproverResolver {
         return out;
     }
 
-    private Set<Long> candidates(ApprovalTemplate.Step s, long requester, LocalDate date) {
+    private Set<Long> candidates(ApprovalTemplate.Step s, String enter, long requester, LocalDate date) {
         return switch (s.getApproverKind()) {
-            case DEPT_HEAD -> dir.enterOf(requester).flatMap(enter -> dir.deptOf(requester, date)
-                    .flatMap(d -> dir.dept(enter, d, date)))
+            case DEPT_HEAD -> dir.deptOf(enter, requester, date)
+                    .flatMap(d -> dir.dept(enter, d, date))
                     .map(ApproverResolver::head)
                     .orElse(Set.of());
-            case UPPER_DEPT_HEAD -> dir.enterOf(requester).flatMap(enter -> dir.deptOf(requester, date)
+            case UPPER_DEPT_HEAD -> dir.deptOf(enter, requester, date)
                     .flatMap(d -> dir.dept(enter, d, date))
                     .map(DeptInfo::parentDeptId)
-                    .flatMap(p -> dir.dept(enter, p, date)))
+                    .flatMap(p -> dir.dept(enter, p, date))
                     .map(ApproverResolver::head)
                     .orElse(Set.of());
-            case POSITION -> dir.activeWithTitle(s.getApproverRef());
-            case ROLE -> dir.activeWithRole(s.getApproverRef());
+            case POSITION -> dir.activeWithTitle(enter, s.getApproverRef());
+            case ROLE -> dir.activeWithRole(enter, s.getApproverRef());
             case EMPLOYEE -> Set.of(Long.parseLong(s.getApproverRef()));
         };
     }

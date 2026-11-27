@@ -154,6 +154,10 @@ public class HrAppointment {
         this.updatedAt = now;
     }
 
+    public String getEnterCd() {
+        return enterCd;
+    }
+
     public Snapshot before() {
         return new Snapshot(beforeDeptId, beforeJobGradeCode, beforeJobTitleCode, beforeEmpStatus);
     }

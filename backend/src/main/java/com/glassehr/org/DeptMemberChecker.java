@@ -14,5 +14,5 @@ public interface DeptMemberChecker {
      * {@code date} 당일이나 그 뒤에 이 부서에 소속된(미래 발령 포함) 재직자 수.
      * 폐지일 당일 0시부터 부서가 없어지므로, 폐지일 이후 소속이 하나라도 있으면 폐지할 수 없다.
      */
-    long countMembersOnOrAfter(long deptId, LocalDate date);
+    long countMembersOnOrAfter(String enterCd, long deptId, LocalDate date);
 }

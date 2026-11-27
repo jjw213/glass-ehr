@@ -159,7 +159,7 @@ public class WorkHoursService {
                     () -> new IllegalStateException("배정된 근무유형이 없어요: " + id)));
         }
         Map<LocalDate, Leave> leaveByDate = leaves.approvedLeaves(empId, weekStart, weekEnd);
-        Set<LocalDate> approvedOvertime = overtimes.approvedDates(empId, weekStart, weekEnd);
+        Set<LocalDate> approvedOvertime = overtimes.approvedDates(enterCd, empId, weekStart, weekEnd);
         LocalDateTime now = LocalDateTime.now(clock.withZone(SEOUL)).truncatedTo(ChronoUnit.MICROS);
         // 근무 정책(#159): 근무유형 재정의 → 법인 기본 → 시스템 기본(정책 도입 전과 같은 결과).
         WorkPolicyService.Resolved resolved = policies.resolved(enterCd);

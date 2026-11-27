@@ -2,6 +2,7 @@ package com.glassehr.auth;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -45,16 +46,16 @@ class ContractAuthTest {
         mvc.perform(as(get("/api/employees/7/contracts"), "emp1")).andExpect(status().isForbidden());
         mvc.perform(as(get("/api/contracts/1"), "emp1")).andExpect(status().isForbidden());
         mvc.perform(as(get("/api/contracts/alerts"), "emp1")).andExpect(status().isForbidden());
-        verify(service, never()).list(anyLong());
-        verify(service, never()).get(anyLong());
+        verify(service, never()).list(eq("C001"), anyLong());
+        verify(service, never()).get(eq("C001"), anyLong());
     }
 
     @Test
     void 부서장도_계약_조회는_아직_막힌다() throws Exception {
         mvc.perform(as(get("/api/employees/7/contracts"), "head1")).andExpect(status().isForbidden());
         mvc.perform(as(get("/api/contracts/undelivered"), "head1")).andExpect(status().isForbidden());
-        verify(service, never()).list(anyLong());
-        verify(service, never()).undelivered();
+        verify(service, never()).list(eq("C001"), anyLong());
+        verify(service, never()).undelivered(eq("C001"));
     }
 
     @Test
@@ -62,7 +63,7 @@ class ContractAuthTest {
         mvc.perform(as(post("/api/employees/5/contracts"), "emp1").header("X-Actor-Role", "HR")
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isForbidden());
-        verify(service, never()).create(anyLong(), any());
+        verify(service, never()).create(eq("C001"), anyLong(), any());
     }
 
     @Test
@@ -78,13 +79,13 @@ class ContractAuthTest {
         mvc.perform(as(post("/api/contracts/1/delivery"), "pay1").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"deliveredOn\":\"2026-03-02\"}"))
                 .andExpect(status().isForbidden());
-        verify(service, never()).update(anyLong(), any());
-        verify(service, never()).recordDelivery(anyLong(), any());
+        verify(service, never()).update(eq("C001"), anyLong(), any());
+        verify(service, never()).recordDelivery(eq("C001"), anyLong(), any());
     }
 
     @Test
     void 인사담당은_계약_목록을_본다() throws Exception {
         mvc.perform(as(get("/api/employees/7/contracts"), "hr1")).andExpect(status().isOk());
-        verify(service).list(7L);
+        verify(service).list(eq("C001"), eq(7L));
     }
 }

@@ -101,33 +101,37 @@ public class FamilyLeaveService {
 
     // ---------------------------------------------------------------- 조회
 
-    public List<RequestView> listByEmployee(long empId) {
-        loadEmployee(empId);
-        return requests.findByEmpIdOrderByStartDateAscReqIdAsc(empId).stream().map(RequestView::of).toList();
+    // enterCd 는 로그인 세션의 현재 법인(#127). 다른 법인 사원·신청 ID 는 404(존재 여부를 드러내지 않음).
+
+    public List<RequestView> listByEmployee(String enterCd, long empId) {
+        loadEmployee(enterCd, empId);
+        return requests.findByEnterCdAndEmpIdOrderByStartDateAscReqIdAsc(enterCd, empId).stream()
+                .map(RequestView::of).toList();
     }
 
-    public List<RequestView> search(Status status) {
-        List<FamilyLeaveRequest> list = status == null ? requests.findAllByOrderByRequestedAtAscReqIdAsc()
-                : requests.findByStatusOrderByRequestedAtAscReqIdAsc(status);
+    public List<RequestView> search(String enterCd, Status status) {
+        List<FamilyLeaveRequest> list = status == null ? requests.findByEnterCdOrderByRequestedAtAscReqIdAsc(enterCd)
+                : requests.findByEnterCdAndStatusOrderByRequestedAtAscReqIdAsc(enterCd, status);
         return list.stream().map(RequestView::of).toList();
     }
 
-    public RequestView get(long reqId) {
-        return RequestView.of(load(reqId));
+    public RequestView get(String enterCd, long reqId) {
+        return RequestView.of(load(enterCd, reqId));
     }
 
     // ---------------------------------------------------------------- 신청·승인·반려·취소
 
     @Transactional
-    public RequestView create(long empId, CreateRequest req, String actor) {
-        Employee e = employees.findForUpdate(empId)
+    public RequestView create(String enterCd, long empId, CreateRequest req, String actor) {
+        Employee e = employees.findForUpdate(enterCd, empId)
                 .orElseThrow(() -> FamilyLeaveException.notFound("사원을 찾을 수 없어요: " + empId));
         Draft d = normalize(req);
         validate(e, d, null);
         List<String> warnings = warnings(e, d);
-        FamilyLeaveRequest saved = requests.saveAndFlush(new FamilyLeaveRequest(empId, d.kind(), d.childLabel(),
-                d.childBirthDate(), d.familyRelation(), d.startDate(), d.endDate(), d.workPatternId(), d.extension(),
-                req.reason().strip(), warnings.isEmpty() ? null : String.join("\n", warnings), actor, now()));
+        FamilyLeaveRequest saved = requests.saveAndFlush(new FamilyLeaveRequest(enterCd, empId, d.kind(),
+                d.childLabel(), d.childBirthDate(), d.familyRelation(), d.startDate(), d.endDate(), d.workPatternId(),
+                d.extension(), req.reason().strip(), warnings.isEmpty() ? null : String.join("\n", warnings), actor,
+                now()));
         return RequestView.of(saved);
     }
 
@@ -136,29 +140,31 @@ public class FamilyLeaveService {
      * 발령 확정과 같은 순서로 조직 잠금 → 사원 잠금 → 신청 잠금을 잡는다.
      */
     @Transactional
-    public RequestView approve(long reqId, String actor) {
-        long empId = requests.findEmpIdByReqId(reqId)
+    public RequestView approve(String enterCd, long reqId, String actor) {
+        long empId = requests.findEmpIdByReqId(enterCd, reqId)
                 .orElseThrow(() -> FamilyLeaveException.notFound("신청을 찾을 수 없어요: " + reqId));
         orgLock.acquire();
-        Employee e = employees.findForUpdate(empId)
+        Employee e = employees.findForUpdate(enterCd, empId)
                 .orElseThrow(() -> FamilyLeaveException.notFound("사원을 찾을 수 없어요: " + empId));
-        FamilyLeaveRequest r = lockRequested(reqId, "승인할");
+        FamilyLeaveRequest r = lockRequested(enterCd, reqId, "승인할");
         Draft d = Draft.of(r);
         validate(e, d, reqId);
         LocalDate next = d.endDate().plusDays(1);
         String label = d.kind().label() + "(신청 " + reqId + ")";
         if (d.kind().isLeaveOfAbsence()) {
             // 법 제19조·제22조의2: 휴직 기간은 휴직(LEAVE) 발령으로 남긴다. 복직은 종료일 다음 날 예정(미확정)으로 만든다.
-            AppointmentView leave = appointments.create(empId, new AppointmentRequest(AppointmentType.LEAVE.code(),
+            AppointmentView leave = appointments.create(enterCd, empId,
+                    new AppointmentRequest(AppointmentType.LEAVE.code(),
                     d.startDate(), null, null, null, label + " 승인", d.startDate(), d.endDate()));
-            appointments.confirm(leave.apptId());
-            AppointmentView ret = appointments.create(empId, new AppointmentRequest(AppointmentType.RETURN.code(),
+            appointments.confirm(enterCd, leave.apptId());
+            AppointmentView ret = appointments.create(enterCd, empId,
+                    new AppointmentRequest(AppointmentType.RETURN.code(),
                     next, null, null, null, label + " 종료 복직 예정", null, null));
             r.approveLeave(leave.apptId(), ret.apptId(), actor, now());
         } else {
             // 법 제19조의2·제19조의3: 단축 기간만 단축 근무유형을 쓰고, 끝나면 원래 근무유형으로 돌아간다.
             AssignmentView before = currentPattern(e.getEnterCd(), empId, d.startDate());
-            Optional<FamilyLeaveRequest> contiguous = approved(empId, reqId).stream()
+            Optional<FamilyLeaveRequest> contiguous = approved(enterCd, empId, reqId).stream()
                     .filter(o -> o.getKind() == Kind.CHILDCARE_REDUCED_HOURS
                             && o.getEndDate().plusDays(1).equals(d.startDate()) && o.getRestoreAssignId() != null)
                     .findFirst();
@@ -175,20 +181,20 @@ public class FamilyLeaveService {
     }
 
     @Transactional
-    public RequestView reject(long reqId, String note, String actor) {
+    public RequestView reject(String enterCd, long reqId, String note, String actor) {
         String n = blankToNull(note);
         if (n == null) {
             throw FamilyLeaveException.badRequest("반려 사유를 입력해 주세요");
         }
-        FamilyLeaveRequest r = lockRequested(reqId, "반려할");
+        FamilyLeaveRequest r = lockRequested(enterCd, reqId, "반려할");
         r.decide(Status.REJECTED, actor, now(), n);
         return RequestView.of(requests.saveAndFlush(r));
     }
 
     /** 승인 전 신청 취소. 승인된 신청은 인사발령 취소·근무유형 재배정으로 되돌린다(후속 이슈). */
     @Transactional
-    public RequestView cancel(long reqId, String note, String actor) {
-        FamilyLeaveRequest r = lockRequested(reqId, "취소할");
+    public RequestView cancel(String enterCd, long reqId, String note, String actor) {
+        FamilyLeaveRequest r = lockRequested(enterCd, reqId, "취소할");
         r.decide(Status.CANCELLED, actor, now(), blankToNull(note));
         return RequestView.of(requests.saveAndFlush(r));
     }
@@ -196,14 +202,14 @@ public class FamilyLeaveService {
     // ---------------------------------------------------------------- 남은 기간
 
     /** 기준일(기본 오늘)의 자녀별 육아휴직·단축, 그해 가족돌봄휴직 사용·남은 기간. 승인된 신청만 센다. */
-    public BalanceView balance(long empId, LocalDate asOf) {
-        loadEmployee(empId);
+    public BalanceView balance(String enterCd, long empId, LocalDate asOf) {
+        loadEmployee(enterCd, empId);
         LocalDate date = asOf == null ? today() : asOf;
-        List<FamilyLeaveRequest> approved = approved(empId, null);
+        List<FamilyLeaveRequest> approved = approved(enterCd, empId, null);
         List<String> notes = new ArrayList<>();
         // 승인 대기 신청의 자녀도 넣어, 승인 전에 그 자녀의 남은 기간을 볼 수 있게 한다(사용 기간에는 승인된 것만 센다).
         Set<String> labels = new LinkedHashSet<>();
-        requests.findByEmpIdOrderByStartDateAscReqIdAsc(empId).stream()
+        requests.findByEnterCdAndEmpIdOrderByStartDateAscReqIdAsc(enterCd, empId).stream()
                 .filter(r -> r.getKind() != Kind.FAMILY_CARE_LEAVE
                         && (r.getStatus() == Status.APPROVED || r.getStatus() == Status.REQUESTED))
                 .forEach(r -> labels.add(r.getChildLabel()));
@@ -285,7 +291,8 @@ public class FamilyLeaveService {
         if (e.getRetireDate() != null && !d.endDate().isBefore(e.getRetireDate())) {
             throw FamilyLeaveException.badRequest("종료일이 퇴직일(" + e.getRetireDate() + ") 전이어야 해요");
         }
-        for (FamilyLeaveRequest o : requests.findByEmpIdOrderByStartDateAscReqIdAsc(e.getEmpId())) {
+        for (FamilyLeaveRequest o : requests.findByEnterCdAndEmpIdOrderByStartDateAscReqIdAsc(e.getEnterCd(),
+                e.getEmpId())) {
             boolean active = o.getStatus() == Status.REQUESTED || o.getStatus() == Status.APPROVED;
             if (!active || o.getReqId().equals(excludeId)) {
                 continue;
@@ -297,7 +304,7 @@ public class FamilyLeaveService {
                         + ", " + period.get().startDate() + "~" + period.get().endDate() + ")이 있어요");
             }
         }
-        List<FamilyLeaveRequest> approved = approved(e.getEmpId(), excludeId);
+        List<FamilyLeaveRequest> approved = approved(e.getEnterCd(), e.getEmpId(), excludeId);
         switch (d.kind()) {
             case PARENTAL_LEAVE -> checkParental(d, approved);
             case CHILDCARE_REDUCED_HOURS -> checkReduced(e, d, approved);
@@ -430,8 +437,8 @@ public class FamilyLeaveService {
 
     // ---------------------------------------------------------------- 사용 기간·한도
 
-    private List<FamilyLeaveRequest> approved(long empId, Long excludeId) {
-        return requests.findByEmpIdOrderByStartDateAscReqIdAsc(empId).stream()
+    private List<FamilyLeaveRequest> approved(String enterCd, long empId, Long excludeId) {
+        return requests.findByEnterCdAndEmpIdOrderByStartDateAscReqIdAsc(enterCd, empId).stream()
                 .filter(r -> r.getStatus() == Status.APPROVED && !r.getReqId().equals(excludeId)).toList();
     }
 
@@ -461,7 +468,8 @@ public class FamilyLeaveService {
     }
 
     private Optional<LeavePeriodView> actualLeave(FamilyLeaveRequest r) {
-        return appointments.leavePeriods(r.getEmpId(), r.getStartDate(), r.getEndDate()).stream()
+        // 발령 이력은 신청 법인에서만 읽는다(#124·#127).
+        return appointments.leavePeriods(r.getEnterCd(), r.getEmpId(), r.getStartDate(), r.getEndDate()).stream()
                 .filter(p -> r.getLeaveApptId() != null && p.leaveApptId() == r.getLeaveApptId())
                 .findFirst();
     }
@@ -550,12 +558,13 @@ public class FamilyLeaveService {
 
     // ---------------------------------------------------------------- 공통
 
-    private FamilyLeaveRequest load(long reqId) {
-        return requests.findById(reqId).orElseThrow(() -> FamilyLeaveException.notFound("신청을 찾을 수 없어요: " + reqId));
+    private FamilyLeaveRequest load(String enterCd, long reqId) {
+        return requests.findByEnterCdAndReqId(enterCd, reqId)
+                .orElseThrow(() -> FamilyLeaveException.notFound("신청을 찾을 수 없어요: " + reqId));
     }
 
-    private FamilyLeaveRequest lockRequested(long reqId, String verb) {
-        FamilyLeaveRequest r = requests.findForUpdate(reqId)
+    private FamilyLeaveRequest lockRequested(String enterCd, long reqId, String verb) {
+        FamilyLeaveRequest r = requests.findForUpdate(enterCd, reqId)
                 .orElseThrow(() -> FamilyLeaveException.notFound("신청을 찾을 수 없어요: " + reqId));
         if (r.getStatus() != Status.REQUESTED) {
             throw FamilyLeaveException.conflict("이미 처리된 신청(" + r.getStatus() + ")은 " + verb + " 수 없어요");
@@ -563,8 +572,8 @@ public class FamilyLeaveService {
         return r;
     }
 
-    private void loadEmployee(long empId) {
-        if (!employees.existsById(empId)) {
+    private void loadEmployee(String enterCd, long empId) {
+        if (employees.findByEnterCdAndEmpId(enterCd, empId).isEmpty()) {
             throw FamilyLeaveException.notFound("사원을 찾을 수 없어요: " + empId);
         }
     }

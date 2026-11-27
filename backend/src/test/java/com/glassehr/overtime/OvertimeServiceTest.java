@@ -40,6 +40,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class OvertimeServiceTest {
 
     static final long EMP = 7L;
+    static final String ENTER = "C001";
     /** 2099-03-10 10:00 서울 */
     static final Clock CLOCK = Clock.fixed(Instant.parse("2099-03-10T01:00:00Z"), ZoneId.of("Asia/Seoul"));
     static final LocalDateTime EVENING = LocalDateTime.of(2099, 3, 10, 19, 0);
@@ -62,16 +63,16 @@ class OvertimeServiceTest {
         when(policies.forEmployee(any(), anyLong(), any())).thenReturn(WorkPolicyRules.SYSTEM_DEFAULT);
         service = new OvertimeService(requests, auths, approvals, employees, policies, CLOCK);
         me = mock(AuthUser.class);
-        when(me.enterCd()).thenReturn("C001");
+        when(me.enterCd()).thenReturn(ENTER);
         when(me.empId()).thenReturn(EMP);
         when(me.loginId()).thenReturn("emp7");
-        when(employees.findForUpdate("C001", EMP)).thenReturn(Optional.of(mock(Employee.class)));
+        when(employees.findForUpdate(ENTER, EMP)).thenReturn(Optional.of(mock(Employee.class)));
         when(requests.saveAndFlush(any())).thenAnswer(inv -> {
             OvertimeRequest r = inv.getArgument(0);
             ReflectionTestUtils.setField(r, "requestId", 11L);
             return r;
         });
-        when(approvals.submit(eq("OVERTIME"), eq(11L), any(), eq(EMP))).thenReturn(99L);
+        when(approvals.submit(eq(ENTER), eq("OVERTIME"), eq(11L), any(), eq(EMP))).thenReturn(99L);
     }
 
     static CreateRequest create(LocalDateTime start, LocalDateTime end, Integer breaks) {
@@ -87,8 +88,8 @@ class OvertimeServiceTest {
         assertThat(v.workDate()).isEqualTo(LocalDate.of(2099, 3, 10));
         assertThat(v.status()).isEqualTo(OvertimeRequest.Status.IN_PROGRESS);
         assertThat(v.reason()).isEqualTo("출시 대응");
-        verify(approvals).submit("OVERTIME", 11L, "연장근로 2099-03-10 19:00~22:00", EMP);
-        verify(employees).findForUpdate("C001", EMP);
+        verify(approvals).submit(ENTER, "OVERTIME", 11L, "연장근로 2099-03-10 19:00~22:00", EMP);
+        verify(employees).findForUpdate(ENTER, EMP);
     }
 
     private static WorkPolicyRules.Policy overtimePolicy(WorkPolicyRules.Allowance overtime) {
@@ -99,24 +100,25 @@ class OvertimeServiceTest {
 
     @Test
     void 근무_정책이_연장_허용_안_함이면_신청을_거부한다() {
-        when(policies.forEmployee("C001", EMP, LocalDate.of(2099, 3, 10)))
+        when(policies.forEmployee(ENTER, EMP, LocalDate.of(2099, 3, 10)))
                 .thenReturn(overtimePolicy(WorkPolicyRules.Allowance.DENY));
         assertThatThrownBy(() -> service.create(create(EVENING, EVENING.plusHours(2), 0), me))
                 .isInstanceOfSatisfying(ApprovalException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST))
                 .hasMessageContaining("허용하지 않아요");
         verify(requests, never()).saveAndFlush(any());
-        verify(approvals, never()).submit(any(), anyLong(), any(), anyLong());
+        verify(approvals, never()).submit(any(), any(), anyLong(), any(), anyLong());
     }
 
     @Test
     void 근무_정책_주_한도를_넘는_신청은_거부한다() {
-        when(policies.forEmployee("C001", EMP, LocalDate.of(2099, 3, 10))).thenReturn(overtimePolicy(
+        when(policies.forEmployee(ENTER, EMP, LocalDate.of(2099, 3, 10))).thenReturn(overtimePolicy(
                 new WorkPolicyRules.Allowance(WorkPolicyRules.AllowMode.LIMIT, null, 180, null)));
         OvertimeRequest prior = mock(OvertimeRequest.class);
         when(prior.getWorkKind()).thenReturn(OvertimeRequest.Kind.OVERTIME);
         when(prior.getWorkDate()).thenReturn(LocalDate.of(2099, 3, 9));
         when(prior.getPlannedMinutes()).thenReturn(120);
-        when(requests.findByEmpIdAndWorkDateBetweenAndStatusIn(eq(EMP), any(), any(), any())).thenReturn(List.of(prior));
+        when(requests.findByEnterCdAndEmpIdAndWorkDateBetweenAndStatusIn(
+                eq(ENTER), eq(EMP), any(), any(), any())).thenReturn(List.of(prior));
 
         assertThatThrownBy(() -> service.create(create(EVENING, EVENING.plusHours(2), 0), me))
                 .hasMessageContaining("한도");
@@ -130,12 +132,12 @@ class OvertimeServiceTest {
         assertThatThrownBy(() -> service.create(create(EVENING, EVENING, 0), me)).hasMessageContaining("종료 시각");
         assertThatThrownBy(() -> service.create(create(EVENING, EVENING.plusHours(1), 60), me))
                 .hasMessageContaining("휴게시간");
-        verify(approvals, never()).submit(any(), anyLong(), any(), anyLong());
+        verify(approvals, never()).submit(any(), any(), anyLong(), any(), anyLong());
     }
 
     @Test
     void 같은_시간대에_진행_중이거나_승인된_신청이_있으면_409() {
-        when(requests.findOverlapping(eq(EMP), any(), any(), any()))
+        when(requests.findOverlapping(eq(ENTER), eq(EMP), any(), any(), any()))
                 .thenReturn(List.of(mock(OvertimeRequest.class)));
         assertThatThrownBy(() -> service.create(create(EVENING, EVENING.plusHours(2), 0), me))
                 .isInstanceOfSatisfying(ApprovalException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
@@ -144,7 +146,7 @@ class OvertimeServiceTest {
     @Test
     void 결재선이_없어_결재를_올리지_못하면_예외가_그대로_나가_신청도_되돌려진다() {
         doThrow(ApprovalException.rejected("결재선이 설정되지 않아")).when(approvals)
-                .submit(any(), anyLong(), any(), anyLong());
+                .submit(any(), any(), anyLong(), any(), anyLong());
         assertThatThrownBy(() -> service.create(create(EVENING, EVENING.plusHours(2), 0), me))
                 .isInstanceOfSatisfying(ApprovalException.class,
                         e -> assertThat(e.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
@@ -160,7 +162,8 @@ class OvertimeServiceTest {
         AuthRequest ok = new AuthRequest(SpecialOvertimeAuth.Kind.POST, " A-1 ", "서울지방고용노동청",
                 LocalDate.of(2099, 3, 1), LocalDate.of(2099, 3, 2), LocalDate.of(2099, 3, 8), "설비 고장", Set.of(EMP),
                 true);
-        when(employees.findAllById(Set.of(EMP))).thenReturn(List.of(mock(com.glassehr.employee.Employee.class)));
+        com.glassehr.employee.Employee target = mock(com.glassehr.employee.Employee.class);
+        when(employees.findByEnterCdAndEmpIdIn(ENTER, Set.of(EMP))).thenReturn(List.of(target));
         when(auths.save(any())).thenAnswer(inv -> {
             SpecialOvertimeAuth saved = inv.getArgument(0);
             org.springframework.test.util.ReflectionTestUtils.setField(saved, "authId", 31L); // DB 시퀀스 부여 흉내
@@ -176,35 +179,46 @@ class OvertimeServiceTest {
     void 결재_결과를_신청_상태에_반영하고_승인_전에_한도를_검사한다() {
         OvertimeLimitChecker limits = mock(OvertimeLimitChecker.class);
         OvertimeApprovalHandler handler = new OvertimeApprovalHandler(requests, employees, limits, CLOCK);
-        OvertimeRequest r = new OvertimeRequest(EMP, OvertimeRequest.Kind.OVERTIME, EVENING, EVENING.plusHours(1), 0,
-                "사유", EVENING.minusDays(1));
-        when(requests.findForUpdate(11L)).thenReturn(Optional.of(r));
+        OvertimeRequest r = new OvertimeRequest(ENTER, EMP, OvertimeRequest.Kind.OVERTIME, EVENING,
+                EVENING.plusHours(1), 0, "사유", EVENING.minusDays(1));
+        when(requests.findForUpdate(ENTER, 11L)).thenReturn(Optional.of(r));
         com.glassehr.employee.Employee emp = mock(com.glassehr.employee.Employee.class);
-        when(emp.getEnterCd()).thenReturn("C001");
-        when(employees.findForUpdate(EMP)).thenReturn(Optional.of(emp));
+        when(emp.getEnterCd()).thenReturn(ENTER);
+        when(employees.findForUpdate(ENTER, EMP)).thenReturn(Optional.of(emp));
 
-        doThrow(new ApprovalException(HttpStatus.UNPROCESSABLE_ENTITY, "한도")).when(limits).check("C001", r);
-        assertThatThrownBy(() -> handler.onApproved(11L)).isInstanceOf(ApprovalException.class);
+        doThrow(new ApprovalException(HttpStatus.UNPROCESSABLE_ENTITY, "한도")).when(limits).check(ENTER, r);
+        assertThatThrownBy(() -> handler.onApproved(ENTER, 11L)).isInstanceOf(ApprovalException.class);
         assertThat(r.getStatus()).isEqualTo(OvertimeRequest.Status.IN_PROGRESS);
-        verify(employees).findForUpdate(EMP);
-        verify(limits).check("C001", r);
+        verify(employees).findForUpdate(ENTER, EMP);
+        verify(limits).check(ENTER, r);
 
-        handler.onRejected(11L);
+        handler.onRejected(ENTER, 11L);
         assertThat(r.getStatus()).isEqualTo(OvertimeRequest.Status.REJECTED);
         assertThat(r.getDecidedAt()).isEqualTo(LocalDateTime.of(2099, 3, 10, 10, 0));
-        assertThatThrownBy(() -> handler.onWithdrawn(11L)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> handler.onWithdrawn(ENTER, 11L)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 다른_법인_결재_결과는_신청을_바꾸지_않는다() {
+        OvertimeApprovalHandler handler = new OvertimeApprovalHandler(requests, employees,
+                mock(OvertimeLimitChecker.class), CLOCK);
+        OvertimeRequest r = new OvertimeRequest(ENTER, EMP, OvertimeRequest.Kind.OVERTIME, EVENING,
+                EVENING.plusHours(1), 0, "사유", EVENING.minusDays(1));
+        when(requests.findForUpdate(ENTER, 11L)).thenReturn(Optional.of(r));
+        assertThatThrownBy(() -> handler.onApproved("C002", 11L)).isInstanceOf(IllegalStateException.class);
+        assertThat(r.getStatus()).isEqualTo(OvertimeRequest.Status.IN_PROGRESS);
     }
 
     @Test
     void 결재_상세에_원본_신청_내용을_제공한다() {
         OvertimeApprovalHandler handler = new OvertimeApprovalHandler(requests, employees,
                 mock(OvertimeLimitChecker.class), CLOCK);
-        OvertimeRequest r = new OvertimeRequest(EMP, OvertimeRequest.Kind.HOLIDAY, EVENING,
+        OvertimeRequest r = new OvertimeRequest(ENTER, EMP, OvertimeRequest.Kind.HOLIDAY, EVENING,
                 EVENING.plusHours(3), 30, "긴급 점검", EVENING.minusDays(1));
         org.springframework.test.util.ReflectionTestUtils.setField(r, "requestId", 12L);
-        when(requests.findById(12L)).thenReturn(Optional.of(r));
+        when(requests.findByEnterCdAndRequestId(ENTER, 12L)).thenReturn(Optional.of(r));
 
-        var detail = handler.requestDetail(12L);
+        var detail = handler.requestDetail(ENTER, 12L);
 
         assertThat(detail.workKind()).isEqualTo(OvertimeRequest.Kind.HOLIDAY);
         assertThat(detail.plannedMinutes()).isEqualTo(150);

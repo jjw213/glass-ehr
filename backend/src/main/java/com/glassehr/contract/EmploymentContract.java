@@ -24,6 +24,10 @@ public class EmploymentContract {
     @Column(name = "contract_id", nullable = false, updatable = false)
     private Long contractId;
 
+    /** 사원 법인(#124). PK 는 DB 에서 (enter_cd, contract_id). contract_id 는 전체에서 유일하므로 JPA 식별자는 그대로 둔다. */
+    @Column(name = "enter_cd", nullable = false, updatable = false)
+    private String enterCd;
+
     @Column(name = "emp_id", nullable = false, updatable = false)
     private Long empId;
 
@@ -97,7 +101,8 @@ public class EmploymentContract {
             String holidayText, String leaveText, String workPlace, String jobDuty, String otherTerms) {
     }
 
-    EmploymentContract(long empId, Terms terms, LocalDateTime now) {
+    EmploymentContract(String enterCd, long empId, Terms terms, LocalDateTime now) {
+        this.enterCd = enterCd;
         this.empId = empId;
         this.createdAt = now;
         apply(terms, now);

@@ -83,7 +83,7 @@ public class WeeklyHoursService {
         if (user.empId() == null) {
             throw new AttendanceException(HttpStatus.FORBIDDEN, "사원과 연결된 계정만 볼 수 있어요", List.of());
         }
-        Employee e = employees.findById(user.empId())
+        Employee e = employees.findByEnterCdAndEmpId(user.enterCd(), user.empId())
                 .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + user.empId()));
         LocalDate today = LocalDate.now(clock);
         WorkHoursService.WeekInputs week = workHours.weekInputs(e.getEnterCd(), today);

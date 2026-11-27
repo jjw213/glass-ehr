@@ -98,8 +98,8 @@ public class ApprovalController {
 
     @RequiresPermission(Permission.CODE_WRITE)
     @GetMapping("/templates")
-    public List<TemplateView> templates(@RequestParam String requestType) {
-        return templateService.list(requestType);
+    public List<TemplateView> templates(@RequestParam String requestType, AuthUser user) {
+        return templateService.list(user.enterCd(), requestType);
     }
 
     @RequiresPermission(Permission.CODE_WRITE)
