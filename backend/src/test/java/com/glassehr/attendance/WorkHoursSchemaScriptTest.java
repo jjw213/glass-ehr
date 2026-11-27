@@ -16,7 +16,7 @@ class WorkHoursSchemaScriptTest {
     private static String sql() throws IOException {
         return (new ClassPathResource("db/oracle/V023__attendance_daily_summary.sql")
                 .getContentAsString(StandardCharsets.UTF_8) + "\n"
-                + new ClassPathResource("db/oracle/V046__daily_summary_recognized_minutes.sql")
+                + new ClassPathResource("db/oracle/V048__daily_summary_recognized_minutes.sql")
                 .getContentAsString(StandardCharsets.UTF_8))
                 .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
     }
