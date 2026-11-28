@@ -44,9 +44,9 @@ public class TestAuthUsers {
     private static final Pattern ROLE_PERM = Pattern.compile(
             "INSERT INTO app_role_permission \\(role_code, perm_code\\) VALUES \\('([A-Z_]+)', '([A-Z_]+)'\\);");
 
-    /** 역할·권한을 넣는 마이그레이션(V013, V033 GROUP_ADMIN). */
+    /** 역할·권한을 넣는 마이그레이션(V013, V033 GROUP_ADMIN, V052 법인 관리). */
     public static final String[] ROLE_SCRIPTS = {"db/oracle/V013__auth_role_privacy_log.sql",
-        "db/oracle/V033__group_admin_enter_switch.sql"};
+        "db/oracle/V033__group_admin_enter_switch.sql", "db/oracle/V052__enter_company_manage.sql"};
 
     /** 역할·권한 마이그레이션을 이어 붙인 SQL. */
     public static String roleSql() {

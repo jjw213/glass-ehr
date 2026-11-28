@@ -57,7 +57,20 @@ class AuthSchemaScriptTest {
         assertThat(v033.toUpperCase()).doesNotContain("DELETE ").doesNotContain("TRUNCATE ");
         TestAuthUsers.v011Matrix().forEach((role, ps) -> assertThat(ps.contains(Permission.ENTER_SWITCH))
                 .as(role).isEqualTo(role.equals(AuthUser.ROLE_GROUP_ADMIN)));
-        assertThat(TestAuthUsers.v011Matrix().get(AuthUser.ROLE_GROUP_ADMIN)).containsExactly(Permission.ENTER_SWITCH);
+        // V052(#130)가 법인 관리 권한을 더한다. 그룹 관리자 권한은 이 둘뿐이다.
+        assertThat(TestAuthUsers.v011Matrix().get(AuthUser.ROLE_GROUP_ADMIN))
+                .containsExactlyInAnyOrder(Permission.ENTER_SWITCH, Permission.ENTER_COMPANY_MANAGE);
+    }
+
+    @Test
+    void V052는_법인_관리_권한을_그룹_관리자에게만_준다() throws IOException {
+        String v052 = new ClassPathResource("db/oracle/V052__enter_company_manage.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+        assertThat(v052).doesNotContain("{").doesNotContain("}");
+        assertThat(v052.toUpperCase()).doesNotContain("DELETE ").doesNotContain("TRUNCATE ");
+        assertThat(all(v052, "INSERT INTO app_role \\(role_code, role_name, sort_order\\) VALUES \\('([A-Z_]+)'")).isEmpty();
+        TestAuthUsers.v011Matrix().forEach((role, ps) -> assertThat(ps.contains(Permission.ENTER_COMPANY_MANAGE))
+                .as(role).isEqualTo(role.equals(AuthUser.ROLE_GROUP_ADMIN)));
     }
 
     @Test

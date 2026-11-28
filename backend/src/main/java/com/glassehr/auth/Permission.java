@@ -6,6 +6,8 @@ package com.glassehr.auth;
 public enum Permission {
     /** 법인 전환 — 그룹 관리자(V033, docs/tenant-design.md 4.3) */
     ENTER_SWITCH,
+    /** 법인 관리(목록·추가·사용 중지) — 그룹 관리자(V052, #130) */
+    ENTER_COMPANY_MANAGE,
     /** 전체 사원 조회 */
     EMP_READ_ALL,
     /** 자기 부서(하위 포함) 사원 조회 — 부서장 */

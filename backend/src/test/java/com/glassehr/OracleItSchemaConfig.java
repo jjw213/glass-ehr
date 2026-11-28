@@ -313,6 +313,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V049__enter_setting.sql"))
                     .execute(dataSource);
         }
+        Integer manageEnter = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM app_permission WHERE perm_code = 'ENTER_COMPANY_MANAGE'", Integer.class);
+        if (manageEnter == null || manageEnter == 0) {
+            // #130: 법인 관리 권한(그룹 관리자)
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V052__enter_company_manage.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
