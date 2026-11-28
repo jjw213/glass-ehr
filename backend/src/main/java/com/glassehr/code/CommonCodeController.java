@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>PUT    /api/code-groups/{group} — 그룹 이름·설명·순서·사용 여부 수정(그룹코드 제외)</li>
  *   <li>DELETE /api/code-groups/{group} — 사용자 그룹 삭제(코드 참조 중이면 409)</li>
  *   <li>GET    /api/code-groups/{group}/codes?includeInactive=true — 관리 화면용 코드 목록(참조 건수 포함)</li>
+ *   <li>GET    /api/code-groups/{group}/sys-types — 처리방식 목록(#141, 서버 고정)</li>
  *   <li>POST   /api/code-groups/{group}/codes — 코드 추가</li>
  *   <li>PUT    /api/code-groups/{group}/codes/{code} — 코드 수정(코드값 제외)</li>
  *   <li>DELETE /api/code-groups/{group}/codes/{code} — 참조 없는 사용자 코드 삭제</li>
@@ -95,6 +96,13 @@ public class CommonCodeController {
     public List<CodeListItem> codes(@PathVariable String groupCode,
             @RequestParam(name = "includeInactive", defaultValue = "false") boolean includeInactive, AuthUser user) {
         return service.listCodes(user.enterCd(), groupCode, includeInactive);
+    }
+
+    /** 그룹의 처리방식 목록(#141). 서버 고정 목록이고 처리방식이 없는 그룹은 빈 목록. */
+    @GetMapping("/code-groups/{groupCode}/sys-types")
+    @RequiresPermission
+    public List<CodeSysTypes.SysType> sysTypes(@PathVariable String groupCode, AuthUser user) {
+        return service.sysTypes(user.enterCd(), groupCode);
     }
 
     @PostMapping("/code-groups/{groupCode}/codes")

@@ -14,9 +14,13 @@ import org.springframework.core.io.ClassPathResource;
 /** 퇴직 처리·사용증명서 DDL(V022) 정적 검사. DB 없이 돈다. */
 class RetirementSchemaScriptTest {
 
-    private static String sql() throws IOException {
-        return new ClassPathResource("db/oracle/V022__retirement_process.sql").getContentAsString(StandardCharsets.UTF_8)
+    private static String sql(String migration) throws IOException {
+        return new ClassPathResource("db/oracle/" + migration).getContentAsString(StandardCharsets.UTF_8)
                 .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
+    }
+
+    private static String sql() throws IOException {
+        return sql("V022__retirement_process.sql");
     }
 
     private static String quotedList(Enum<?>[] values) {
@@ -39,6 +43,15 @@ class RetirementSchemaScriptTest {
         assertThat(sql()).containsPattern("retire_reason_code <> 'DISMISSAL'\\s+OR \\(dismissal_notice_date IS NOT NULL"
                 + " AND written_notice_date IS NOT NULL\\)");
         assertThat(sql()).contains("dismissal_notice_date <= retire_date").contains("written_notice_date <= retire_date");
+    }
+
+    @Test
+    void 사용자_정의_해고_코드도_처리방식으로_DB_제약을_적용한다() throws IOException {
+        assertThat(sql("V050__common_code_sys_type.sql"))
+                .contains("retire_reason_type VARCHAR2(30 CHAR)")
+                .containsPattern("retire_reason_type <> 'DISMISSAL'\\s+OR \\(dismissal_notice_date IS NOT NULL"
+                        + " AND written_notice_date IS NOT NULL\\)")
+                .containsPattern("retire_reason_type = 'DISMISSAL' AND notice_check <> 'NOT_APPLICABLE'");
     }
 
     @Test

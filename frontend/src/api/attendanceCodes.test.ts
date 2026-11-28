@@ -119,7 +119,7 @@ describe('createMockAttendanceCodeApi', () => {
 
 describe('공통코드 API 는 editPage 그룹을 고치지 않는다', () => {
   it('추가·수정·삭제·그룹 수정 409', async () => {
-    const api = createMockCodeApi({ groups: ATTENDANCE_CODE_GROUPS, codes: [{ groupCode: 'LEAVE_TYPE', code: 'SICK', name: '병가', description: null, sortOrder: 1, active: true, system: false }] });
+    const api = createMockCodeApi({ groups: ATTENDANCE_CODE_GROUPS, codes: [{ groupCode: 'LEAVE_TYPE', code: 'SICK', name: '병가', description: null, sortOrder: 1, active: true, system: false, sysType: 'COMPANY' }] });
     const input = { name: '병가', description: null, sortOrder: 1, active: false };
     expect(await status(api.create('LEAVE_TYPE', { ...input, code: 'X' }))).toBe(409);
     expect(await status(api.update('LEAVE_TYPE', 'SICK', input))).toBe(409);

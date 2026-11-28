@@ -177,7 +177,8 @@ class EmployeeSchemaScriptTest {
             assertThat(byGroup.get("JOB_TITLE")).as(e.empNo()).contains(e.title());
             assertThat(depts).as(e.empNo()).contains(e.deptCode());
             assertThat(e.minutes()).isPositive();
-            if (e.type().equals(EmployeeService.FIXED_TERM)) {
+            // 시드 고용형태 FIXED_TERM 코드의 처리방식은 FIXED_TERM(V050, #141)
+            if (e.type().equals("FIXED_TERM")) {
                 assertThat(e.cEnd()).as(e.empNo()).isNotEqualTo("NULL");
             }
         }

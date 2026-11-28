@@ -290,7 +290,7 @@ class CommonCodeServiceTest {
         when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
         when(codes.existsByEnterCdAndGroupCodeAndCode(E, "JOB_GRADE", "INTERN")).thenReturn(false);
 
-        CodeView v = service.create(E, "JOB_GRADE", new CodeCreateRequest("INTERN", "  인턴 ", "   ", 5, true));
+        CodeView v = service.create(E, "JOB_GRADE", new CodeCreateRequest("INTERN", "  인턴 ", "   ", 5, true, null));
 
         assertThat(v.name()).isEqualTo("인턴");
         assertThat(v.description()).isNull();
@@ -303,7 +303,7 @@ class CommonCodeServiceTest {
         when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
         when(codes.existsByEnterCdAndGroupCodeAndCode(E, "JOB_GRADE", "STAFF")).thenReturn(true);
 
-        assertThatThrownBy(() -> service.create(E, "JOB_GRADE", new CodeCreateRequest("STAFF", "사원", null, 1, true)))
+        assertThatThrownBy(() -> service.create(E, "JOB_GRADE", new CodeCreateRequest("STAFF", "사원", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
         verify(codes, never()).saveAndFlush(any());
     }
@@ -315,9 +315,9 @@ class CommonCodeServiceTest {
         when(codes.findByEnterCdAndGroupCodeAndCode(E, "LEAVE_TYPE", "SICK"))
                 .thenReturn(Optional.of(code("LEAVE_TYPE", "SICK", 10, true)));
 
-        assertThatThrownBy(() -> service.create(E, "LEAVE_TYPE", new CodeCreateRequest("REFRESH", "리프레시 휴가", null, 1, true)))
+        assertThatThrownBy(() -> service.create(E, "LEAVE_TYPE", new CodeCreateRequest("REFRESH", "리프레시 휴가", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
-        assertThatThrownBy(() -> service.update(E, "LEAVE_TYPE", "SICK", new CodeUpdateRequest("병가", null, 1, true)))
+        assertThatThrownBy(() -> service.update(E, "LEAVE_TYPE", "SICK", new CodeUpdateRequest("병가", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
         assertThatThrownBy(() -> service.deleteCode(E, "LEAVE_TYPE", "SICK"))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
@@ -328,7 +328,7 @@ class CommonCodeServiceTest {
     @Test
     void 없는_그룹에_추가는_404() {
         when(groups.existsByEnterCdAndGroupCode(E, "NOPE")).thenReturn(false);
-        assertThatThrownBy(() -> service.create(E, "NOPE", new CodeCreateRequest("A", "에이", null, 1, true)))
+        assertThatThrownBy(() -> service.create(E, "NOPE", new CodeCreateRequest("A", "에이", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
@@ -338,7 +338,7 @@ class CommonCodeServiceTest {
         when(codes.findByEnterCdAndGroupCodeAndCode(E, "JOB_GRADE", "STAFF"))
                 .thenReturn(Optional.of(code("JOB_GRADE", "STAFF", 10, true)));
 
-        CodeView v = service.update(E, "JOB_GRADE", "STAFF", new CodeUpdateRequest("사원(구)", "개편 전 직급", 99, false));
+        CodeView v = service.update(E, "JOB_GRADE", "STAFF", new CodeUpdateRequest("사원(구)", "개편 전 직급", 99, false, null));
 
         assertThat(v.code()).isEqualTo("STAFF");
         assertThat(v.name()).isEqualTo("사원(구)");
@@ -347,11 +347,80 @@ class CommonCodeServiceTest {
         assertThat(v.active()).isFalse();
     }
 
+    private static void assertStatus(org.assertj.core.api.ThrowableAssert.ThrowingCallable call, HttpStatus status) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(status));
+    }
+
+    @Test
+    void 처리방식이_있는_그룹은_추가할_때_처리방식이_필수이고_목록_안의_값만_받는다() {
+        when(groups.existsByEnterCdAndGroupCode(E, "RETIREMENT_REASON")).thenReturn(true);
+        when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
+
+        assertStatus(() -> service.create(E, "RETIREMENT_REASON",
+                new CodeCreateRequest("MGMT_DISMISSAL", "경영상 해고", null, 55, true, null)), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create(E, "RETIREMENT_REASON",
+                new CodeCreateRequest("MGMT_DISMISSAL", "경영상 해고", null, 55, true, "FIXED_TERM")), HttpStatus.BAD_REQUEST);
+        assertStatus(() -> service.create(E, "JOB_GRADE",
+                new CodeCreateRequest("INTERN", "인턴", null, 5, true, "REGULAR")), HttpStatus.BAD_REQUEST);
+        verify(codes, never()).saveAndFlush(any());
+
+        CodeView v = service.create(E, "RETIREMENT_REASON",
+                new CodeCreateRequest("MGMT_DISMISSAL", "경영상 해고", null, 55, true, "DISMISSAL"));
+        assertThat(v.sysType()).isEqualTo("DISMISSAL");
+    }
+
+    @Test
+    void 기본_코드는_처리방식을_바꿀_수_없고_사용자_코드는_바꿀_수_있다() {
+        when(groups.existsByEnterCdAndGroupCode(E, "EMPLOYMENT_TYPE")).thenReturn(true);
+        CommonCode base = new CommonCode(E, "EMPLOYMENT_TYPE", "FIXED_TERM", "기간제", null, 20, true, "FIXED_TERM", T0)
+                .markSystem();
+        CommonCode own = new CommonCode(E, "EMPLOYMENT_TYPE", "INTERN", "인턴", null, 40, true, "FIXED_TERM", T0);
+        when(codes.findByEnterCdAndGroupCodeAndCode(E, "EMPLOYMENT_TYPE", "FIXED_TERM")).thenReturn(Optional.of(base));
+        when(codes.findByEnterCdAndGroupCodeAndCode(E, "EMPLOYMENT_TYPE", "INTERN")).thenReturn(Optional.of(own));
+
+        assertStatus(() -> service.update(E, "EMPLOYMENT_TYPE", "FIXED_TERM",
+                new CodeUpdateRequest("기간제", null, 20, true, "REGULAR")), HttpStatus.CONFLICT);
+        assertThat(service.update(E, "EMPLOYMENT_TYPE", "FIXED_TERM",
+                new CodeUpdateRequest("기간제(계약직)", null, 20, true, "FIXED_TERM")).name()).isEqualTo("기간제(계약직)");
+        assertStatus(() -> service.update(E, "EMPLOYMENT_TYPE", "INTERN",
+                new CodeUpdateRequest("인턴", null, 40, true, null)), HttpStatus.BAD_REQUEST);
+        assertThat(service.update(E, "EMPLOYMENT_TYPE", "INTERN",
+                new CodeUpdateRequest("인턴", null, 40, true, "FIXED_TERM_PART_TIME")).sysType())
+                .isEqualTo("FIXED_TERM_PART_TIME");
+    }
+
+    @Test
+    void 근로계약에서_사용_중인_고용형태는_처리방식을_바꿀_수_없다() {
+        when(groups.existsByEnterCdAndGroupCode(E, "EMPLOYMENT_TYPE")).thenReturn(true);
+        CommonCode own = new CommonCode(E, "EMPLOYMENT_TYPE", "INTERN", "인턴", null, 40, true, "REGULAR", T0);
+        when(codes.findByEnterCdAndGroupCodeAndCode(E, "EMPLOYMENT_TYPE", "INTERN")).thenReturn(Optional.of(own));
+        when(usages.count(E, ref("EMPLOYMENT_TYPE", "employment_contract"), "INTERN")).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.update(E, "EMPLOYMENT_TYPE", "INTERN",
+                new CodeUpdateRequest("인턴", null, 40, true, "FIXED_TERM")))
+                .isInstanceOfSatisfying(CodeException.class, e -> {
+                    assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(e.getMessage()).contains("근로계약에서 사용 중").contains("처리방식");
+                });
+        assertThat(own.getProcessType()).isEqualTo("REGULAR");
+        verify(codes, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void 처리방식_목록은_그룹별_서버_고정값이고_없는_그룹은_404() {
+        when(groups.existsByEnterCdAndGroupCode(E, "RETIREMENT_REASON")).thenReturn(true);
+        when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
+        assertThat(service.sysTypes(E, "RETIREMENT_REASON")).extracting(CodeSysTypes.SysType::code)
+                .contains("DISMISSAL", "VOLUNTARY", "DEATH", "OTHER");
+        assertThat(service.sysTypes(E, "JOB_GRADE")).isEmpty();
+        assertStatus(() -> service.sysTypes(E, "NOPE"), HttpStatus.NOT_FOUND);
+    }
+
     @Test
     void 없는_코드_수정은_404() {
         when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);
         when(codes.findByEnterCdAndGroupCodeAndCode(any(), any(), any())).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.update(E, "JOB_GRADE", "NOPE", new CodeUpdateRequest("x", null, 1, true)))
+        assertThatThrownBy(() -> service.update(E, "JOB_GRADE", "NOPE", new CodeUpdateRequest("x", null, 1, true, null)))
                 .isInstanceOfSatisfying(CodeException.class, e -> assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 

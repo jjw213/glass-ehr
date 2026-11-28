@@ -3,7 +3,7 @@
  * 응답 형식은 backend CodeDtos 와 같다.
  */
 import { ATTENDANCE_CODE_GROUPS, ATTENDANCE_CODES } from '../data/attendanceCodes';
-import { CODE_GROUPS, CODES, DEMO_USAGES } from '../data/codes';
+import { CODE_GROUPS, CODES, DEMO_USAGES, SYS_TYPES } from '../data/codes';
 import { call } from './http';
 import { ApiError } from './types';
 
@@ -33,15 +33,24 @@ export interface CodeGroup {
   groupCode: string; name: string; description: string | null; sortOrder: number; active: boolean;
   system: boolean; editPage: string | null;
 }
-/** @property system 기본 코드(로직이 코드값을 참조). 삭제 불가 */
-export interface Code { groupCode: string; code: string; name: string; description: string | null; sortOrder: number; active: boolean; system: boolean }
+/**
+ * @property system  기본 코드. 삭제 불가, 처리방식 변경 불가
+ * @property sysType 처리방식(#141). 로직은 코드값이 아니라 이것을 본다. 처리방식이 없는 그룹은 null
+ */
+export interface Code {
+  groupCode: string; code: string; name: string; description: string | null; sortOrder: number; active: boolean; system: boolean;
+  sysType: string | null;
+}
 /** 관리 화면 코드 목록 한 줄. inUse: 어떤 테이블이든 참조 중, usageCount: 참조 건수 합 */
 export interface CodeListItem extends Code { inUse: boolean; usageCount: number }
-/** 코드 수정 입력. 코드값은 바꿀 수 없다. */
-export interface CodeUpdate { name: string; description: string | null; sortOrder: number; active: boolean }
-export interface CodeCreate extends CodeUpdate { code: string }
 /** 그룹 수정 입력. 그룹코드는 바꿀 수 없다. */
-export type GroupUpdate = CodeUpdate;
+export interface GroupUpdate { name: string; description: string | null; sortOrder: number; active: boolean }
+/** 코드 수정 입력. 코드값은 바꿀 수 없다. 처리방식이 있는 그룹은 sysType 필수 */
+export interface CodeUpdate extends GroupUpdate { sysType?: string | null }
+export interface CodeCreate extends CodeUpdate { code: string }
+/** 처리방식 한 개(백엔드 CodeSysTypes.SysType) */
+export interface SysType { code: string; name: string }
+
 export interface GroupCreate extends GroupUpdate { groupCode: string }
 
 export interface UsageTable { table: string; label: string; count: number }
@@ -59,6 +68,8 @@ export interface CodeApi {
   deleteGroup(group: string): Promise<void>;
   /** 관리 화면용. includeInactive=true 면 사용 중지 코드도 */
   codes(group: string, includeInactive: boolean): Promise<CodeListItem[]>;
+  /** 그룹의 처리방식 목록(#141). 처리방식이 없는 그룹은 빈 목록 */
+  sysTypes(group: string): Promise<SysType[]>;
   create(group: string, input: CodeCreate): Promise<Code>;
   update(group: string, code: string, input: CodeUpdate): Promise<Code>;
   deleteCode(group: string, code: string): Promise<void>;
@@ -76,6 +87,7 @@ export const httpCodeApi: CodeApi = {
   updateGroup: (group, input) => call('PUT', `/code-groups/${enc(group)}`, input),
   deleteGroup: (group) => call('DELETE', `/code-groups/${enc(group)}`),
   codes: (group, includeInactive) => call('GET', `/code-groups/${enc(group)}/codes?includeInactive=${includeInactive}`),
+  sysTypes: (group) => call('GET', `/code-groups/${enc(group)}/sys-types`),
   create: (group, input) => call('POST', `/code-groups/${enc(group)}/codes`, input),
   update: (group, code, input) => call('PUT', codePath(group, code), input),
   deleteCode: (group, code) => call('DELETE', codePath(group, code)),
@@ -99,7 +111,16 @@ export function validateGroup(input: GroupUpdate & { groupCode?: string }): stri
   return validateCommon(input);
 }
 
-function validateCommon(input: CodeUpdate): string | null {
+/** 처리방식 검사. 백엔드 CommonCodeService.requireSysType 과 같은 규칙. 문제가 없으면 null. */
+function checkSysType(group: string, sysType: string | null | undefined): string | null {
+  const list = SYS_TYPES[group];
+  const t = sysType?.trim() ? sysType.trim() : null;
+  if (!list) return t === null ? null : '이 코드그룹은 처리방식을 쓰지 않아요';
+  if (t === null) return '처리방식을 선택해 주세요';
+  return list.some((s) => s.code === t) ? null : `이 그룹에 없는 처리방식이에요: ${t}`;
+}
+
+function validateCommon(input: GroupUpdate): string | null {
   if (input.description && input.description.length > 500) return '설명은 500자 이내로 써 주세요';
   if (!Number.isInteger(input.sortOrder) || input.sortOrder < 0 || input.sortOrder > MAX_SORT_ORDER) return `정렬 순서는 0~${MAX_SORT_ORDER} 사이 정수여야 해요`;
   return null;
@@ -186,11 +207,19 @@ export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boo
         return { ...c, inUse: usageCount > 0, usageCount };
       });
     },
+    async sysTypes(g) {
+      requireGroup(g);
+      return structuredClone(SYS_TYPES[g] ?? []);
+    },
     async create(g, input) {
       requireEditable(g);
       check(validateCode(input));
       if (codes.some((c) => c.groupCode === g && c.code === input.code)) throw new ApiError(409, `이미 있는 코드값이에요: ${g}/${input.code}`);
-      const created: Code = { groupCode: g, code: input.code, name: input.name.trim(), description: clean(input.description), sortOrder: input.sortOrder, active: input.active, system: false };
+      check(checkSysType(g, input.sysType));
+      const created: Code = {
+        groupCode: g, code: input.code, name: input.name.trim(), description: clean(input.description), sortOrder: input.sortOrder,
+        active: input.active, system: false, sysType: clean(input.sysType ?? null),
+      };
       codes = [...codes, created];
       return { ...created };
     },
@@ -198,7 +227,10 @@ export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boo
       requireEditable(g);
       const cur = requireCode(g, code);
       check(validateCode(input));
-      const next: Code = { ...cur, name: input.name.trim(), description: clean(input.description), sortOrder: input.sortOrder, active: input.active };
+      check(checkSysType(g, input.sysType));
+      const sysType = clean(input.sysType ?? null);
+      if (cur.system && sysType !== cur.sysType) throw new ApiError(409, '기본 코드는 처리방식을 바꿀 수 없어요');
+      const next: Code = { ...cur, name: input.name.trim(), description: clean(input.description), sortOrder: input.sortOrder, active: input.active, sysType };
       codes = codes.map((c) => (c === cur ? next : c));
       return { ...next };
     },
@@ -230,6 +262,7 @@ export function createMockCodeApi(opts: { usages?: MockUsages; rowsVisible?: boo
 export const codeApi: CodeApi = import.meta.env.VITE_API === 'mock'
   ? createMockCodeApi({
     groups: [...CODE_GROUPS, ...ATTENDANCE_CODE_GROUPS],
-    codes: [...CODES, ...ATTENDANCE_CODES.map(({ groupCode, code, name, description, sortOrder, active, system }) => ({ groupCode, code, name, description, sortOrder, active, system }))],
+    codes: [...CODES, ...ATTENDANCE_CODES.map(({ groupCode, code, name, description, sortOrder, active, system, processType }) =>
+      ({ groupCode, code, name, description, sortOrder, active, system, sysType: processType }))],
   })
   : httpCodeApi;

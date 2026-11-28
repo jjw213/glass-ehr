@@ -113,7 +113,8 @@ describe('공통코드 화면의 근태코드 그룹', () => {
   it('LEAVE_TYPE 은 편집 버튼 없이 근태관리 링크만', async () => {
     const api = createMockCodeApi({
       groups: ATTENDANCE_CODE_GROUPS,
-      codes: ATTENDANCE_CODES.map(({ groupCode, code, name, description, sortOrder, active, system }) => ({ groupCode, code, name, description, sortOrder, active, system })),
+      codes: ATTENDANCE_CODES.map(({ groupCode, code, name, description, sortOrder, active, system, processType }) =>
+        ({ groupCode, code, name, description, sortOrder, active, system, sysType: processType })),
     });
     await act(async () => { root.render(<CodeManager api={api} toast={vi.fn()} />); });
     await flush();

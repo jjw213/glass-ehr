@@ -5,8 +5,12 @@
  */
 import { call } from './http';
 
-/** 해고 사유 코드(공통코드 RETIREMENT_REASON). 해고면 예고일·서면통지일이 필수다(근로기준법 제26조·제27조). */
-export const DISMISSAL = 'DISMISSAL';
+/**
+ * 해고 처리방식(퇴직사유 sys_type, 백엔드 CodeSysTypes.RetirementReason.DISMISSAL, #141).
+ * 코드값이 아니라 처리방식으로 판단한다(관리자가 만든 경영상 해고 같은 코드도 해고).
+ * 해고면 예고일·서면통지일이 필수다(근로기준법 제26조·제27조).
+ */
+export const DISMISSAL_SYS_TYPE = 'DISMISSAL';
 
 /** 근로기준법 제26조 단서 각 호. */
 export type NoticeExempt = 'SHORT_SERVICE' | 'UNAVOIDABLE' | 'EMPLOYEE_FAULT';
@@ -88,11 +92,12 @@ export const retirementApi: RetirementApi = {
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** 퇴직 처리 입력 형식 검사. 문제가 없으면 null. 예고 기간 판정은 서버가 한다. */
-export function validateRetirement(i: RetirementInput): string | null {
+/** @param dismissal 고른 퇴직사유의 처리방식이 해고(DISMISSAL_SYS_TYPE)인지 */
+export function validateRetirement(i: RetirementInput, dismissal: boolean): string | null {
   if (!Number.isInteger(i.empId) || i.empId <= 0) return '사원 ID(숫자)를 입력해 주세요';
   if (!DATE.test(i.retireDate)) return '퇴직일을 입력해 주세요';
   if (!i.reasonCode) return '퇴직 유형을 선택해 주세요';
-  if (i.reasonCode === DISMISSAL) {
+  if (dismissal) {
     if (!i.dismissalNoticeDate) return '해고는 해고 예고일을 입력해야 해요(근로기준법 제26조)';
     if (!i.writtenNoticeDate) return '해고는 해고사유·해고시기 서면통지일을 입력해야 해요(근로기준법 제27조)';
     if (i.dismissalNoticeDate > i.retireDate) return '해고 예고일은 해고일(퇴직일)보다 늦을 수 없어요';
@@ -102,8 +107,7 @@ export function validateRetirement(i: RetirementInput): string | null {
 }
 
 /** 서버로 보낼 값: 해고가 아니면 예고 항목을 비운다. */
-export function toRetirementBody(i: RetirementInput): RetirementInput {
-  const dismissal = i.reasonCode === DISMISSAL;
+export function toRetirementBody(i: RetirementInput, dismissal: boolean): RetirementInput {
   return {
     ...i,
     reasonDetail: i.reasonDetail?.trim() ? i.reasonDetail.trim() : null,

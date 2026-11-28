@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.glassehr.code.CodeGroups;
+import com.glassehr.code.CodeSysTypes.EmploymentType;
 import com.glassehr.code.CommonCode;
 import com.glassehr.code.CommonCodeId;
 import com.glassehr.code.CommonCodeRepository;
@@ -36,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -76,9 +78,21 @@ class ContractServiceTest {
     }
 
     private void code(String code, boolean active) {
+        code(code, active, active ? code : "REGULAR");
+    }
+
+    /** sysType: 고용형태 처리방식(#141). 로직은 코드값이 아니라 이것을 본다. */
+    private void code(String code, boolean active, String sysType) {
         CommonCode c = mock(CommonCode.class);
         when(c.isActive()).thenReturn(active);
+        when(c.getGroupCode()).thenReturn(CodeGroups.EMPLOYMENT_TYPE);
+        when(c.getCode()).thenReturn(code);
+        when(c.getProcessType()).thenReturn(sysType);
         codeStore.put(new CommonCodeId("C001", CodeGroups.EMPLOYMENT_TYPE, code), c);
+    }
+
+    private static Function<String, EmploymentType> sameName() {
+        return EmploymentType::valueOf;
     }
 
     private List<EmploymentContract> sorted(Comparator<EmploymentContract> cmp) {
@@ -362,7 +376,7 @@ class ContractServiceTest {
         service.create("C001", 1, req("FIXED_TERM", LocalDate.of(2025, 1, 2), LocalDate.of(2026, 12, 31)));
         List<EmploymentContract> list = new ArrayList<>(store.values());
         list.sort(Comparator.comparing(EmploymentContract::getStartDate));
-        assertThat(ContractService.continuousFixedTermStart(list)).isEqualTo(LocalDate.of(2025, 1, 2));
+        assertThat(ContractService.continuousFixedTermStart(list, sameName())).isEqualTo(LocalDate.of(2025, 1, 2));
     }
 
     @Test
@@ -371,7 +385,31 @@ class ContractServiceTest {
         service.create("C001", 1, req("FIXED_TERM", LocalDate.of(2025, 1, 1), LocalDate.of(2026, 12, 31)));
         List<EmploymentContract> list = new ArrayList<>(store.values());
         list.sort(Comparator.comparing(EmploymentContract::getStartDate));
-        assertThat(ContractService.continuousFixedTermStart(list)).isEqualTo(LocalDate.of(2025, 1, 1));
+        assertThat(ContractService.continuousFixedTermStart(list, sameName())).isEqualTo(LocalDate.of(2025, 1, 1));
+    }
+
+    @Test
+    void 관리자가_만든_기간제_처리방식_코드로도_기간제_사용기간_검사를_한다() {
+        // #141: 코드값이 아니라 처리방식(FIXED_TERM·FIXED_TERM_PART_TIME)으로 기간제법 제4조 검사
+        code("CONTRACT_STAFF", true, "FIXED_TERM");
+        code("PT_CONTRACT", true, "FIXED_TERM_PART_TIME");
+        LocalDate s1 = LocalDate.of(2025, 1, 1);
+        // 기간제법 제2조 제1호: 종료일 없는 기간제 계약은 400
+        assertThat(status(() -> service.create("C001", 1, req("CONTRACT_STAFF", s1, null)))).isEqualTo(400);
+        service.create("C001", 1, req("CONTRACT_STAFF", s1, LocalDate.of(2025, 6, 30)));
+        service.create("C001", 1, req("PT_CONTRACT", LocalDate.of(2025, 7, 1), LocalDate.of(2026, 12, 31)));
+        AlertRow limit = service.alerts("C001", TODAY).stream().filter(r -> r.type() == AlertType.FIXED_TERM_LIMIT)
+                .findFirst().orElseThrow();
+        assertThat(limit.continuousStartDate()).isEqualTo(s1);
+        assertThat(limit.dueDate()).isEqualTo(s1.plusDays(700));
+    }
+
+    @Test
+    void 코드값이_FIXED_TERM이어도_처리방식이_일반이면_기간제_검사를_하지_않는다() {
+        code("FIXED_TERM", true, "REGULAR");
+        service.create("C001", 1, req("FIXED_TERM", LocalDate.of(2024, 1, 2), LocalDate.of(2026, 12, 31)));
+        assertThat(service.alerts("C001", TODAY)).extracting(AlertRow::type)
+                .doesNotContain(AlertType.FIXED_TERM_LIMIT, AlertType.FIXED_TERM_LIMIT_UNKNOWN);
     }
 
     @Test

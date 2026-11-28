@@ -27,12 +27,15 @@ public final class CodeDtos {
         }
     }
 
-    /** @param system 기본 코드(로직이 코드값을 참조, 삭제 불가) */
+    /**
+     * @param system  기본 코드(삭제 불가, 처리방식 변경 불가)
+     * @param sysType 처리방식(#141, {@link CodeSysTypes}). 처리방식이 없는 그룹은 null
+     */
     public record CodeView(String groupCode, String code, String name, String description, int sortOrder, boolean active,
-            boolean system) {
+            boolean system, String sysType) {
         static CodeView of(CommonCode c) {
             return new CodeView(c.getGroupCode(), c.getCode(), c.getCodeName(), c.getDescription(), c.getSortOrder(),
-                    c.isActive(), c.isSystem());
+                    c.isActive(), c.isSystem(), c.getProcessType());
         }
     }
 
@@ -43,10 +46,10 @@ public final class CodeDtos {
      * @param usageCount 참조 건수 합(테이블별 행 수의 합)
      */
     public record CodeListItem(String groupCode, String code, String name, String description, int sortOrder,
-            boolean active, boolean system, boolean inUse, long usageCount) {
+            boolean active, boolean system, String sysType, boolean inUse, long usageCount) {
         static CodeListItem of(CommonCode c, long usageCount) {
             return new CodeListItem(c.getGroupCode(), c.getCode(), c.getCodeName(), c.getDescription(),
-                    c.getSortOrder(), c.isActive(), c.isSystem(), usageCount > 0, usageCount);
+                    c.getSortOrder(), c.isActive(), c.isSystem(), c.getProcessType(), usageCount > 0, usageCount);
         }
     }
 
@@ -84,7 +87,7 @@ public final class CodeDtos {
             Boolean active) {
     }
 
-    /** 코드 추가. 코드값은 한 번 정하면 바꿀 수 없다. */
+    /** 코드 추가. 코드값은 한 번 정하면 바꿀 수 없다. 처리방식이 있는 그룹({@link CodeSysTypes})은 sysType 필수. */
     public record CodeCreateRequest(
             @NotNull(message = "코드값을 입력해 주세요")
             @Pattern(regexp = CodeGroups.CODE_PATTERN,
@@ -100,10 +103,12 @@ public final class CodeDtos {
             @Max(value = 99999, message = "정렬 순서는 99999 이하여야 해요")
             Integer sortOrder,
             @NotNull(message = "사용 여부를 정해 주세요")
-            Boolean active) {
+            Boolean active,
+            @Size(max = 30, message = "처리방식은 30자 이내로 써 주세요")
+            String sysType) {
     }
 
-    /** 코드 수정. 코드값 외의 속성만 바꾼다. */
+    /** 코드 수정. 코드값 외의 속성만 바꾼다. 처리방식이 있는 그룹은 sysType 필수, 기본 코드는 처리방식을 바꿀 수 없다. */
     public record CodeUpdateRequest(
             @NotBlank(message = "코드명을 입력해 주세요")
             @Size(max = 100, message = "코드명은 100자 이내로 써 주세요")
@@ -115,7 +120,9 @@ public final class CodeDtos {
             @Max(value = 99999, message = "정렬 순서는 99999 이하여야 해요")
             Integer sortOrder,
             @NotNull(message = "사용 여부를 정해 주세요")
-            Boolean active) {
+            Boolean active,
+            @Size(max = 30, message = "처리방식은 30자 이내로 써 주세요")
+            String sysType) {
     }
 
     /** 사용처 테이블 하나의 건수. */

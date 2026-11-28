@@ -61,15 +61,18 @@ class RetirementOracleTest {
     @Test
     void DB는_예고일이나_서면통지일_없는_해고를_거부한다() {
         long emp = employee();
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO retirement_case (emp_id, retire_reason_code, retire_date,"
-                + " dismissal_notice_date, notice_check, created_by) VALUES (?, 'DISMISSAL', DATE '1903-06-30',"
-                + " DATE '1903-06-01', 'UNKNOWN', 'it')", emp)).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO retirement_case (emp_id, retire_reason_code, retire_date,"
-                + " notice_check, created_by) VALUES (?, 'VOLUNTARY', DATE '1903-06-30', 'OK', 'it')", emp))
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO retirement_case (emp_id, retire_reason_code,"
+                + " retire_reason_type, retire_date, dismissal_notice_date, notice_check, created_by)"
+                + " VALUES (?, 'DISMISSAL', 'DISMISSAL', DATE '1903-06-30', DATE '1903-06-01', 'UNKNOWN', 'it')", emp))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        jdbc.update("INSERT INTO retirement_case (emp_id, retire_reason_code, retire_date, dismissal_notice_date,"
-                + " written_notice_date, notice_check, created_by) VALUES (?, 'DISMISSAL', DATE '1903-06-30',"
-                + " DATE '1903-06-01', DATE '1903-06-01', 'UNKNOWN', 'it')", emp);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO retirement_case (emp_id, retire_reason_code,"
+                + " retire_reason_type, retire_date, notice_check, created_by)"
+                + " VALUES (?, 'VOLUNTARY', 'VOLUNTARY', DATE '1903-06-30', 'OK', 'it')", emp))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        jdbc.update("INSERT INTO retirement_case (emp_id, retire_reason_code, retire_reason_type, retire_date,"
+                + " dismissal_notice_date, written_notice_date, notice_check, created_by)"
+                + " VALUES (?, 'DISMISSAL', 'DISMISSAL', DATE '1903-06-30', DATE '1903-06-01',"
+                + " DATE '1903-06-01', 'UNKNOWN', 'it')", emp);
         assertThat(service.get("C001", emp).notice().check()).isEqualTo(DismissalNoticeChecker.NoticeCheck.UNKNOWN);
     }
 }

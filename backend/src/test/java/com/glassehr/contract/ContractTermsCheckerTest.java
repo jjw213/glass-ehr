@@ -2,6 +2,7 @@ package com.glassehr.contract;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.glassehr.code.CodeSysTypes.EmploymentType;
 import com.glassehr.contract.ContractTermsChecker.MissingTerm;
 import com.glassehr.contract.EmploymentContract.Terms;
 import java.time.LocalDate;
@@ -19,8 +20,32 @@ class ContractTermsCheckerTest {
                 "월~금 각 8시간", "주휴일 일요일", "근로기준법에 따른 연차 유급휴가", "가상시 본사", "백엔드 개발", null);
     }
 
+    /** 테스트 계약의 고용형태 코드값은 처리방식 이름과 같다(#141: 검사기는 처리방식만 본다). */
     private static List<String> codes(Terms t) {
-        return ContractTermsChecker.check(t).stream().map(MissingTerm::code).toList();
+        return ContractTermsChecker.check(t, EmploymentType.valueOf(t.contractTypeCode())).stream()
+                .map(MissingTerm::code).toList();
+    }
+
+    @Test
+    void 기간제_단시간_처리방식은_두_규칙을_함께_적용한다() {
+        // 기간제법 제2조 제1·2호를 함께 적용: 근로시간·휴게(제17조)와 근로일별 근로시간(제17조 제6호) 모두 필수
+        Terms f = full("FIXED_TERM_PART_TIME");
+        assertThat(codes(f)).isEmpty();
+        Terms none = new Terms("FIXED_TERM_PART_TIME", D, D, f.endDate(), f.wageAmount(), f.wageUnitCode(),
+                f.wageComponents(), f.wageCalcMethod(), f.wagePaymentMethod(), 1200, null, null, f.holidayText(),
+                f.leaveText(), f.workPlace(), f.jobDuty(), null);
+        assertThat(codes(none)).containsExactly("WORK_HOURS_BREAK", "WORK_DAYS");
+    }
+
+    @Test
+    void 코드값이_아니라_처리방식으로_판단한다() {
+        Terms p = full("PART_TIME");
+        Terms noDays = new Terms("MY_PART", D, D, p.endDate(), p.wageAmount(), p.wageUnitCode(), p.wageComponents(),
+                p.wageCalcMethod(), p.wagePaymentMethod(), 1200, p.workHoursText(), null, p.holidayText(),
+                p.leaveText(), p.workPlace(), p.jobDuty(), null);
+        assertThat(ContractTermsChecker.check(noDays, EmploymentType.PART_TIME)).extracting(MissingTerm::code)
+                .containsExactly("WORK_DAYS");
+        assertThat(ContractTermsChecker.check(noDays, EmploymentType.REGULAR)).isEmpty();
     }
 
     @Test
@@ -90,7 +115,7 @@ class ContractTermsCheckerTest {
     void 모든_경고에_근거_조문이_있다() {
         Terms empty = new Terms("PART_TIME", D, D, D, null, null, null, null, null, null, null, null, null, null, null,
                 null, null);
-        List<MissingTerm> all = ContractTermsChecker.check(empty);
+        List<MissingTerm> all = ContractTermsChecker.check(empty, EmploymentType.PART_TIME);
         assertThat(all).hasSize(9);
         assertThat(all).allSatisfy(m -> {
             assertThat(m.label()).isNotBlank();

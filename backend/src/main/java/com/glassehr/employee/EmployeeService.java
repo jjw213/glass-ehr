@@ -1,6 +1,7 @@
 package com.glassehr.employee;
 
 import com.glassehr.code.CodeGroups;
+import com.glassehr.code.CodeSysTypes.EmploymentType;
 import com.glassehr.code.CommonCode;
 import com.glassehr.code.CommonCodeRepository;
 import com.glassehr.employee.Employee.BasicInfo;
@@ -39,9 +40,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class EmployeeService {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-
-    /** 고용형태 코드 중 계약기간 종료일이 반드시 있어야 하는 것(기간제법 제2조 제1호: 기간의 정함이 있는 근로계약). */
-    static final String FIXED_TERM = "FIXED_TERM";
 
     private final EmployeeRepository employees;
     private final EmpNoGenerator empNos;
@@ -217,8 +215,9 @@ public class EmployeeService {
         if (i.contractEndDate() != null && i.contractEndDate().isBefore(i.contractStartDate())) {
             throw EmployeeException.badRequest("계약 종료일은 계약 시작일 이후여야 해요");
         }
-        requireCode(enterCd, CodeGroups.EMPLOYMENT_TYPE, i.employmentTypeCode(), "고용형태", true);
-        if (FIXED_TERM.equals(i.employmentTypeCode()) && i.contractEndDate() == null) {
+        CommonCode type = requireCode(enterCd, CodeGroups.EMPLOYMENT_TYPE, i.employmentTypeCode(), "고용형태", true);
+        // 기간제법 제2조 제1호: 기간제근로자(처리방식 FIXED_TERM·FIXED_TERM_PART_TIME, #141)는 계약기간이 있어야 한다
+        if (EmploymentType.of(type).fixedTerm() && i.contractEndDate() == null) {
             throw EmployeeException.badRequest("기간제 근로자는 계약기간(시작일·종료일)을 입력해 주세요");
         }
         requireCode(enterCd, CodeGroups.JOB_FAMILY, i.jobFamilyCode(), "직군", false);
@@ -226,12 +225,12 @@ public class EmployeeService {
     }
 
     /** 그 법인에서 사용 중인 공통코드인지. required=false 이면 null 을 허용한다. */
-    private void requireCode(String enterCd, String group, String code, String label, boolean required) {
+    private CommonCode requireCode(String enterCd, String group, String code, String label, boolean required) {
         if (code == null) {
             if (required) {
                 throw EmployeeException.badRequest(label + "을(를) 선택해 주세요");
             }
-            return;
+            return null;
         }
         CommonCode c = codes.findByEnterCdAndGroupCodeAndCode(enterCd, group, code).orElse(null);
         if (c == null) {
@@ -240,6 +239,7 @@ public class EmployeeService {
         if (!c.isActive()) {
             throw EmployeeException.badRequest("사용하지 않는 " + label + " 코드예요: " + code);
         }
+        return c;
     }
 
     /**

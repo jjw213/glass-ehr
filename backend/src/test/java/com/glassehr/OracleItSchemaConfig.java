@@ -313,6 +313,13 @@ public class OracleItSchemaConfig {
             new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V049__enter_setting.sql"))
                     .execute(dataSource);
         }
+        Integer employmentSysTypes = jdbc.queryForObject("SELECT COUNT(*) FROM common_code"
+                + " WHERE group_code = 'EMPLOYMENT_TYPE' AND process_type IS NOT NULL", Integer.class);
+        if (employmentSysTypes == null || employmentSysTypes == 0) {
+            // #141: 고용형태·퇴직사유 처리방식(common_code.process_type)과 CHECK
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V050__common_code_sys_type.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 

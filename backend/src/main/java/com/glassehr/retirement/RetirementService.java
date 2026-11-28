@@ -1,6 +1,7 @@
 package com.glassehr.retirement;
 
 import com.glassehr.code.CodeGroups;
+import com.glassehr.code.CodeSysTypes.RetirementReason;
 import com.glassehr.code.CommonCode;
 import com.glassehr.code.CommonCodeId;
 import com.glassehr.code.CommonCodeRepository;
@@ -86,10 +87,10 @@ public class RetirementService {
     // ---------------------------------------------------------------- 퇴직 처리
 
     /** 등록 전 화면용 체크리스트 미리보기. 해고는 예고 확인 전이라 수당 검토 항목을 넣어 보여 준다. */
-    public List<ChecklistTemplateItem> template(String reasonCode) {
-        String reason = Objects.requireNonNullElse(reasonCode, "").strip();
-        NoticeCheck check = RetirementChecklist.DISMISSAL.equals(reason) ? NoticeCheck.UNKNOWN : NoticeCheck.NOT_APPLICABLE;
-        return RetirementChecklist.forReason(reason, check).stream()
+    public List<ChecklistTemplateItem> template(String enterCd, String reasonCode) {
+        RetirementReason type = reasonType(enterCd, Objects.requireNonNullElse(reasonCode, "").strip());
+        NoticeCheck check = type == RetirementReason.DISMISSAL ? NoticeCheck.UNKNOWN : NoticeCheck.NOT_APPLICABLE;
+        return RetirementChecklist.forReason(type, check).stream()
                 .map(i -> new ChecklistTemplateItem(i.code(), i.label(), i.legalBasis()))
                 .toList();
     }
@@ -102,7 +103,9 @@ public class RetirementService {
     @Transactional
     public RetirementView register(String enterCd, RetirementRequest req, String actor) {
         String reason = req.reasonCode().strip();
-        boolean dismissal = RetirementChecklist.DISMISSAL.equals(reason);
+        RetirementReason type = reasonType(enterCd, reason);
+        // 근로기준법 제26조·제27조 검사 대상은 처리방식이 해고(DISMISSAL)인 모든 퇴직사유 코드(#141)
+        boolean dismissal = type == RetirementReason.DISMISSAL;
         validateNotice(req, dismissal);
 
         // 근로자 명부 퇴직일·사유·보존기한(근로기준법 제42조) — 사원 잠금·중복 퇴직·사유 코드 검사 포함
@@ -118,11 +121,11 @@ public class RetirementService {
                 ? noticeChecker.check(e.getHireDate(), req.dismissalNoticeDate(), req.retireDate(), req.noticeExempt())
                 : new Result(NoticeCheck.NOT_APPLICABLE, null, null, null, List.of());
         LocalDateTime now = now();
-        RetirementCase c = cases.saveAndFlush(new RetirementCase(e.getEnterCd(), req.empId(), reason, req.retireDate(),
-                req.dismissalNoticeDate(), req.writtenNoticeDate(), req.noticeExempt(), notice.check(),
+        RetirementCase c = cases.saveAndFlush(new RetirementCase(e.getEnterCd(), req.empId(), reason, type,
+                req.retireDate(), req.dismissalNoticeDate(), req.writtenNoticeDate(), req.noticeExempt(), notice.check(),
                 notice.noticeDays(), notice.shortfallDays(), actor, now));
         List<RetirementChecklistItem> items = new ArrayList<>();
-        for (RetirementChecklist.Item t : RetirementChecklist.forReason(reason, notice.check())) {
+        for (RetirementChecklist.Item t : RetirementChecklist.forReason(type, notice.check())) {
             RetirementChecklistItem i = new RetirementChecklistItem(c.getEnterCd(), c.getCaseId(), t);
             if (RetirementChecklist.autoDone(t.code())) {
                 i.mark(true, "등록 시 입력(예고일·서면통지일)", actor, now);
@@ -131,6 +134,16 @@ public class RetirementService {
         }
         checklist.saveAll(items);
         return view(c, e, items, notice.warnings());
+    }
+
+    /**
+     * 퇴직사유 코드 → 처리방식(#141). 공통코드는 법인별이라 그 법인에서 찾고, 없으면 400.
+     * 사용 안 함 여부는 근로자 명부 기록({@link EmployeeService#retire})이 검사한다.
+     */
+    private RetirementReason reasonType(String enterCd, String reasonCode) {
+        CommonCode c = codes.findByEnterCdAndGroupCodeAndCode(enterCd, CodeGroups.RETIREMENT_REASON, reasonCode)
+                .orElseThrow(() -> RetirementException.badRequest("없는 퇴직사유 코드예요: " + reasonCode));
+        return RetirementReason.of(c);
     }
 
     private static void validateNotice(RetirementRequest req, boolean dismissal) {

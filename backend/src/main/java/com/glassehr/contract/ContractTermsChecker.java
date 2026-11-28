@@ -1,5 +1,6 @@
 package com.glassehr.contract;
 
+import com.glassehr.code.CodeSysTypes.EmploymentType;
 import com.glassehr.contract.EmploymentContract.Terms;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,9 +20,6 @@ import java.util.List;
  */
 public final class ContractTermsChecker {
 
-    static final String FIXED_TERM = "FIXED_TERM";
-    static final String PART_TIME = "PART_TIME";
-
     /** 누락된 명시사항. code 는 화면이 쓰는 키, basis 는 근거 조문. */
     public record MissingTerm(String code, String label, String basis) {
     }
@@ -29,9 +27,13 @@ public final class ContractTermsChecker {
     private ContractTermsChecker() {
     }
 
-    public static List<MissingTerm> check(Terms t) {
+    /**
+     * @param type 계약 고용형태 코드(t.contractTypeCode())의 처리방식(#141). 코드값이 아니라 처리방식으로 판단한다.
+     */
+    public static List<MissingTerm> check(Terms t, EmploymentType type) {
         List<MissingTerm> out = new ArrayList<>();
-        boolean fixedOrPart = FIXED_TERM.equals(t.contractTypeCode()) || PART_TIME.equals(t.contractTypeCode());
+        // 기간제법 제17조: 기간제근로자(제2조 제1호)·단시간근로자(제2조 제2호)에게 서면 명시
+        boolean fixedOrPart = type.fixedTerm() || type.partTime();
         if (t.wageAmount() == null || t.wageUnitCode() == null) {
             out.add(new MissingTerm("WAGE", "임금(금액·지급 단위)", "근로기준법 제17조 제1항 제1호"));
         }
@@ -61,7 +63,7 @@ public final class ContractTermsChecker {
             out.add(new MissingTerm("JOB_DUTY", "종사하여야 할 업무", fixedOrPart
                     ? "근로기준법 시행령 제8조 제1호, 기간제법 제17조 제5호" : "근로기준법 시행령 제8조 제1호"));
         }
-        if (PART_TIME.equals(t.contractTypeCode()) && blank(t.workDaysText())) {
+        if (type.partTime() && blank(t.workDaysText())) {
             out.add(new MissingTerm("WORK_DAYS", "근로일 및 근로일별 근로시간", "기간제법 제17조 제6호"));
         }
         return List.copyOf(out);

@@ -1,6 +1,7 @@
 package com.glassehr.contract;
 
 import com.glassehr.code.CodeGroups;
+import com.glassehr.code.CodeSysTypes.EmploymentType;
 import com.glassehr.code.CommonCode;
 import com.glassehr.code.CommonCodeId;
 import com.glassehr.code.CommonCodeRepository;
@@ -22,6 +23,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,12 +83,14 @@ public class ContractService {
 
     public List<ContractView> list(String enterCd, long empId) {
         loadEmployee(enterCd, empId);
-        return contracts.findByEnterCdAndEmpIdOrderByStartDateAsc(enterCd, empId).stream().map(ContractView::of)
+        Function<String, EmploymentType> typeOf = typesOf(enterCd);
+        return contracts.findByEnterCdAndEmpIdOrderByStartDateAsc(enterCd, empId).stream()
+                .map(c -> ContractView.of(c, typeOf.apply(c.getContractTypeCode())))
                 .toList();
     }
 
     public ContractView get(String enterCd, long contractId) {
-        return ContractView.of(load(enterCd, contractId));
+        return view(load(enterCd, contractId));
     }
 
     // ---------------------------------------------------------------- 등록·수정
@@ -113,7 +117,7 @@ public class ContractService {
             throw overlap(other);
         }
         EmploymentContract c = contracts.saveAndFlush(new EmploymentContract(e.getEnterCd(), empId, t, now));
-        return ContractView.of(c);
+        return view(c);
     }
 
     /** 서면 교부 전 계약만 고친다. 교부 뒤 변경은 새 계약으로 등록한다(교부한 서면과 기록이 달라지지 않게). */
@@ -134,7 +138,7 @@ public class ContractService {
         }
         c.update(t, now());
         contracts.saveAndFlush(c);
-        return ContractView.of(c);
+        return view(c);
     }
 
     /** 서면 교부일 기록(근로기준법 제17조 제2항, 기간제법 제17조). 한 번 기록하면 바꾸지 않는다. */
@@ -153,7 +157,7 @@ public class ContractService {
         }
         c.recordDelivery(req.deliveredDate(), now());
         contracts.saveAndFlush(c);
-        return ContractView.of(c);
+        return view(c);
     }
 
     // ---------------------------------------------------------------- 목록·알림
@@ -191,6 +195,7 @@ public class ContractService {
                 .collect(Collectors.groupingBy(EmploymentContract::getEmpId, LinkedHashMap::new, Collectors.toList()));
         Map<Long, Employee> emps = employees.findByEnterCdAndEmpIdIn(enterCd, byEmp.keySet()).stream()
                 .collect(Collectors.toMap(Employee::getEmpId, Function.identity()));
+        Function<String, EmploymentType> typeOf = typesOf(enterCd);
         List<AlertRow> out = new ArrayList<>();
         byEmp.forEach((empId, list) -> {
             Employee e = emps.get(empId);
@@ -206,8 +211,9 @@ public class ContractService {
                     out.add(row(AlertType.CONTRACT_EXPIRING, e, last, null, last.getEndDate(), days));
                 }
             }
-            if (ContractTermsChecker.FIXED_TERM.equals(last.getContractTypeCode())) {
-                LocalDate continuousStart = continuousFixedTermStart(list);
+            // 기간제법 제4조: 기간제근로자(처리방식 FIXED_TERM·FIXED_TERM_PART_TIME) 사용기간 상한
+            if (typeOf.apply(last.getContractTypeCode()).fixedTerm()) {
+                LocalDate continuousStart = continuousFixedTermStart(list, typeOf);
                 Optional<LocalDate> lastDay = useLimit.lastDayWithinLimit(continuousStart);
                 if (lastDay.isEmpty()) {
                     out.add(row(AlertType.FIXED_TERM_LIMIT_UNKNOWN, e, last, continuousStart, null, null));
@@ -229,12 +235,13 @@ public class ContractService {
      * 마지막 계약에서 거슬러 올라가며, 앞 계약이 기간제이고 종료일 다음 날까지 다음 계약이 시작하면(공백 없음) 이어진 것으로 본다.
      * 공백이 있으면 그 뒤부터 다시 센다. 기간제법 제4조 제1항 "계속근로한 총기간"의 공백 판단 기준은 미결(docs 4장) — 지금은 공백 0일만 이어짐.
      */
-    static LocalDate continuousFixedTermStart(List<EmploymentContract> sortedByStart) {
+    static LocalDate continuousFixedTermStart(List<EmploymentContract> sortedByStart,
+            Function<String, EmploymentType> typeOf) {
         int i = sortedByStart.size() - 1;
         LocalDate start = sortedByStart.get(i).getStartDate();
         while (i > 0) {
             EmploymentContract prev = sortedByStart.get(i - 1);
-            boolean fixed = ContractTermsChecker.FIXED_TERM.equals(prev.getContractTypeCode());
+            boolean fixed = typeOf.apply(prev.getContractTypeCode()).fixedTerm();
             if (!fixed || prev.getEndDate() == null || prev.getEndDate().plusDays(1).isBefore(start)) {
                 break;
             }
@@ -290,12 +297,12 @@ public class ContractService {
     }
 
     private void validate(Terms t, Employee e) {
-        requireEmploymentType(e.getEnterCd(), t.contractTypeCode());
+        EmploymentType type = EmploymentType.of(requireEmploymentType(e.getEnterCd(), t.contractTypeCode()));
         if (t.endDate() != null && t.endDate().isBefore(t.startDate())) {
             throw ContractException.badRequest("계약 종료일은 계약 시작일 이후여야 해요");
         }
         // 기간제법 제2조 제1호: 기간의 정함이 있는 근로계약. 종료일이 없으면 사용기간 계산·만료 알림을 할 수 없다.
-        if (ContractTermsChecker.FIXED_TERM.equals(t.contractTypeCode()) && t.endDate() == null) {
+        if (type.fixedTerm() && t.endDate() == null) {
             throw ContractException.badRequest("기간제 계약은 계약 종료일을 입력해 주세요");
         }
         if (t.startDate().isBefore(e.getHireDate())) {
@@ -307,7 +314,7 @@ public class ContractService {
     }
 
     /** 공통코드는 법인별(#121)이라 사원의 법인에서 찾는다. */
-    private void requireEmploymentType(String enterCd, String code) {
+    private CommonCode requireEmploymentType(String enterCd, String code) {
         CommonCode c = codes.findByEnterCdAndGroupCodeAndCode(enterCd, CodeGroups.EMPLOYMENT_TYPE, code)
                 .orElse(null);
         if (c == null) {
@@ -316,6 +323,22 @@ public class ContractService {
         if (!c.isActive()) {
             throw ContractException.badRequest("사용하지 않는 고용형태 코드예요: " + code);
         }
+        return c;
+    }
+
+    /**
+     * 고용형태 코드 → 처리방식(#141). 로직은 코드값이 아니라 처리방식을 본다. 사용 안 함 코드도 처리방식은 그대로 쓴다.
+     * 계약이 참조하는 코드는 삭제할 수 없어(CodeReferences) 없으면 데이터 오류다.
+     */
+    private Function<String, EmploymentType> typesOf(String enterCd) {
+        Map<String, EmploymentType> cache = new HashMap<>();
+        return code -> cache.computeIfAbsent(code, k -> EmploymentType.of(
+                codes.findByEnterCdAndGroupCodeAndCode(enterCd, CodeGroups.EMPLOYMENT_TYPE, k)
+                        .orElseThrow(() -> new IllegalStateException("없는 고용형태 코드예요: " + enterCd + "/" + k))));
+    }
+
+    private ContractView view(EmploymentContract c) {
+        return ContractView.of(c, typesOf(c.getEnterCd()).apply(c.getContractTypeCode()));
     }
 
     private static ContractException overlap(EmploymentContract other) {

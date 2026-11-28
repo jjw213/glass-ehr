@@ -169,6 +169,10 @@ public class EmploymentContract {
         return empId;
     }
 
+    public String getEnterCd() {
+        return enterCd;
+    }
+
     public String getContractTypeCode() {
         return contractTypeCode;
     }
