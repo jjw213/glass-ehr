@@ -51,7 +51,7 @@ class LoginControllerTest {
     }
 
     private static LoginService.Result ok(String ent, String id) {
-        return new LoginService.Result(LoginService.Outcome.SUCCESS, ent, id, null);
+        return new LoginService.Result(LoginService.Outcome.SUCCESS, ent, id, "T001", null);
     }
 
     private MockHttpSession loginAs(String id) throws Exception {
@@ -68,8 +68,10 @@ class LoginControllerTest {
         assertThat(s.getAttribute(AuthInterceptor.SESSION_LOGIN_ID)).isEqualTo("hr1");
         assertThat(s.getAttribute(AuthInterceptor.SESSION_ENTER_CD)).isEqualTo(A);
         assertThat(s.getAttribute(AuthInterceptor.SESSION_CURRENT_ENTER_CD)).isEqualTo(A);
+        assertThat(s.getAttribute(AuthInterceptor.SESSION_TENANT_ID)).isEqualTo("T001");
         assertThat(s.getAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME)).isEqualTo("C001:hr1");
         mvc.perform(get("/api/auth/me").session(s)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.tenantId").value("T001"))
                 .andExpect(jsonPath("$.loginId").value("hr1"))
                 .andExpect(jsonPath("$.enterCd").value(A))
                 .andExpect(jsonPath("$.homeEnterCd").value(A));
@@ -112,21 +114,30 @@ class LoginControllerTest {
         verify(service, never()).login(any(), any(), any(), any());
 
         when(service.login(eq(A), eq("hr1"), eq("bad"), any()))
-                .thenReturn(new LoginService.Result(LoginService.Outcome.BAD_CREDENTIALS, A, "hr1", null));
+                .thenReturn(new LoginService.Result(LoginService.Outcome.BAD_CREDENTIALS, A, "hr1", null, null));
         mvc.perform(login(body(A, "hr1", "bad"))).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("아이디 또는 비밀번호가 맞지 않아요"));
 
         when(service.login(eq(A), eq("hr1"), eq("bad2"), any())).thenReturn(new LoginService.Result(
-                LoginService.Outcome.LOCKED, A, "hr1", LocalDateTime.of(2026, 11, 19, 9, 30)));
+                LoginService.Outcome.LOCKED, A, "hr1", null, LocalDateTime.of(2026, 11, 19, 9, 30)));
         var res = mvc.perform(login(body(A, "hr1", "bad2"))).andExpect(status().isLocked()).andReturn();
         assertThat(res.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).contains("09:30");
         assertThat(res.getRequest().getSession(false)).isNull();
     }
 
     @Test
+    void 고객사가_정지되면_안내_문구와_401이고_세션을_만들지_않는다() throws Exception {
+        when(service.login(eq(A), eq("hr1"), anyString(), any()))
+                .thenReturn(new LoginService.Result(LoginService.Outcome.TENANT_UNAVAILABLE, A, "hr1", null, null));
+        var res = mvc.perform(login(body(A, "hr1", "pw"))).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value(TenantUnavailableException.MESSAGE)).andReturn();
+        assertThat(res.getRequest().getSession(false)).isNull();
+    }
+
+    @Test
     void 없는_법인은_아이디_불일치와_같은_401_응답() throws Exception {
         when(service.login(eq("C999"), eq("hr1"), anyString(), any()))
-                .thenReturn(new LoginService.Result(LoginService.Outcome.BAD_CREDENTIALS, "C999", "hr1", null));
+                .thenReturn(new LoginService.Result(LoginService.Outcome.BAD_CREDENTIALS, "C999", "hr1", null, null));
         var res = mvc.perform(login(body("C999", "hr1", "pw"))).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("아이디 또는 비밀번호가 맞지 않아요")).andReturn();
         assertThat(res.getRequest().getSession(false)).isNull();

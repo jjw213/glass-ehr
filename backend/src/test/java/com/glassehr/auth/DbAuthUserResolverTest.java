@@ -1,6 +1,7 @@
 package com.glassehr.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
@@ -52,6 +53,10 @@ class DbAuthUserResolverTest {
     @BeforeEach
     void setUp() {
         when(gate.allows(A)).thenReturn(true);
+        // C001·C002 는 이용 중인 고객사 T001 소속(#151).
+        when(gate.tenantOf(A)).thenReturn("T001");
+        when(gate.tenantOf("C002")).thenReturn("T001");
+        when(gate.tenantUsable("T001")).thenReturn(true);
         when(org.today()).thenReturn(TODAY);
         // 부서장 범위는 계정 법인(A)의 조직도에서만 계산한다(#122). 다른 법인 조직도는 부르지 않는다.
         when(org.tree(A, TODAY)).thenReturn(TREE);
@@ -90,8 +95,21 @@ class DbAuthUserResolverTest {
     void 현재_법인과_주체_법인은_로그인한_법인이다() {
         when(users.find(A, "emp")).thenReturn(Optional.of(new AppUser(A, "emp", 50L, true, Set.of())));
         AuthUser u = resolver.resolve(A, "emp", null).orElseThrow();
+        assertThat(u.tenantId()).isEqualTo("T001");
         assertThat(u.enterCd()).isEqualTo(A);
         assertThat(u.homeEnterCd()).isEqualTo(A);
+    }
+
+    @Test
+    void 고객사가_이용_불가면_남은_세션도_거부하고_다른_고객사_법인으로는_전환되지_않는다() {
+        when(users.find(A, "grp")).thenReturn(Optional.of(new AppUser(A, "grp", null, true, Set.of("GROUP_ADMIN"))));
+        when(gate.allows("D001")).thenReturn(true);
+        when(gate.tenantOf("D001")).thenReturn("T002");
+        assertThat(resolver.resolve(A, "grp", "D001", null)).isEmpty();
+
+        when(gate.tenantUsable("T001")).thenReturn(false);
+        assertThatThrownBy(() -> resolver.resolve(A, "grp", null))
+                .isInstanceOf(TenantUnavailableException.class);
     }
 
     @Test
