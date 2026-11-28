@@ -14,8 +14,10 @@ import org.springframework.core.io.ClassPathResource;
 class WorkHoursSchemaScriptTest {
 
     private static String sql() throws IOException {
-        return new ClassPathResource("db/oracle/V023__attendance_daily_summary.sql")
-                .getContentAsString(StandardCharsets.UTF_8)
+        return (new ClassPathResource("db/oracle/V023__attendance_daily_summary.sql")
+                .getContentAsString(StandardCharsets.UTF_8) + "\n"
+                + new ClassPathResource("db/oracle/V048__daily_summary_recognized_minutes.sql")
+                .getContentAsString(StandardCharsets.UTF_8))
                 .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
     }
 
@@ -39,10 +41,10 @@ class WorkHoursSchemaScriptTest {
     }
 
     @Test
-    void 사원_근무일마다_한_행이고_분류_합이_실근로와_같다() throws IOException {
+    void 사원_근무일마다_한_행이고_분류_합이_인정시간과_같다() throws IOException {
         assertThat(sql()).contains("PRIMARY KEY (emp_id, work_date)")
-                .contains("worked_minutes = regular_minutes + extra_minutes + overtime_minutes + holiday_minutes\n"
-                        + "            + holiday_excess_minutes");
+                .contains("recognized_minutes = regular_minutes + extra_minutes + overtime_minutes\n"
+                        + "        + holiday_minutes + holiday_excess_minutes");
     }
 
     @Test

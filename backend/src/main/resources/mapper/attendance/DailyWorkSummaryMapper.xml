@@ -16,6 +16,7 @@
       <arg column="work_end" javaType="java.time.LocalDateTime"/>
       <arg column="break_minutes" javaType="java.lang.Integer"/>
       <arg column="worked_minutes" javaType="java.lang.Integer"/>
+      <arg column="recognized_minutes" javaType="java.lang.Integer"/>
       <arg column="regular_minutes" javaType="java.lang.Integer"/>
       <arg column="extra_minutes" javaType="java.lang.Integer"/>
       <arg column="overtime_minutes" javaType="java.lang.Integer"/>
@@ -43,7 +44,7 @@
   <insert id="insert">
     INSERT INTO attendance_daily_summary (
         enter_cd, emp_id, work_date, day_kind, pattern_id, contract_minutes, leave_kind, leave_minutes,
-        work_start, work_end, break_minutes, worked_minutes, regular_minutes, extra_minutes, overtime_minutes,
+        work_start, work_end, break_minutes, worked_minutes, recognized_minutes, regular_minutes, extra_minutes, overtime_minutes,
         night_minutes, holiday_minutes, holiday_excess_minutes,
         overtime_rate, night_rate, holiday_rate, holiday_excess_rate,
         issues, calculated_by, calculated_at)
@@ -51,7 +52,7 @@
         #{enterCd}, #{row.empId}, #{row.workDate, jdbcType=DATE}, #{row.dayKind}, #{row.patternId, jdbcType=NUMERIC},
         #{row.contractMinutes}, #{row.leaveKind, jdbcType=VARCHAR}, #{row.leaveMinutes},
         #{row.workStart, jdbcType=TIMESTAMP}, #{row.workEnd, jdbcType=TIMESTAMP},
-        #{row.breakMinutes}, #{row.workedMinutes}, #{row.regularMinutes}, #{row.extraMinutes}, #{row.overtimeMinutes},
+        #{row.breakMinutes}, #{row.workedMinutes}, #{row.recognizedMinutes}, #{row.regularMinutes}, #{row.extraMinutes}, #{row.overtimeMinutes},
         #{row.nightMinutes}, #{row.holidayMinutes}, #{row.holidayExcessMinutes},
         #{row.overtimeRate}, #{row.nightRate}, #{row.holidayRate}, #{row.holidayExcessRate},
         #{row.issues, jdbcType=VARCHAR}, #{row.calculatedBy}, #{row.calculatedAt, jdbcType=TIMESTAMP})
@@ -59,7 +60,7 @@
 
   <select id="findRange" resultMap="row">
     SELECT emp_id, work_date, day_kind, pattern_id, contract_minutes, leave_kind, leave_minutes,
-           work_start, work_end, break_minutes, worked_minutes, regular_minutes, extra_minutes, overtime_minutes,
+           work_start, work_end, break_minutes, worked_minutes, recognized_minutes, regular_minutes, extra_minutes, overtime_minutes,
            night_minutes, holiday_minutes, holiday_excess_minutes,
            overtime_rate, night_rate, holiday_rate, holiday_excess_rate,
            issues, calculated_by, calculated_at

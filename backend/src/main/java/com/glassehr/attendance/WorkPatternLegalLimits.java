@@ -48,6 +48,15 @@ public class WorkPatternLegalLimits {
         return limits;
     }
 
+    /**
+     * 근로기준법 제53조 제1항: 1주 연장근로 한도(legal_rate {@link LegalRateItem#WEEKLY_OVERTIME_LIMIT_HOURS}, 분).
+     * 근무 정책(#159) 한도 검사에 쓴다. 값이 없으면 LegalRateException.
+     */
+    public int weeklyOvertimeLimitMinutes(LocalDate date) {
+        Objects.requireNonNull(date, "date");
+        return hoursAsMinutes(LegalRateItem.WEEKLY_OVERTIME_LIMIT_HOURS, date);
+    }
+
     private int hoursAsMinutes(LegalRateItem item, LocalDate date) {
         LegalRateRow row = legalRates.getEffective(item, date);
         return positiveInt(row, row.rateValue().multiply(MINUTES_PER_HOUR));

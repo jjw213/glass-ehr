@@ -50,7 +50,13 @@ public final class WorkPatternRules {
         DAILY_LIMIT_EXCEEDED,
         WEEKLY_LIMIT_EXCEEDED,
         BREAK_INSUFFICIENT,
-        WEEKLY_HOLIDAY_REQUIRED
+        WEEKLY_HOLIDAY_REQUIRED,
+        /** 근무 정책(#159) 형식 오류. */
+        INVALID_POLICY,
+        /** 근무 정책의 연장·휴일 한도가 법정 1주 연장 한도를 넘음(근로기준법 제53조 제1항). */
+        POLICY_OVERTIME_LIMIT_EXCEEDED,
+        /** 근무 정책의 1일 연장 한도까지 일하면 근무유형 휴게가 모자람(근로기준법 제54조 제1항). */
+        POLICY_BREAK_INSUFFICIENT
     }
 
     public record Violation(Code code, String message) {
