@@ -16,6 +16,12 @@ class WorkPatternSchemaScriptTest {
                 .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
     }
 
+    private static String fullTimeBaselineMigrationSql() throws IOException {
+        return new ClassPathResource("db/oracle/V045__work_pattern_full_time_baseline.sql")
+                .getContentAsString(StandardCharsets.UTF_8)
+                .lines().map(l -> l.replaceFirst("--.*$", "")).collect(Collectors.joining("\n"));
+    }
+
     @Test
     void DDL에_중괄호가_없다() throws IOException {
         // Oracle JDBC 가 {..}를 SQL92 escape 로 해석한다(V006 참고).
@@ -48,5 +54,12 @@ class WorkPatternSchemaScriptTest {
         // 한도·휴게 기준은 legal_rate 에서 읽는다. 시각 범위(0~1439)와 요일 수(7) 외의 숫자 CHECK 가 없어야 한다.
         assertThat(sql()).doesNotContainPattern("(?i)minutes\\s*(<=|<|>=)\\s*\\d")
                 .doesNotContainPattern("(?i)break_minutes\\s*>=\\s*\\d");
+    }
+
+    @Test
+    void 통상근로자_기준_YN은_JPA_변환기와_같은_VARCHAR2를_쓴다() throws IOException {
+        assertThat(fullTimeBaselineMigrationSql())
+                .contains("full_time_baseline_yn VARCHAR2(1 CHAR)")
+                .doesNotContain("full_time_baseline_yn CHAR(1 CHAR)");
     }
 }

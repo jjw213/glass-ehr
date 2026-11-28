@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   contractMinutes, createMockWorkPatternApi, duration, parseHm, toHm, validateWorkPattern,
-  type WorkPatternApi, type WorkPatternInput,
+  WORKER_TYPE_LABEL, WORKER_TYPE_NOTICE, type WorkPatternApi, type WorkPatternInput,
 } from '../api/workPatterns';
 import { canManageWorkPatterns, navFor } from '../nav';
 import { WorkPatternManager } from './WorkPatternsPage';
@@ -22,7 +22,7 @@ const byLabel = (host: HTMLElement, label: string) => host.querySelector<HTMLEle
 
 const base: WorkPatternInput = {
   patternCode: 'DAY2', patternName: '주간', workStartMin: 540, workEndMin: 1080, breakStartMin: 720, breakMinutes: 60,
-  dayTypes: 'WWWWWOH', active: true, note: null,
+  dayTypes: 'WWWWWOH', fullTimeBaseline: false, active: true, note: null,
 };
 
 describe('근무유형 메뉴 권한', () => {
@@ -74,6 +74,16 @@ describe('WorkPatternManager', () => {
     return { api, toast };
   }
 
+  it('적용 근로자 유형: 초단시간은 주휴·연차 미적용 안내, 데모(서버 판정 없음)는 미지정', async () => {
+    expect(WORKER_TYPE_LABEL.ULTRA_SHORT).toBe('초단시간');
+    expect(WORKER_TYPE_NOTICE.ULTRA_SHORT).toContain('제18조 제3항');
+    expect(WORKER_TYPE_NOTICE.PART_TIME).toContain('비례');
+    expect(WORKER_TYPE_NOTICE.FULL_TIME).toBeNull();
+    await mount();
+    expect(host.querySelector('thead')!.textContent).toContain('적용 근로자 유형');
+    expect(host.querySelector('tbody tr')!.textContent).toContain('미지정');
+  });
+
   it('목록에 소정근로시간과 주휴일을 보인다', async () => {
     await mount();
     const codes = [...host.querySelectorAll('tbody code')].map((c) => c.textContent);
@@ -96,6 +106,18 @@ describe('WorkPatternManager', () => {
     expect(check).toHaveBeenCalledOnce();
     expect(toast).toHaveBeenCalledWith('근무유형 NIGHT를 추가했어요');
     expect((await api.list()).map((r) => r.patternCode)).toContain('NIGHT');
+  });
+
+  it('통상근로자 비교 기준을 등록하고 기존 지정 상태를 표시한다', async () => {
+    const api = createMockWorkPatternApi();
+    await mount(api);
+    await act(async () => { byLabel(host, '주간 근무 수정').click(); });
+    const baseline = byLabel(host, '통상근로자 비교 기준');
+    expect(baseline.getAttribute('aria-checked')).toBe('true');
+    await act(async () => { baseline.click(); });
+    await act(async () => { host.querySelector<HTMLFormElement>('.modal form')!.requestSubmit(); });
+    await flush();
+    expect((await api.list()).find((r) => r.patternCode === 'DAY')!.fullTimeBaseline).toBe(false);
   });
 
   it('주휴일을 지정하지 않으면 저장하지 않는다', async () => {

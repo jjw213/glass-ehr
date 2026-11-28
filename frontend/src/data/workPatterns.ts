@@ -13,6 +13,6 @@ const p = (patternId: number, i: WorkPatternInput, assigned: boolean): WorkPatte
 };
 
 export const WORK_PATTERNS: WorkPattern[] = [
-  p(1, { patternCode: 'DAY', patternName: '주간 근무', workStartMin: 540, workEndMin: 1080, breakStartMin: 720, breakMinutes: 60, dayTypes: 'WWWWWOH', active: true, note: null }, true),
-  p(2, { patternCode: 'PART_AM', patternName: '오전 단시간', workStartMin: 540, workEndMin: 780, breakStartMin: null, breakMinutes: 0, dayTypes: 'WWWWWOH', active: true, note: '단시간근로자용 예시' }, false),
+  p(1, { patternCode: 'DAY', patternName: '주간 근무', workStartMin: 540, workEndMin: 1080, breakStartMin: 720, breakMinutes: 60, dayTypes: 'WWWWWOH', fullTimeBaseline: true, active: true, note: null }, true),
+  p(2, { patternCode: 'PART_AM', patternName: '오전 단시간', workStartMin: 540, workEndMin: 780, breakStartMin: null, breakMinutes: 0, dayTypes: 'WWWWWOH', fullTimeBaseline: false, active: true, note: '단시간근로자용 예시' }, false),
 ];
