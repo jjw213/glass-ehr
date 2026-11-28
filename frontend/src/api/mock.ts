@@ -99,7 +99,7 @@ export const mockApi: Api = {
     const self = DEMO_EMPLOYEES.find((e) => e.empId === DEMO_SELF_EMP_ID);
     const auth: AuthMe = {
       enterCd: currentEnter, homeEnterCd: DEMO_HOME_ENTER,
-      loginId: ME.loginId, empId: DEMO_SELF_EMP_ID, roles: ['GROUP_ADMIN', 'HR'], permissions: ['EMP_READ_ALL', 'EMP_WRITE', 'ENTER_SWITCH'], managedDeptIds: [],
+      loginId: ME.loginId, empId: DEMO_SELF_EMP_ID, roles: ['GROUP_ADMIN', 'HR'], permissions: ['EMP_READ_ALL', 'EMP_WRITE', 'ENTER_SWITCH', 'ENTER_COMPANY_MANAGE'], managedDeptIds: [],
     };
     const now = new Date();
     const dashboard: DashboardSummary = {

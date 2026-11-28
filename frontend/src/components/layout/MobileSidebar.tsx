@@ -34,7 +34,7 @@ export function MobileSidebar() {
 
   const badgeFor = (id: string) => (id === 'approvals' ? pendingCount : id === 'messages' ? unreadCount : 0);
   const groupBadge = (g: NavGroup) => g.items.reduce((sum, n) => sum + badgeFor(n.id), 0);
-  const groups = useMemo(() => navGroupsFor(me.role), [me.role]);
+  const groups = useMemo(() => navGroupsFor(me.role, me.permissions), [me.role, me.permissions]);
   const activeKey: string = page;
 
   /* ----- open / close ----- */

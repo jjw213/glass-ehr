@@ -24,6 +24,7 @@ import { OvertimePage } from '../../pages/OvertimePage';
 import { ApprovalInboxPage } from '../../pages/ApprovalInboxPage';
 import { AttendanceCodesPage } from '../../pages/AttendanceCodesPage';
 import { EnterSettingsPage } from '../../pages/EnterSettingsPage';
+import { EnterCompaniesPage } from '../../pages/EnterCompaniesPage';
 import { useEffect, useState, type JSX } from 'react';
 
 const PAGES: Record<PageId, () => JSX.Element> = {
@@ -48,6 +49,7 @@ const PAGES: Record<PageId, () => JSX.Element> = {
   approvalInbox: ApprovalInboxPage,
   attendanceCodes: AttendanceCodesPage,
   enterSettings: EnterSettingsPage,
+  enterCompanies: EnterCompaniesPage,
 };
 
 /** Desktop: top pill bar + floating dock (video 2). Mobile: glass sidebar (video 3). */

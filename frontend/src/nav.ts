@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen, LuArrowLeftRight, LuTimer, LuInbox, LuBaby, LuCalendarCheck, LuBriefcase, LuWrench, LuSlidersHorizontal } from 'react-icons/lu';
+import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen, LuArrowLeftRight, LuTimer, LuInbox, LuBaby, LuCalendarCheck, LuBriefcase, LuWrench, LuSlidersHorizontal, LuBuilding2 } from 'react-icons/lu';
 import type { Role } from './api/types';
 import type { PageId } from './state/store';
 
@@ -34,6 +34,8 @@ export interface NavItem {
   top?: boolean;
   /** only these roles see the menu (unset = everyone) */
   roles?: Role[];
+  /** 이 서버 권한이 있는 사용자만 메뉴를 본다(roles 와 함께 적용). 예: 그룹 관리자 ENTER_COMPANY_MANAGE */
+  permission?: string;
 }
 
 /** Single source of truth for desktop top bar, desktop dock and mobile sidebar. 같은 대메뉴 안에서는 이 순서대로 보인다. */
@@ -63,12 +65,17 @@ export const NAV: NavItem[] = [
   // 시스템관리
   { id: 'codes', label: '공통코드 관리', short: '코드', icon: LuListTree, module: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'enterSettings', label: '회사 설정', short: '회사설정', icon: LuSlidersHorizontal, module: 'system', roles: ['HR', 'ADMIN'] },
+  { id: 'enterCompanies', label: '법인 관리', short: '법인', icon: LuBuilding2, module: 'system', permission: 'ENTER_COMPANY_MANAGE' },
   { id: 'privacyLogs', label: '개인정보 조회 로그', short: '로그', icon: LuShieldCheck, module: 'system', roles: ['ADMIN'] },
   { id: 'settings', label: '설정', short: '설정', icon: LuSettings, module: 'settings' },
 ];
 
-/** Menus the signed-in role may see. */
-export const navFor = (role: Role) => NAV.filter((n) => !n.roles || n.roles.includes(role));
+/** Menus the signed-in role (and server permissions) may see. */
+export const navFor = (role: Role, permissions: readonly string[] = []) =>
+  NAV.filter((n) => (!n.roles || n.roles.includes(role)) && (!n.permission || permissions.includes(n.permission)));
+
+/** 법인 관리(목록·추가·사용 중지)를 하는 그룹 관리자(#130). 메뉴 표시용이며 실제 차단은 서버 ENTER_COMPANY_MANAGE 검사가 한다. */
+export const canManageEnterCompanies = (permissions: readonly string[]) => permissions.includes('ENTER_COMPANY_MANAGE');
 
 /** 공통코드를 관리하는 역할(인사담당자·관리자). */
 export const canManageCodes = (role: Role) => navFor(role).some((n) => n.id === 'codes');
@@ -119,8 +126,8 @@ export interface NavGroup {
 }
 
 /** 역할별 대메뉴 → 중메뉴 묶음. 중메뉴마다 roles 를 적용하고, 볼 수 있는 중메뉴가 없는 대메뉴는 뺀다. */
-export const navGroupsFor = (role: Role): NavGroup[] => {
-  const items = navFor(role);
+export const navGroupsFor = (role: Role, permissions: readonly string[] = []): NavGroup[] => {
+  const items = navFor(role, permissions);
   return MODULES
     .map((module) => ({ module, items: items.filter((n) => n.module === module.id) }))
     .filter((g) => g.items.length > 0);

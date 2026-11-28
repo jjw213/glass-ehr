@@ -18,7 +18,7 @@ export function DesktopNav() {
 
   const badgeFor = (id: string) => (id === 'approvals' ? pendingCount : id === 'messages' ? unreadCount : 0);
   const groupBadge = (g: NavGroup) => g.items.reduce((sum, n) => sum + badgeFor(n.id), 0);
-  const groups = navGroupsFor(me.role);
+  const groups = navGroupsFor(me.role, me.permissions);
 
   // 바깥을 누르거나 Esc 를 누르면 중메뉴 목록을 닫는다
   useEffect(() => {
