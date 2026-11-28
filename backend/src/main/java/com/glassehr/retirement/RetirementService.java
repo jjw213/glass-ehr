@@ -121,8 +121,8 @@ public class RetirementService {
                 ? noticeChecker.check(e.getHireDate(), req.dismissalNoticeDate(), req.retireDate(), req.noticeExempt())
                 : new Result(NoticeCheck.NOT_APPLICABLE, null, null, null, List.of());
         LocalDateTime now = now();
-        RetirementCase c = cases.saveAndFlush(new RetirementCase(e.getEnterCd(), req.empId(), reason, req.retireDate(),
-                req.dismissalNoticeDate(), req.writtenNoticeDate(), req.noticeExempt(), notice.check(),
+        RetirementCase c = cases.saveAndFlush(new RetirementCase(e.getEnterCd(), req.empId(), reason, type,
+                req.retireDate(), req.dismissalNoticeDate(), req.writtenNoticeDate(), req.noticeExempt(), notice.check(),
                 notice.noticeDays(), notice.shortfallDays(), actor, now));
         List<RetirementChecklistItem> items = new ArrayList<>();
         for (RetirementChecklist.Item t : RetirementChecklist.forReason(type, notice.check())) {

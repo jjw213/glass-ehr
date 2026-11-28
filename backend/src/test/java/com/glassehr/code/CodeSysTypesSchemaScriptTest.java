@@ -59,6 +59,13 @@ class CodeSysTypesSchemaScriptTest {
     }
 
     @Test
+    void 기존_CHECK를_해제한_뒤_새_그룹의_처리방식을_채운다() throws IOException {
+        String sql = v050();
+        assertThat(sql.indexOf("ALTER TABLE common_code DROP CONSTRAINT ck_common_code_process"))
+                .isLessThan(sql.indexOf("UPDATE common_code"));
+    }
+
+    @Test
     void 기간제_단시간_처리방식은_두_조항을_함께_적용한다() {
         CodeSysTypes.EmploymentType both = CodeSysTypes.EmploymentType.FIXED_TERM_PART_TIME;
         assertThat(both.fixedTerm()).isTrue();

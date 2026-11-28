@@ -1,5 +1,6 @@
 package com.glassehr.retirement;
 
+import com.glassehr.code.CodeSysTypes.RetirementReason;
 import com.glassehr.retirement.DismissalNoticeChecker.Exemption;
 import com.glassehr.retirement.DismissalNoticeChecker.NoticeCheck;
 import jakarta.persistence.Column;
@@ -36,6 +37,11 @@ public class RetirementCase {
     @Column(name = "retire_reason_code", nullable = false, updatable = false)
     private String retireReasonCode;
 
+    /** 등록 당시 퇴직사유 처리방식. 사용자 정의 코드도 DB 해고 제약을 동일하게 적용한다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "retire_reason_type", nullable = false, updatable = false)
+    private RetirementReason retireReasonType;
+
     @Column(name = "retire_date", nullable = false, updatable = false)
     private LocalDate retireDate;
 
@@ -68,12 +74,14 @@ public class RetirementCase {
     protected RetirementCase() {
     }
 
-    RetirementCase(String enterCd, long empId, String retireReasonCode, LocalDate retireDate,
+    RetirementCase(String enterCd, long empId, String retireReasonCode, RetirementReason retireReasonType,
+            LocalDate retireDate,
             LocalDate dismissalNoticeDate, LocalDate writtenNoticeDate, Exemption noticeExempt, NoticeCheck noticeCheck,
             Integer noticeDays, Integer noticeShortfallDays, String createdBy, LocalDateTime createdAt) {
         this.enterCd = enterCd;
         this.empId = empId;
         this.retireReasonCode = retireReasonCode;
+        this.retireReasonType = retireReasonType;
         this.retireDate = retireDate;
         this.dismissalNoticeDate = dismissalNoticeDate;
         this.writtenNoticeDate = writtenNoticeDate;
