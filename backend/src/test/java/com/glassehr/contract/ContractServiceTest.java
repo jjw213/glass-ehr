@@ -24,6 +24,8 @@ import com.glassehr.contract.ContractDtos.DeliveryRequest;
 import com.glassehr.contract.ContractDtos.UndeliveredRow;
 import com.glassehr.employee.Employee;
 import com.glassehr.employee.EmployeeRepository;
+import com.glassehr.tenant.EnterSettingKey;
+import com.glassehr.tenant.EnterSettingTestSupport;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -152,7 +154,9 @@ class ContractServiceTest {
                 .thenAnswer(inv -> Optional.of(inv.<LocalDate>getArgument(0).plusDays(700)));
 
         emp(1, HIRE, null);
-        service = new ContractService(contracts, employees, codes, useLimit, 30, 60, CLOCK);
+        service = new ContractService(contracts, employees, codes, useLimit,
+                EnterSettingTestSupport.defaults(Map.of(EnterSettingKey.CONTRACT_EXPIRY_ALERT_DAYS, 30,
+                        EnterSettingKey.CONTRACT_FIXED_TERM_LIMIT_ALERT_DAYS, 60)), CLOCK);
     }
 
     private static ContractRequest req(String type, LocalDate start, LocalDate end) {
@@ -439,7 +443,8 @@ class ContractServiceTest {
 
     @Test
     void 알림_기간이_음수면_만들_수_없다() {
-        assertThatThrownBy(() -> new ContractService(null, null, null, null, -1, 0, CLOCK))
+        // 범위 검사는 법인 설정 기본값을 읽을 때 한다(#131).
+        assertThatThrownBy(() -> EnterSettingTestSupport.defaults(Map.of(EnterSettingKey.CONTRACT_EXPIRY_ALERT_DAYS, -1)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

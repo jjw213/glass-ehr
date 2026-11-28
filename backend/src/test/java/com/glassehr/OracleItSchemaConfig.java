@@ -292,6 +292,13 @@ public class OracleItSchemaConfig {
                     new ClassPathResource("db/oracle/V046__approval_overtime_family_leave_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer enterSettingTables = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'ENTER_SETTING'", Integer.class);
+        if (enterSettingTables == null || enterSettingTables == 0) {
+            // #131: 법인별 회사 설정과 변경 이력
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V049__enter_setting.sql"))
+                    .execute(dataSource);
+        }
         Integer employmentSysTypes = jdbc.queryForObject("SELECT COUNT(*) FROM common_code"
                 + " WHERE group_code = 'EMPLOYMENT_TYPE' AND process_type IS NOT NULL", Integer.class);
         if (employmentSysTypes == null || employmentSysTypes == 0) {

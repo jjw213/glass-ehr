@@ -44,9 +44,9 @@ describe('대메뉴 → 중메뉴', () => {
   it('볼 수 있는 중메뉴가 없는 대메뉴는 숨긴다', () => {
     expect(navGroupsFor('EMPLOYEE').map((g) => g.module.id)).not.toContain('system');
     const hrSystem = navGroupsFor('HR').find((g) => g.module.id === 'system')!;
-    expect(hrSystem.items.map((n) => n.id)).toEqual(['codes']);
+    expect(hrSystem.items.map((n) => n.id)).toEqual(['codes', 'enterSettings']);
     const adminSystem = navGroupsFor('ADMIN').find((g) => g.module.id === 'system')!;
-    expect(adminSystem.items.map((n) => n.id)).toEqual(['codes', 'privacyLogs']);
+    expect(adminSystem.items.map((n) => n.id)).toEqual(['codes', 'enterSettings', 'privacyLogs']);
   });
 
   it('대메뉴 순서는 MODULES 순서를 따른다', () => {
