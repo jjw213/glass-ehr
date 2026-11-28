@@ -45,7 +45,10 @@ class LoginSchemaScriptTest {
         // 이벤트 목록은 V033 이 ENTER_SWITCH 를 더해 다시 만든 제약이 최신이다.
         assertThat(inList(switchSql(), "ck_login_log_event CHECK \\(event_code IN \\(([^)]*)\\)\\)"))
                 .isEqualTo(names(LoginAccessLog.Event.class));
-        assertThat(inList(sql, "fail_reason IN \\(([^)]*)\\)")).isEqualTo(names(LoginAccessLog.FailReason.class));
+        // 실패 사유 목록은 V051(#151)이 TENANT_UNAVAILABLE 을 더해 다시 만든 제약이 최신이다.
+        assertThat(sql).contains("fail_reason IN (");
+        String latest = new ClassPathResource("db/oracle/V051__tenant.sql").getContentAsString(StandardCharsets.UTF_8);
+        assertThat(inList(latest, "fail_reason IN \\(([^)]*)\\)")).isEqualTo(names(LoginAccessLog.FailReason.class));
     }
 
     @Test

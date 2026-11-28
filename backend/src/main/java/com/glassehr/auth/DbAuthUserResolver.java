@@ -46,6 +46,12 @@ public class DbAuthUserResolver implements AuthUserResolver {
         if (!companies.allows(enterCd)) {
             return Optional.empty();
         }
+        // 고객사는 주체 법인 → 고객사로만 정한다(#151, docs/saas-design.md 2.3). 고객사가 정지·해지·체험 종료면
+        // 남은 세션도 다음 요청에서 끊는다(2.2). 안내 문구를 보여 주도록 따로 알린다.
+        String tenantId = companies.tenantOf(enterCd);
+        if (!companies.tenantUsable(tenantId)) {
+            throw new TenantUnavailableException();
+        }
         Optional<AppUser> found = users.find(enterCd, loginId.strip());
         if (found.isEmpty() || !found.get().isActive()) {
             return Optional.empty();
@@ -75,10 +81,12 @@ public class DbAuthUserResolver implements AuthUserResolver {
         }
         // 현재 법인이 주체 법인과 다르면 전환 권한(GROUP_ADMIN)이 있고 그 법인이 지금도 사용 가능해야 한다.
         // 전환 뒤 법인이 사용 중지되거나 역할을 회수하면 남은 세션도 쓰지 못하게 한다(401, 다시 로그인).
-        if (switched && (!perms.contains(Permission.ENTER_SWITCH) || !companies.allows(currentEnterCd))) {
+        // 전환한 법인은 같은 고객사여야 한다(saas-design.md 2.3). 법인이 다른 고객사로 옮겨지면 남은 세션도 끊는다.
+        if (switched && (!perms.contains(Permission.ENTER_SWITCH) || !companies.allows(currentEnterCd)
+                || !tenantId.equals(companies.tenantOf(currentEnterCd)))) {
             return Optional.empty();
         }
-        return Optional.of(new AuthUser(currentEnterCd, u.getEnterCd(), u.getLoginId(), u.getEmpId(), roles, perms,
+        return Optional.of(new AuthUser(tenantId, currentEnterCd, u.getEnterCd(), u.getLoginId(), u.getEmpId(), roles, perms,
                 managed, clientIp));
     }
 }

@@ -63,10 +63,10 @@ class EnterCompanyOracleTest {
 
     @Test
     void 회사_목록은_사용중인_법인만_정렬순서대로_코드와_이름을_준다() {
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES ('ZZIT1', 'IT 법인 가(예시)', '0000000091', 'Y', 0)");
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES ('ZZIT2', 'IT 법인 나(예시)', '0000000092', 'N', 0)");
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES ('ZZIT1', 'IT 법인 가(예시)', '0000000091', 'Y', 0, 'T001')");
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES ('ZZIT2', 'IT 법인 나(예시)', '0000000092', 'N', 0, 'T001')");
 
         List<EnterCompanyView> list = controller.list();
 
@@ -79,14 +79,14 @@ class EnterCompanyOracleTest {
     @Test
     void DB는_형식이_틀린_법인코드와_사업자등록번호를_거부한다() {
         for (String cd : List.of("c001", "C", "C-01")) {
-            assertThatThrownBy(() -> jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no)"
-                    + " VALUES (?, '틀린 법인', '0000000093')", cd)).as(cd)
+            assertThatThrownBy(() -> jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, tenant_id)"
+                    + " VALUES (?, '틀린 법인', '0000000093', 'T001')", cd)).as(cd)
                     .isInstanceOf(DataIntegrityViolationException.class);
         }
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no)"
-                + " VALUES ('ZZIT3', '틀린 번호', '00000A0000')")).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no)"
-                + " VALUES ('ZZIT4', '중복 번호', '0000000000')")).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, tenant_id)"
+                + " VALUES ('ZZIT3', '틀린 번호', '00000A0000', 'T001')")).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, tenant_id)"
+                + " VALUES ('ZZIT4', '중복 번호', '0000000000', 'T001')")).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test

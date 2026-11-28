@@ -80,7 +80,7 @@ class ApprovalServiceTest {
     ApprovalDoc lastDoc;
 
     static AuthUser user(Long empId) {
-        return new AuthUser(ENTER, ENTER, "u" + empId, empId, Set.of("EMPLOYEE"), Set.of(Permission.EMP_READ_SELF), Set.of(), "ip");
+        return new AuthUser("T001", ENTER, ENTER, "u" + empId, empId, Set.of("EMPLOYEE"), Set.of(Permission.EMP_READ_SELF), Set.of(), "ip");
     }
 
     @BeforeEach
@@ -218,7 +218,7 @@ class ApprovalServiceTest {
     }
 
     static AuthUser otherEnterUser(Long empId) {
-        return new AuthUser("C002", "C002", "u" + empId, empId, Set.of("EMPLOYEE"),
+        return new AuthUser("T001", "C002", "C002", "u" + empId, empId, Set.of("EMPLOYEE"),
                 Set.of(Permission.EMP_READ_ALL), Set.of(), "ip");
     }
 

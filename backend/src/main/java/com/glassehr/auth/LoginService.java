@@ -39,11 +39,16 @@ public class LoginService {
         SUCCESS,
         /** 아이디 없음·비밀번호 틀림·사용 중지·비밀번호 미설정(응답에서는 구분하지 않는다) */
         BAD_CREDENTIALS,
-        LOCKED
+        LOCKED,
+        /** 비밀번호는 맞지만 고객사가 정지·해지·체험 종료(#151, docs/saas-design.md 2.2) */
+        TENANT_UNAVAILABLE
     }
 
-    /** @param lockedUntil LOCKED 일 때 잠금이 풀리는 시각(서울) */
-    public record Result(Outcome outcome, String enterCd, String loginId, LocalDateTime lockedUntil) {
+    /**
+     * @param tenantId    SUCCESS 일 때 로그인한 법인의 고객사
+     * @param lockedUntil LOCKED 일 때 잠금이 풀리는 시각(서울)
+     */
+    public record Result(Outcome outcome, String enterCd, String loginId, String tenantId, LocalDateTime lockedUntil) {
     }
 
     private final AppUserRepository users;
@@ -105,7 +110,7 @@ public class LoginService {
         }
         if (u.isLockedAt(now)) {
             log(ent, id, Event.LOGIN_FAILURE, FailReason.LOCKED, false, clientIp, now);
-            return new Result(Outcome.LOCKED, ent, id, u.getLockedUntil());
+            return new Result(Outcome.LOCKED, ent, id, null, u.getLockedUntil());
         }
         if (u.getPasswordHash() == null) {
             ENCODER.matches(rawPassword, DUMMY_HASH);
@@ -115,13 +120,20 @@ public class LoginService {
             boolean lockedNow = u.recordFailure(now, maxFailures, lockFor);
             users.save(u);
             log(ent, id, Event.LOGIN_FAILURE, FailReason.BAD_PASSWORD, lockedNow, clientIp, now);
-            return lockedNow ? new Result(Outcome.LOCKED, ent, id, u.getLockedUntil())
-                    : new Result(Outcome.BAD_CREDENTIALS, ent, id, null);
+            return lockedNow ? new Result(Outcome.LOCKED, ent, id, null, u.getLockedUntil())
+                    : new Result(Outcome.BAD_CREDENTIALS, ent, id, null, null);
+        }
+        // 고객사 상태는 비밀번호가 맞은 뒤에만 알린다(모르는 사람에게 고객사 정지 여부를 드러내지 않게).
+        // 정지·해지·체험 종료면 로그인을 거부하고 안내한다(#151, docs/saas-design.md 2.2). 실패 횟수는 건드리지 않는다.
+        String tenantId = companies.tenantOf(ent);
+        if (!companies.tenantUsable(tenantId)) {
+            log(ent, id, Event.LOGIN_FAILURE, FailReason.TENANT_UNAVAILABLE, false, clientIp, now);
+            return new Result(Outcome.TENANT_UNAVAILABLE, ent, id, null, null);
         }
         u.recordSuccess();
         users.save(u);
         log(ent, id, Event.LOGIN_SUCCESS, null, false, clientIp, now);
-        return new Result(Outcome.SUCCESS, u.getEnterCd(), u.getLoginId(), null);
+        return new Result(Outcome.SUCCESS, u.getEnterCd(), u.getLoginId(), tenantId, null);
     }
 
     @Transactional
@@ -139,7 +151,8 @@ public class LoginService {
     @Transactional
     public boolean switchEnter(AuthUser user, String targetEnterCd, String clientIp) {
         String target = targetEnterCd == null ? null : targetEnterCd.strip();
-        if (!companies.allows(target)) {
+        // 같은 고객사의 법인으로만 바꾼다. 다른 고객사 법인은 없는 법인과 같이 404(docs/saas-design.md 2.3).
+        if (!companies.allows(target) || !user.tenantId().equals(companies.tenantOf(target))) {
             return false;
         }
         logs.save(new LoginAccessLog(user.homeEnterCd(), user.loginId(), Event.ENTER_SWITCH, null, false, clientIp,
@@ -149,7 +162,7 @@ public class LoginService {
 
     private Result fail(String ent, String id, FailReason reason, String ip, LocalDateTime now) {
         log(ent, id, Event.LOGIN_FAILURE, reason, false, ip, now);
-        return new Result(Outcome.BAD_CREDENTIALS, ent, id, null);
+        return new Result(Outcome.BAD_CREDENTIALS, ent, id, null, null);
     }
 
     private void log(String ent, String id, Event event, FailReason reason, boolean locked, String ip,

@@ -28,7 +28,7 @@ class ApprovalTemplateServiceTest {
     final ApprovalService approvals = mock(ApprovalService.class);
     final ApprovalTemplateService service =
             new ApprovalTemplateService(templates, employees, approvals, ApprovalServiceTest.CLOCK);
-    final AuthUser admin = new AuthUser("C001", "C001", "hr1", 100L, Set.of("HR"), Set.of(), Set.of(), "ip");
+    final AuthUser admin = new AuthUser("T001", "C001", "C001", "hr1", 100L, Set.of("HR"), Set.of(), Set.of(), "ip");
     static final LocalDate TODAY = ApprovalServiceTest.TODAY;
 
     @BeforeEach

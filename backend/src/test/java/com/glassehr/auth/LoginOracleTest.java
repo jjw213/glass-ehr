@@ -67,10 +67,10 @@ class LoginOracleTest {
         id = "itl-" + suffix.toLowerCase();
         b = "ZB" + suffix;
         off = "ZO" + suffix;
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES (?, 'IT 법인 B(예시)', ?, 'Y', 0)", b, "99" + randomDigits());
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES (?, 'IT 사용중지 법인(예시)', ?, 'N', 0)", off, "98" + randomDigits());
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES (?, 'IT 법인 B(예시)', ?, 'Y', 0, 'T001')", b, "99" + randomDigits());
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES (?, 'IT 사용중지 법인(예시)', ?, 'N', 0, 'T001')", off, "98" + randomDigits());
         insertUser(A, PW);
     }
 
@@ -188,7 +188,7 @@ class LoginOracleTest {
 
     @Test
     void 개인정보_조회_로그는_대상_법인_기준으로만_조회된다() {
-        AuthUser userB = new AuthUser(b, b, id, null, Set.of("ADMIN"), Set.of(), Set.of(), "127.0.0.1");
+        AuthUser userB = new AuthUser("T001", b, b, id, null, Set.of("ADMIN"), Set.of(), Set.of(), "127.0.0.1");
         privacyLogger.log(userB, 1L, PrivacyAccessLog.Item.EMP_PERSONAL, PrivacyAccessLog.Action.VIEW,
                 PrivacyAccessLog.Result.SUCCESS, "/api/employees/1");
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
@@ -202,7 +202,7 @@ class LoginOracleTest {
     /** #120: 그룹 관리자 법인 전환(V033). 일반 계정은 403, 그룹 관리자는 전환 뒤 다른 법인 데이터를 보고 전환이 접속기록에 남는다. */
     @Test
     void 그룹_관리자만_법인을_전환하고_전환하면_다른_법인_데이터가_보인다() throws Exception {
-        AuthUser userB = new AuthUser(b, b, id, null, Set.of("ADMIN"), Set.of(), Set.of(), "127.0.0.1");
+        AuthUser userB = new AuthUser("T001", b, b, id, null, Set.of("ADMIN"), Set.of(), Set.of(), "127.0.0.1");
         privacyLogger.log(userB, 1L, PrivacyAccessLog.Item.EMP_PERSONAL, PrivacyAccessLog.Action.VIEW,
                 PrivacyAccessLog.Result.SUCCESS, "/api/employees/1");
         String today = LocalDate.now(ZoneId.of("Asia/Seoul")).toString();

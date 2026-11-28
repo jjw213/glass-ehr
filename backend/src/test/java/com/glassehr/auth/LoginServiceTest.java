@@ -48,6 +48,10 @@ class LoginServiceTest {
         gate = mock(EnterCompanyGate.class);
         when(gate.allows(A)).thenReturn(true);
         when(gate.allows(B)).thenReturn(true);
+        // 두 법인 모두 이용 중인 고객사 T001 소속(#151).
+        when(gate.tenantOf(A)).thenReturn("T001");
+        when(gate.tenantOf(B)).thenReturn("T001");
+        when(gate.tenantUsable("T001")).thenReturn(true);
         when(logs.save(any())).thenAnswer(inv -> {
             saved.add(inv.getArgument(0));
             return inv.getArgument(0);
@@ -69,6 +73,20 @@ class LoginServiceTest {
 
     private LoginAccessLog last() {
         return saved.get(saved.size() - 1);
+    }
+
+    @Test
+    void 고객사가_이용_불가면_비밀번호가_맞아도_거부하고_실패_횟수는_그대로다() {
+        when(gate.tenantUsable("T001")).thenReturn(false);
+        at(T0).login(A, "u1", "wrong", "10.0.0.1");
+        LoginService.Result r = at(T0).login(A, "u1", PW, "10.0.0.1");
+        assertThat(r.outcome()).isEqualTo(Outcome.TENANT_UNAVAILABLE);
+        assertThat(r.tenantId()).isNull();
+        assertThat(user.getFailedLoginCount()).isEqualTo(1);
+        assertThat(last().getEvent()).isEqualTo(Event.LOGIN_FAILURE);
+        assertThat(last().getFailReason()).isEqualTo(FailReason.TENANT_UNAVAILABLE);
+        // 비밀번호가 틀리면 고객사 상태를 알리지 않는다.
+        assertThat(at(T0).login(A, "u1", "wrong", "10.0.0.1").outcome()).isEqualTo(Outcome.BAD_CREDENTIALS);
     }
 
     @Test

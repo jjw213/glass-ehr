@@ -64,8 +64,8 @@ class ApprovalTenantOracleTest {
 
     @BeforeEach
     void 법인_B와_B의_결재_신청을_넣는다() {
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES (?, 'IT 법인 라(예시)', '0000000094', 'Y', 0)", B);
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES (?, 'IT 법인 라(예시)', '0000000094', 'Y', 0, 'T001')", B);
         jdbc.update("INSERT INTO biz_site (enter_cd, site_code, site_name) VALUES (?, 'S01', 'B 본사(예시)')", B);
         aEmp = insertEmployee(A, "S01-1903-941");
         bEmp = insertEmployee(B, "S01-1903-942");
@@ -216,7 +216,7 @@ class ApprovalTenantOracleTest {
     }
 
     private static AuthUser user(String enterCd, long empId) {
-        return new AuthUser(enterCd, enterCd, "it-hr", empId, Set.of("HR"),
+        return new AuthUser("T001", enterCd, enterCd, "it-hr", empId, Set.of("HR"),
                 Set.of(Permission.EMP_READ_ALL, Permission.EMP_WRITE), Set.of(), "127.0.0.1");
     }
 

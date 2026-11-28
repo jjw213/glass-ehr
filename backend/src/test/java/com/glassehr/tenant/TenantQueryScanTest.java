@@ -42,7 +42,9 @@ class TenantQueryScanTest {
             "(\\w+)\\.(findById|getReferenceById|getById|existsById|findAllById|deleteById|deleteAllById|findAll|count)\\(\\s*([^)]*)\\)");
 
     /** 전체 공통 테이블 리포지토리(법인 마스터)의 호출만 허용. 파일명:수신자.메서드. */
-    private static final Set<String> ALLOWED_INHERITED = Set.of("PrivacyAccessLogger.java:companies.existsById");
+    private static final Set<String> ALLOWED_INHERITED = Set.of("PrivacyAccessLogger.java:companies.existsById",
+            // 법인 → 고객사, 고객사 상태 조회(전체 공통 enter_company·tenant, #151)
+            "EnterCompanyGate.java:companies.findById", "EnterCompanyGate.java:tenants.findById");
 
     /** 법인 조건 없는 리포지토리 메서드 허용 목록(이유). */
     private static final Set<String> ALLOWED_UNSCOPED = Set.of(
