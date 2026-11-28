@@ -16,11 +16,14 @@ import com.glassehr.attendance.LaborAgreementDtos.AgreementView;
 import com.glassehr.attendance.LaborAgreementDtos.Status;
 import com.glassehr.employee.BizSiteRepository;
 import com.glassehr.employee.EmployeeRepository;
+import com.glassehr.tenant.EnterSettingKey;
+import com.glassehr.tenant.EnterSettingTestSupport;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,7 +53,8 @@ class LaborAgreementServiceTest {
         holidays = mock(HolidayRepository.class);
         // 서울 2026-11-14 00:30 = UTC 2026-11-13 15:30 (서울 기준 날짜를 쓰는지 확인)
         Clock clock = Clock.fixed(Instant.parse("2026-11-13T15:30:00Z"), ZoneId.of("UTC"));
-        service = new LaborAgreementService(agreements, files, employees, sites, holidays, 30, MAX, clock);
+        service = new LaborAgreementService(agreements, files, employees, sites, holidays,
+                EnterSettingTestSupport.defaults(Map.of(EnterSettingKey.AGREEMENT_EXPIRY_ALERT_DAYS, 30)), MAX, clock);
         when(agreements.save(any())).thenAnswer(inv -> withId(inv.getArgument(0), "agreementId", 10L));
         when(files.save(any())).thenAnswer(inv -> withId(inv.getArgument(0), "fileId", 20L));
     }

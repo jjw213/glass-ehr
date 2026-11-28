@@ -166,8 +166,8 @@ public class HolidayService {
             throw AttendanceException.badRequest(e.getMessage());
         }
         for (PublicHolidayCsv.Row r : rows) {
-            if (!paidRule.appliesOn(r.date())) {
-                throw rejected(r.line() + "번째 줄: " + r.date() + "은(는) 이 사업장 규모에 근로기준법 제55조 제2항이 "
+            if (!paidRule.appliesOn(enterCd, r.date())) {
+                throw rejected(r.line() + "번째 줄: " + r.date() + "은(는) 이 법인 규모에 근로기준법 제55조 제2항이 "
                         + "시행되기 전이라 유급 공휴일로 넣을 수 없어요. 쉬게 했다면 회사휴일로 등록해 주세요");
             }
         }
