@@ -9,7 +9,11 @@ import com.glassehr.overtime.OvertimeDtos.AuthRequest;
 import com.glassehr.overtime.OvertimeDtos.AuthView;
 import com.glassehr.overtime.OvertimeDtos.CreateRequest;
 import com.glassehr.overtime.OvertimeDtos.RequestView;
+import com.glassehr.attendance.WorkPolicyRules;
+import com.glassehr.attendance.WorkPolicyService;
 import java.time.Clock;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -38,16 +42,18 @@ public class OvertimeService {
     private final SpecialOvertimeAuthRepository auths;
     private final ApprovalService approvals;
     private final EmployeeRepository employees;
+    private final WorkPolicyService policies;
     private final Clock clock;
 
     @Autowired
     public OvertimeService(OvertimeRequestRepository requests, SpecialOvertimeAuthRepository auths,
-            ApprovalService approvals, EmployeeRepository employees) {
-        this(requests, auths, approvals, employees, Clock.system(SEOUL));
+            ApprovalService approvals, EmployeeRepository employees, WorkPolicyService policies) {
+        this(requests, auths, approvals, employees, policies, Clock.system(SEOUL));
     }
 
     OvertimeService(OvertimeRequestRepository requests, SpecialOvertimeAuthRepository auths,
-            ApprovalService approvals, EmployeeRepository employees, Clock clock) {
+            ApprovalService approvals, EmployeeRepository employees, WorkPolicyService policies, Clock clock) {
+        this.policies = policies;
         this.requests = requests;
         this.auths = auths;
         this.approvals = approvals;
@@ -69,11 +75,16 @@ public class OvertimeService {
         if (start.isBefore(now)) {
             throw bad("사전 신청이라 이미 시작한 시간은 신청할 수 없어요");
         }
-        if (OvertimeRequest.plannedMinutes(start, end, breaks) <= 0) {
+        int planned = OvertimeRequest.plannedMinutes(start, end, breaks);
+        if (planned <= 0) {
             throw bad("휴게시간을 빼면 근로시간이 남지 않아요");
         }
-        // 신청·결재는 로그인 세션의 현재 법인으로만 만든다(#127).
+        // 신청·결재는 로그인 세션의 현재 법인으로만 만들고, 같은 사원의 신청 합계 조회와 저장을
+        // 직렬화해 동시 신청이 정책 한도를 우회하지 못하게 한다.
         String enterCd = user.enterCd();
+        employees.findForUpdate(enterCd, emp)
+                .orElseThrow(() -> new ApprovalException(HttpStatus.NOT_FOUND, "사원을 찾을 수 없어요"));
+        checkPolicy(enterCd, emp, req.workKind(), start.toLocalDate(), planned);
         if (!requests.findOverlapping(enterCd, emp, start, end, ACTIVE).isEmpty()) {
             throw new ApprovalException(HttpStatus.CONFLICT, "같은 시간대에 결재 중이거나 승인된 신청이 있어요");
         }
@@ -127,6 +138,59 @@ public class OvertimeService {
     @Transactional(readOnly = true)
     public List<AuthView> auths(AuthUser user) {
         return auths.findByEnterCdOrderByPeriodFromDesc(user.enterCd()).stream().map(OvertimeService::authView).toList();
+    }
+
+    /**
+     * 근무 정책(#159)의 허용 방식으로 신청을 거른다. 허용 안 함이면 거부, 한도 방식이면 같은 종류의 결재 중·승인 신청과
+     * 합친 예정 시간이 일·주(월~일)·월 한도를 넘으면 거부. 정책 한도는 회사가 정한 값이고, 법정 1주 한도 검사는
+     * 승인 때 {@link OvertimeLimitChecker}가 따로 한다.
+     */
+    private void checkPolicy(String enterCd, long emp, OvertimeRequest.Kind kind, LocalDate workDate, int planned) {
+        WorkPolicyRules.Policy p = policies.forEmployee(enterCd, emp, workDate);
+        WorkPolicyRules.Allowance a = kind == OvertimeRequest.Kind.OVERTIME ? p.overtime() : p.holiday();
+        String label = kind == OvertimeRequest.Kind.OVERTIME ? "연장근로" : "휴일근로";
+        if (a.mode() == WorkPolicyRules.AllowMode.DENY) {
+            throw bad("근무 정책에서 " + label + " 신청을 허용하지 않아요");
+        }
+        if (a.mode() != WorkPolicyRules.AllowMode.LIMIT) {
+            return;
+        }
+        LocalDate monday = workDate.with(DayOfWeek.MONDAY);
+        LocalDate monthStart = workDate.withDayOfMonth(1);
+        LocalDate from = monday.isBefore(monthStart) ? monday : monthStart;
+        LocalDate to = monday.plusDays(6).isAfter(workDate.withDayOfMonth(workDate.lengthOfMonth()))
+                ? monday.plusDays(6) : workDate.withDayOfMonth(workDate.lengthOfMonth());
+        int day = planned;
+        int week = planned;
+        int month = planned;
+        for (OvertimeRequest r : requests.findByEnterCdAndEmpIdAndWorkDateBetweenAndStatusIn(
+                enterCd, emp, from, to, ACTIVE)) {
+            if (r.getWorkKind() != kind) {
+                continue;
+            }
+            LocalDate d = r.getWorkDate();
+            if (d.equals(workDate)) {
+                day += r.getPlannedMinutes();
+            }
+            if (!d.isBefore(monday) && !d.isAfter(monday.plusDays(6))) {
+                week += r.getPlannedMinutes();
+            }
+            if (d.getMonth() == workDate.getMonth() && d.getYear() == workDate.getYear()) {
+                month += r.getPlannedMinutes();
+            }
+        }
+        if (over(day, a.dayLimit()) || over(week, a.weekLimit()) || over(month, a.monthLimit())) {
+            throw bad("근무 정책의 " + label + " 한도(일 " + limitText(a.dayLimit()) + "·주 " + limitText(a.weekLimit())
+                    + "·월 " + limitText(a.monthLimit()) + ")를 넘어요");
+        }
+    }
+
+    private static boolean over(int minutes, Integer limit) {
+        return limit != null && minutes > limit;
+    }
+
+    private static String limitText(Integer limit) {
+        return limit == null ? "없음" : OvertimeLimitChecker.hm(limit);
     }
 
     private static RequestView view(OvertimeRequest r, Long approvalId) {

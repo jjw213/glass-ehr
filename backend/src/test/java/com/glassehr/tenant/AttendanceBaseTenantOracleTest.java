@@ -18,6 +18,12 @@ import com.glassehr.attendance.WorkPatternDtos.AssignRequest;
 import com.glassehr.attendance.WorkPatternDtos.WorkPatternRequest;
 import com.glassehr.attendance.WorkPatternDtos.WorkPatternView;
 import com.glassehr.attendance.WorkPatternService;
+import com.glassehr.attendance.WorkPolicyDtos.AllowanceDto;
+import com.glassehr.attendance.WorkPolicyDtos.WorkPolicyRequest;
+import com.glassehr.attendance.WorkPolicyDtos.WorkPolicyView;
+import com.glassehr.attendance.WorkPolicyRules;
+import com.glassehr.attendance.WorkPolicyRules.AllowMode;
+import com.glassehr.attendance.WorkPolicyService;
 import com.glassehr.employee.EmployeeDtos.EmployeeCreateRequest;
 import com.glassehr.employee.EmployeeService;
 import com.glassehr.employee.RequestActor;
@@ -61,6 +67,9 @@ class AttendanceBaseTenantOracleTest {
 
     @Autowired
     private EmployeeService employees;
+
+    @Autowired
+    private WorkPolicyService policies;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -184,6 +193,31 @@ class AttendanceBaseTenantOracleTest {
                 + " work_end_min, break_start_min, break_minutes, day_types, daily_contract_minutes,"
                 + " weekly_contract_minutes) VALUES ('ZZIT_WQ', '법인 없음', 540, 1080, 720, 60, 'WWWWWOH', 480, 2400)"))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 근무_정책은_법인마다_따로이고_다른_법인_정책_근무유형은_404() {
+        // 이 테스트는 법인 격리만 검증하므로 실행일의 legal_rate 시드에 의존하지 않게 정책 행을 직접 준비한다.
+        jdbc.update("INSERT INTO work_policy (enter_cd, pattern_id, policy_name, ot_mode, night_mode,"
+                + " hol_mode, created_by, created_at, updated_by, updated_at) VALUES (?, ?, 'IT 정책(예시)',"
+                + " 'DENY', 'UNLIMITED', 'UNLIMITED', 'it-hr', SYSTIMESTAMP, 'it-hr', SYSTIMESTAMP)", B, bPattern);
+        WorkPolicyView b = policies.list(B, true).getFirst();
+        assertThat(policies.list(A, true)).extracting(WorkPolicyView::policyId).doesNotContain(b.policyId());
+        assertStatus(() -> policies.update(A, b.policyId(), policyRequest(null), "it-hr"), HttpStatus.NOT_FOUND);
+        assertStatus(() -> policies.delete(A, b.policyId(), "it-hr"), HttpStatus.NOT_FOUND);
+        // 법인 A 정책이 법인 B 근무유형을 재정의할 수 없다(서비스 404, DB 복합 FK).
+        assertStatus(() -> policies.create(A, policyRequest(bPattern), "it-hr"), HttpStatus.NOT_FOUND);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO work_policy (enter_cd, pattern_id, policy_name, created_by,"
+                + " created_at, updated_by, updated_at) VALUES (?, ?, '섞임', 'it-hr', SYSTIMESTAMP, 'it-hr',"
+                + " SYSTIMESTAMP)", A, bPattern)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(policies.list(B, false)).extracting(WorkPolicyView::policyId).containsExactly(b.policyId());
+    }
+
+    private static WorkPolicyRequest policyRequest(Long patternId) {
+        AllowanceDto none = new AllowanceDto(AllowMode.UNLIMITED, null, null, null);
+        return new WorkPolicyRequest(patternId, "IT 정책(예시)", new AllowanceDto(AllowMode.DENY, null, null, null),
+                none, none, true, 15, 0, WorkPolicyRules.Rounding.UP, 0, 0, true,
+                WorkPolicyRules.MissingOut.SCHEDULED_END, true);
     }
 
     private static AgreementRequest agreement(AgreementType type) {
