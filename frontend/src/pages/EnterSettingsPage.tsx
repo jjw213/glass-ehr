@@ -149,7 +149,7 @@ export function EnterSettingManager({ api, toast }: { api: EnterSettingApi; toas
           </label>
           <label className="field">
             <span className="field__label">값 ({editing ? `${editing.min}~${editing.max}${editing.unit}, 기본값 ${editing.defaultValue}${editing.unit}` : ''})</span>
-            <input className="input" inputMode="numeric" aria-label="값" value={value} onChange={(e) => setValue(e.target.value.replace(/[^0-9]/g, ''))} />
+            <input className="input" inputMode="numeric" aria-label="값" value={value} onChange={(e) => setValue(e.target.value)} />
           </label>
           {formError && <p className="badge badge--red" role="alert">{formError}</p>}
           <div className="form__actions">

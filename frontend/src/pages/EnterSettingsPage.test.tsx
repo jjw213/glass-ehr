@@ -98,4 +98,15 @@ describe('EnterSettingManager', () => {
     expect(host.querySelector('[role="alert"]')!.textContent).toContain('1~1000000명');
     expect(await api.history()).toEqual([]);
   });
+
+  it.each(['1.5', '-30'])('잘못된 숫자 %s를 다른 정수로 바꾸지 않고 거부한다', async (invalidValue) => {
+    const { api } = await mount();
+    await act(async () => { button('상시근로자 수 수정').click(); });
+    const valueInput = host.querySelector<HTMLInputElement>('[aria-label="값"]')!;
+    await act(async () => { type(valueInput, invalidValue); });
+    expect(valueInput.value).toBe(invalidValue);
+    await submitModal();
+    expect(host.querySelector('[role="alert"]')!.textContent).toContain('사이 정수');
+    expect(await api.history()).toEqual([]);
+  });
 });
