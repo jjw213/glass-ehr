@@ -136,7 +136,7 @@ class WorkHoursServiceTest {
     private static WorkPattern dayPattern() {
         WorkPatternRules.Spec spec = new WorkPatternRules.Spec(9 * 60, 18 * 60, 12 * 60, 60, "WWWWWOH");
         WorkPattern p = new WorkPattern(ENTER, "DAY", "주간", spec, new WorkPatternRules.Result(480, 2400, List.of()),
-                true, null, LocalDateTime.of(2099, 1, 1, 0, 0));
+                WorkerType.FULL_TIME, true, null, LocalDateTime.of(2099, 1, 1, 0, 0));
         // 저장된 근무유형처럼 ID 를 둔다(정책 재정의는 근무유형 ID 로 찾는다).
         org.springframework.test.util.ReflectionTestUtils.setField(p, "patternId", PATTERN);
         return p;

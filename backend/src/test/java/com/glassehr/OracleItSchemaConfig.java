@@ -271,6 +271,20 @@ public class OracleItSchemaConfig {
                     new ClassPathResource("db/oracle/V043__attendance_record_flex_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer workerTypeCol = jdbc.queryForObject("SELECT COUNT(*) FROM user_tab_columns "
+                + "WHERE table_name = 'WORK_PATTERN' AND column_name = 'WORKER_TYPE_CODE'", Integer.class);
+        if (workerTypeCol == null || workerTypeCol == 0) {
+            // #158: 초단시간근로자 기준 legal_rate 항목, 근무유형 적용 근로자 유형
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V044__work_pattern_worker_type.sql")).execute(dataSource);
+        }
+        Integer fullTimeBaselineCol = jdbc.queryForObject("SELECT COUNT(*) FROM user_tab_columns "
+                + "WHERE table_name = 'WORK_PATTERN' AND column_name = 'FULL_TIME_BASELINE_YN'", Integer.class);
+        if (fullTimeBaselineCol == null || fullTimeBaselineCol == 0) {
+            // #158: 통상근로자 비교 기준을 계산된 근로자 유형과 분리
+            new ResourceDatabasePopulator(
+                    new ClassPathResource("db/oracle/V045__work_pattern_full_time_baseline.sql")).execute(dataSource);
+        }
         Integer workPolicy = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM user_tables WHERE table_name = 'WORK_POLICY'", Integer.class);
         if (workPolicy == null || workPolicy == 0) {

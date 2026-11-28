@@ -28,6 +28,7 @@ export interface WorkPatternSpec {
 export interface WorkPatternInput extends WorkPatternSpec {
   patternCode: string;
   patternName: string;
+  fullTimeBaseline: boolean;
   active: boolean;
   note: string | null;
 }
@@ -35,9 +36,27 @@ export interface WorkPattern extends WorkPatternInput {
   patternId: number;
   dailyContractMinutes: number;
   weeklyContractMinutes: number;
+  /**
+   * 적용 근로자 유형(#158). 서버가 저장할 때 1주 소정근로시간과 legal_rate 기준으로 계산한다.
+   * null: 미지정(V044 전 근무유형, 데모 모드). 데모에서는 법정 기준값이 없어 계산하지 않는다.
+   */
+  workerType?: WorkerType | null;
   /** 사원에게 배정된 적이 있으면 시각·휴게·요일을 바꿀 수 없다 */
   assigned: boolean;
 }
+/** 근로기준법 제2조 제1항 제9호(단시간), 제18조 제3항(초단시간) */
+export type WorkerType = 'FULL_TIME' | 'PART_TIME' | 'ULTRA_SHORT';
+export const WORKER_TYPE_LABEL: Record<WorkerType, string> = {
+  FULL_TIME: '통상',
+  PART_TIME: '단시간',
+  ULTRA_SHORT: '초단시간',
+};
+/** 유형별 주휴·연차 안내. 수치는 서버(legal_rate)가 판정하므로 여기에는 조문만 적는다. */
+export const WORKER_TYPE_NOTICE: Record<WorkerType, string | null> = {
+  FULL_TIME: null,
+  PART_TIME: '주휴·연차를 통상근로자 소정근로시간에 비례해 시간 단위로 줘요 (근로기준법 제18조 제1항, 시행령 별표 2)',
+  ULTRA_SHORT: '주휴일·연차 유급휴가를 적용하지 않아요 (근로기준법 제18조 제3항)',
+};
 export interface Violation { code: string; message: string }
 export interface CheckResult { ok: boolean; dailyContractMinutes: number; weeklyContractMinutes: number; violations: Violation[] }
 

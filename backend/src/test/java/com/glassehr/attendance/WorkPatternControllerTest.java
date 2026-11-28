@@ -41,8 +41,28 @@ class WorkPatternControllerTest {
     @MockitoBean
     private WorkPatternService service;
 
+    @MockitoBean
+    private WorkerTypeService workerTypes;
+
     private static WorkPatternView view() {
-        return new WorkPatternView(1, "DAY", "주간", 540, 945, 720, 45, "WWWWWOH", 360, 1800, true, null, false);
+        return new WorkPatternView(1, "DAY", "주간", 540, 945, 720, 45, "WWWWWOH", 360, 1800, WorkerType.FULL_TIME,
+                true, null, false);
+    }
+
+    /** 법인은 세션(C001)에서 꺼낸다. 값은 목으로 넣는 임의 값이며 법령 수치가 아니다. */
+    @Test
+    void 근로자_유형_안내는_세션_법인으로_조회한다() throws Exception {
+        LocalDate d = LocalDate.of(2026, 11, 26);
+        when(workerTypes.describe(ENTER, 600, d)).thenReturn(new WorkerTypeService.WorkerTypeView(
+                WorkerType.ULTRA_SHORT, 600, 2400, null, 900, false, false, 0, 15, 0, "초단시간"));
+        mvc.perform(get("/api/attendance/worker-type").param("weeklyMinutes", "600").param("date", "2026-11-26"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workerType").value("ULTRA_SHORT"))
+                .andExpect(jsonPath("$.weeklyHolidayApplies").value(false));
+        when(workerTypes.describe(eq(ENTER), eq(0), any())).thenReturn(null);
+        when(service.today()).thenReturn(d);
+        mvc.perform(get("/api/attendance/worker-type").param("weeklyMinutes", "0"))
+                .andExpect(status().isNoContent());
     }
 
     @Test

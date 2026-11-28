@@ -54,7 +54,7 @@ class WorkPatternLimitsFixtureTest {
             "WEEKLY_HOLIDAY", WorkPatternRules.Code.WEEKLY_HOLIDAY_REQUIRED);
 
     /** Maven은 backend/에서, IDE는 저장소 루트에서 돌 수 있어 둘 다 찾는다. */
-    private static Path repoFile(String relative) {
+    static Path repoFile(String relative) {
         for (Path base : List.of(Path.of(".."), Path.of("."))) {
             Path p = base.resolve(relative).normalize();
             if (Files.isRegularFile(p)) {
@@ -65,7 +65,12 @@ class WorkPatternLimitsFixtureTest {
     }
 
     private static List<LegalRateRow> seedRows() throws IOException {
-        Matcher m = SEED_ROW.matcher(Files.readString(repoFile(SEED), StandardCharsets.UTF_8));
+        return seedRows(SEED);
+    }
+
+    /** 시드 SQL 의 insert_period 행(WorkerTypeFixtureTest 도 쓴다). */
+    static List<LegalRateRow> seedRows(String seed) throws IOException {
+        Matcher m = SEED_ROW.matcher(Files.readString(repoFile(seed), StandardCharsets.UTF_8));
         List<LegalRateRow> rows = new ArrayList<>();
         while (m.find()) {
             rows.add(new LegalRateRow(m.group(1), LocalDate.parse(m.group(2)),
@@ -83,7 +88,7 @@ class WorkPatternLimitsFixtureTest {
     }
 
     /** 시드 행으로 적용일 조회를 흉내 낸다. 해당 기간 행이 정확히 1개가 아니면 실패. */
-    private static LegalRateService seededRates(List<LegalRateRow> rows) {
+    static LegalRateService seededRates(List<LegalRateRow> rows) {
         LegalRateService s = mock(LegalRateService.class);
         when(s.getEffective(any(LegalRateItem.class), any(LocalDate.class))).thenAnswer(inv -> {
             LegalRateItem item = inv.getArgument(0);
@@ -99,7 +104,7 @@ class WorkPatternLimitsFixtureTest {
     }
 
     /** 따옴표로 감싼 CSV 한 줄. 이 fixture 값에는 따옴표·쉼표가 섞인 칸이 없지만 출처 칸 등은 따옴표 안 쉼표를 허용한다. */
-    private static List<String> parseCsvLine(String line) {
+    static List<String> parseCsvLine(String line) {
         List<String> out = new ArrayList<>();
         StringBuilder cur = new StringBuilder();
         boolean quoted = false;

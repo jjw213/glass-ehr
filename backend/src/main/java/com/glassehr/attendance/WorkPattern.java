@@ -4,6 +4,8 @@ import com.glassehr.code.YnConverter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -54,6 +56,16 @@ public class WorkPattern {
     @Column(name = "weekly_contract_minutes", nullable = false)
     private Integer weeklyContractMinutes;
 
+    /** 적용 근로자 유형(#158, V044). V044 전에 만든 근무유형은 null(미지정). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "worker_type_code")
+    private WorkerType workerType;
+
+    /** 통상근로자 비교 기준으로 관리자가 지정한 근무유형(#158, V045). 판정 결과와 독립된 입력값이다. */
+    @Convert(converter = YnConverter.class)
+    @Column(name = "full_time_baseline_yn", nullable = false)
+    private Boolean fullTimeBaseline;
+
     @Convert(converter = YnConverter.class)
     @Column(name = "use_yn", nullable = false)
     private Boolean active;
@@ -71,8 +83,16 @@ public class WorkPattern {
     }
 
     public WorkPattern(String enterCd, String patternCode, String patternName, WorkPatternRules.Spec spec,
-            WorkPatternRules.Result computed, boolean active, String note, LocalDateTime now) {
+            WorkPatternRules.Result computed, WorkerType workerType, boolean active, String note, LocalDateTime now) {
+        this(enterCd, patternCode, patternName, spec, computed, workerType, false, active, note, now);
+    }
+
+    public WorkPattern(String enterCd, String patternCode, String patternName, WorkPatternRules.Spec spec,
+            WorkPatternRules.Result computed, WorkerType workerType, boolean fullTimeBaseline, boolean active,
+            String note, LocalDateTime now) {
         this.enterCd = enterCd;
+        this.workerType = workerType;
+        this.fullTimeBaseline = fullTimeBaseline;
         this.patternCode = patternCode;
         this.patternName = patternName;
         applySpec(spec, computed);
@@ -90,6 +110,14 @@ public class WorkPattern {
         this.dayTypes = spec.dayTypes();
         this.dailyContractMinutes = computed.dailyContractMinutes();
         this.weeklyContractMinutes = computed.weeklyContractMinutes();
+    }
+
+    void changeWorkerType(WorkerType workerType) {
+        this.workerType = workerType;
+    }
+
+    void changeFullTimeBaseline(boolean fullTimeBaseline) {
+        this.fullTimeBaseline = fullTimeBaseline;
     }
 
     void rename(String name, boolean active, String note, LocalDateTime now) {
@@ -125,6 +153,14 @@ public class WorkPattern {
 
     public int getWeeklyContractMinutes() {
         return weeklyContractMinutes;
+    }
+
+    public WorkerType getWorkerType() {
+        return workerType;
+    }
+
+    public boolean isFullTimeBaseline() {
+        return Boolean.TRUE.equals(fullTimeBaseline);
     }
 
     public boolean isActive() {
