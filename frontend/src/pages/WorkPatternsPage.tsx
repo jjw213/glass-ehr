@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { LuPencil, LuPlus, LuRefreshCw, LuShieldAlert } from 'react-icons/lu';
 import { Badge, Card, CardHead, Modal, PageHead, Toggle, cx } from '../components/ui';
+import { WORKER_TYPE_LABEL, WORKER_TYPE_NOTICE } from '../api/workPatterns';
 import {
   DAY_TYPE_LABEL, WEEKDAYS, contractMinutes, duration, parseHm, toHm, validateWorkPattern, workPatternApi,
   type DayType, type Violation, type WorkPattern, type WorkPatternApi, type WorkPatternInput,
@@ -27,13 +28,13 @@ export function WorkPatternsPage() {
 
 interface Draft {
   patternCode: string; patternName: string; start: string; end: string;
-  breakStart: string; breakMinutes: string; dayTypes: DayType[]; active: boolean; note: string;
+  breakStart: string; breakMinutes: string; dayTypes: DayType[]; fullTimeBaseline: boolean; active: boolean; note: string;
 }
 type Editing = { mode: 'create' } | { mode: 'edit'; row: WorkPattern };
 
 const emptyDraft = (): Draft => ({
   patternCode: '', patternName: '', start: '09:00', end: '18:00', breakStart: '12:00', breakMinutes: '60',
-  dayTypes: ['W', 'W', 'W', 'W', 'W', 'O', 'H'], active: true, note: '',
+  dayTypes: ['W', 'W', 'W', 'W', 'W', 'O', 'H'], fullTimeBaseline: false, active: true, note: '',
 });
 const NEXT: Record<DayType, DayType> = { W: 'O', O: 'H', H: 'W' };
 
@@ -47,7 +48,8 @@ function toInput(d: Draft): WorkPatternInput | string {
   if (breakMinutes > 0 && breakStart === null) return '휴게 시작 시각을 HH:MM 으로 입력해 주세요';
   return {
     patternCode: d.patternCode, patternName: d.patternName, workStartMin: start, workEndMin: end,
-    breakStartMin: breakStart, breakMinutes, dayTypes: d.dayTypes.join(''), active: d.active, note: d.note.trim() || null,
+    breakStartMin: breakStart, breakMinutes, dayTypes: d.dayTypes.join(''), fullTimeBaseline: d.fullTimeBaseline,
+    active: d.active, note: d.note.trim() || null,
   };
 }
 
@@ -81,7 +83,7 @@ export function WorkPatternManager({ api, toast }: { api: WorkPatternApi; toast:
   const openEdit = (r: WorkPattern) => open({ mode: 'edit', row: r }, {
     patternCode: r.patternCode, patternName: r.patternName, start: toHm(r.workStartMin), end: toHm(r.workEndMin),
     breakStart: r.breakStartMin === null ? '' : toHm(r.breakStartMin), breakMinutes: String(r.breakMinutes),
-    dayTypes: [...r.dayTypes] as DayType[], active: r.active, note: r.note ?? '',
+    dayTypes: [...r.dayTypes] as DayType[], fullTimeBaseline: r.fullTimeBaseline, active: r.active, note: r.note ?? '',
   });
   const close = useCallback(() => setEditing(null), []);
 
@@ -139,7 +141,7 @@ export function WorkPatternManager({ api, toast }: { api: WorkPatternApi; toast:
         ) : (
           <table className="code-table">
             <thead>
-              <tr><th>코드</th><th>이름</th><th>근무시간</th><th className="hide-sm">휴게</th><th>소정근로(1일/1주)</th><th className="hide-sm">휴무·주휴</th><th /></tr>
+              <tr><th>코드</th><th>이름</th><th>근무시간</th><th className="hide-sm">휴게</th><th>소정근로(1일/1주)</th><th>적용 근로자 유형</th><th className="hide-sm">휴무·주휴</th><th /></tr>
             </thead>
             <tbody>
               {rows.map((r) => (
@@ -151,6 +153,17 @@ export function WorkPatternManager({ api, toast }: { api: WorkPatternApi; toast:
                   <td className="num">{toHm(r.workStartMin)}~{r.workEndMin <= r.workStartMin ? '다음 날 ' : ''}{toHm(r.workEndMin)}</td>
                   <td className="hide-sm muted sm">{r.breakMinutes === 0 || r.breakStartMin === null ? '없음' : `${toHm(r.breakStartMin)}부터 ${duration(r.breakMinutes)}`}</td>
                   <td className="num">{duration(r.dailyContractMinutes)} / {duration(r.weeklyContractMinutes)}</td>
+                  <td>
+                    {r.workerType ? (
+                      <>
+                        <Badge tone={r.workerType === 'ULTRA_SHORT' ? 'amber' : 'blue'}>{WORKER_TYPE_LABEL[r.workerType]}</Badge>
+                        {r.fullTimeBaseline && <span className="muted sm"> 비교 기준</span>}
+                        {WORKER_TYPE_NOTICE[r.workerType] && <span className="muted sm"> {WORKER_TYPE_NOTICE[r.workerType]}</span>}
+                      </>
+                    ) : (
+                      <span className="muted sm">미지정</span>
+                    )}
+                  </td>
                   <td className="hide-sm muted sm">{dayTypesText(r.dayTypes)}</td>
                   <td className="code-table__actions">
                     <button className="btn btn--ghost icon-only" onClick={() => openEdit(r)} aria-label={`${r.patternName} 수정`}><LuPencil /></button>
@@ -213,6 +226,11 @@ export function WorkPatternManager({ api, toast }: { api: WorkPatternApi; toast:
             </div>
           </div>
           <div className="form__row">
+            <div className="field">
+              <span className="field__label">통상근로자 비교 기준</span>
+              <Toggle checked={draft.fullTimeBaseline}
+                onChange={(v) => setDraft({ ...draft, fullTimeBaseline: v })} label="통상근로자 비교 기준" />
+            </div>
             <div className="field">
               <span className="field__label">사용 여부</span>
               <Toggle checked={draft.active} onChange={(v) => setDraft({ ...draft, active: v })} label="사용 여부" />

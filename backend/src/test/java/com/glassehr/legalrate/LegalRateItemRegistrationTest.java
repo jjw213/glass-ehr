@@ -45,7 +45,8 @@ class LegalRateItemRegistrationTest {
             "db/oracle/V022__retirement_process.sql",
             "db/oracle/V026__family_leave_request.sql",
             "db/oracle/V028__legal_rate_items_flexible_work.sql",
-            "db/oracle/V042__legal_rate_items_statutory_leave.sql");
+            "db/oracle/V042__legal_rate_items_statutory_leave.sql",
+            "db/oracle/V044__work_pattern_worker_type.sql");
 
     /** #7 에서 등록한 인사·근태 항목 마이그레이션(V003·V005). */
     private static final List<String> HR_ATTENDANCE_ITEM_MIGRATIONS = ITEM_MIGRATIONS.subList(0, 2);
@@ -132,6 +133,15 @@ class LegalRateItemRegistrationTest {
                 "SPOUSE_MATERNITY_LEAVE_PAID_DAYS", "FAMILY_CARE_LEAVE_PAID_DAYS",
                 "INFERTILITY_TREATMENT_LEAVE_DAYS_PER_YEAR", "INFERTILITY_TREATMENT_LEAVE_PAID_DAYS");
         items.values().forEach(v -> assertThat(v[1]).isEqualTo("DAYS"));
+    }
+
+    @Test
+    void 초단시간근로자_기준_항목이_등록돼_있다() throws IOException {
+        // #158: 근로기준법 제18조 제3항. 값은 seed/legal_rate_part_time.sql(법령 데이터 PR #163)로 넣는다.
+        Map<String, String[]> items = registeredItems(List.of("db/oracle/V044__work_pattern_worker_type.sql"));
+        assertThat(items).containsOnlyKeys("SHORT_TIME_WORKER_WEEKLY_HOURS_THRESHOLD", "SHORT_TIME_WORKER_AVERAGE_WEEKS");
+        assertThat(items.get("SHORT_TIME_WORKER_WEEKLY_HOURS_THRESHOLD")[1]).isEqualTo("HOURS");
+        assertThat(items.get("SHORT_TIME_WORKER_AVERAGE_WEEKS")[1]).isEqualTo("WEEKS");
     }
 
     @Test

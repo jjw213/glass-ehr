@@ -45,9 +45,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkPatternController {
 
     private final WorkPatternService service;
+    private final WorkerTypeService workerTypes;
 
-    public WorkPatternController(WorkPatternService service) {
+    public WorkPatternController(WorkPatternService service, WorkerTypeService workerTypes) {
         this.service = service;
+        this.workerTypes = workerTypes;
+    }
+
+    /**
+     * 1주 소정근로시간(근로계약·근무유형)으로 근로자 유형과 주휴·연차 적용 안내(#158). 법인은 세션에서만 받는다.
+     * 기준값(legal_rate)이 그 날짜에 없거나 시간이 없으면 204.
+     */
+    @RequiresPermission
+    @GetMapping("/worker-type")
+    public ResponseEntity<WorkerTypeService.WorkerTypeView> workerType(
+            @RequestParam("weeklyMinutes") int weeklyMinutes,
+            @RequestParam(name = "date", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            AuthUser user) {
+        WorkerTypeService.WorkerTypeView v = workerTypes.describe(user.enterCd(), weeklyMinutes,
+                date != null ? date : service.today());
+        return v == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(v);
     }
 
     @RequiresPermission
