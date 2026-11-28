@@ -41,8 +41,14 @@ class WorkHoursOracleTest {
     }
 
     private static DailyWorkSummaryRow row(long emp, LocalDate d, int worked, int regular, int overtime) {
+        return row(emp, d, worked, regular + overtime, regular, overtime);
+    }
+
+    /** 인정 시간(recognized)을 직접 지정한다. V048 이후 DB는 인정 시간 = 시간 분류 합계를 강제한다. */
+    private static DailyWorkSummaryRow row(long emp, LocalDate d, int worked, int recognized, int regular,
+            int overtime) {
         return new DailyWorkSummaryRow(emp, d, "WORKDAY", null, 480, "HALF_DAY_AM", 240,
-                d.atTime(22, 0), d.plusDays(1).atTime(7, 0), 60, worked, regular, 0, overtime, 420, 0, 0,
+                d.atTime(22, 0), d.plusDays(1).atTime(7, 0), 60, worked, recognized, regular, 0, overtime, 420, 0, 0,
                 new BigDecimal("11"), new BigDecimal("22.5"), new BigDecimal("33"), new BigDecimal("44"),
                 "MISSING_OUT", "it-hr", LocalDateTime.of(2099, 3, 10, 10, 0, 0, 123_456_000));
     }
@@ -64,9 +70,9 @@ class WorkHoursOracleTest {
     }
 
     @Test
-    void 분류_합이_실근로와_다르거나_같은_날이_두_번이면_거부() {
+    void 분류_합이_인정시간과_다르거나_같은_날이_두_번이면_거부() {
         long emp = employee();
-        assertThatThrownBy(() -> mapper.insert("C001", row(emp, D, 500, 480, 0)))
+        assertThatThrownBy(() -> mapper.insert("C001", row(emp, D, 500, 500, 480, 0)))
                 .isInstanceOf(DataIntegrityViolationException.class);
         mapper.insert("C001", row(emp, D, 480, 480, 0));
         assertThatThrownBy(() -> mapper.insert("C001", row(emp, D, 480, 480, 0)))
