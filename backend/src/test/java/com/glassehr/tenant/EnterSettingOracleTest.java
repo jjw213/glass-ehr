@@ -40,8 +40,8 @@ class EnterSettingOracleTest {
 
     @BeforeEach
     void 법인_B와_B의_설정을_넣는다() {
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES (?, 'IT 법인 가(예시)', '0000000094', 'Y', 0)", B);
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES (?, 'IT 법인 가(예시)', '0000000094', 'Y', 0, 'T001')", B);
         service.update(B, KEY, new UpdateRequest(D, BigDecimal.valueOf(7)), "it-b");
     }
 
