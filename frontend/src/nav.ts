@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen, LuArrowLeftRight, LuTimer, LuInbox, LuBaby, LuCalendarCheck, LuBriefcase, LuWrench } from 'react-icons/lu';
+import { LuHouse, LuClock, LuWallet, LuFileCheck, LuMessageCircle, LuUsers, LuNetwork, LuSettings, LuListTree, LuCalendarClock, LuCalendarDays, LuShieldCheck, LuSignature, LuDoorOpen, LuArrowLeftRight, LuTimer, LuInbox, LuBaby, LuCalendarCheck, LuBriefcase, LuWrench, LuSlidersHorizontal } from 'react-icons/lu';
 import type { Role } from './api/types';
 import type { PageId } from './state/store';
 
@@ -62,6 +62,7 @@ export const NAV: NavItem[] = [
   { id: 'messages', label: '메시지', short: '메시지', icon: LuMessageCircle, module: 'messages' },
   // 시스템관리
   { id: 'codes', label: '공통코드 관리', short: '코드', icon: LuListTree, module: 'system', roles: ['HR', 'ADMIN'] },
+  { id: 'enterSettings', label: '회사 설정', short: '회사설정', icon: LuSlidersHorizontal, module: 'system', roles: ['HR', 'ADMIN'] },
   { id: 'privacyLogs', label: '개인정보 조회 로그', short: '로그', icon: LuShieldCheck, module: 'system', roles: ['ADMIN'] },
   { id: 'settings', label: '설정', short: '설정', icon: LuSettings, module: 'settings' },
 ];
@@ -74,6 +75,9 @@ export const canManageCodes = (role: Role) => navFor(role).some((n) => n.id === 
 
 /** 근태코드를 관리하는 역할(인사담당자·관리자, #143). 쓰기 API 는 서버가 CODE_WRITE 로 다시 막는다. */
 export const canManageAttendanceCodes = (role: Role) => navFor(role).some((n) => n.id === 'attendanceCodes');
+
+/** 그 법인의 회사 설정(상시근로자 수 등)을 관리하는 역할(인사담당자·관리자, #131). 실제 차단은 서버 EMP_WRITE 검사가 한다. */
+export const canManageEnterSettings = (role: Role) => navFor(role).some((n) => n.id === 'enterSettings');
 
 /** 근무유형을 관리하는 역할(인사담당자·관리자, #25). 화면에서만 막는다. 백엔드 권한 검사는 인증·권한 이슈에서 붙인다. */
 export const canManageWorkPatterns = (role: Role) => navFor(role).some((n) => n.id === 'workPatterns');

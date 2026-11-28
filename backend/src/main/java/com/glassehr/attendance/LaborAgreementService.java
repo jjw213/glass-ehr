@@ -8,6 +8,8 @@ import com.glassehr.attendance.LaborAgreementDtos.Fields;
 import com.glassehr.employee.BizSiteRepository;
 import com.glassehr.employee.Employee;
 import com.glassehr.employee.EmployeeRepository;
+import com.glassehr.tenant.EnterSettingKey;
+import com.glassehr.tenant.EnterSettingService;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -61,27 +63,26 @@ public class LaborAgreementService {
     private final HolidayRepository holidays;
     private final EmployeeRepository employees;
     private final BizSiteRepository sites;
-    private final int expiryAlertDays;
+    private final EnterSettingService settings;
     private final long maxFileBytes;
     private final Clock clock;
 
     @Autowired
     public LaborAgreementService(LaborAgreementRepository agreements, LaborAgreementFileRepository files,
             EmployeeRepository employees, BizSiteRepository sites, HolidayRepository holidays,
-            @Value("${glassehr.agreement.expiry-alert-days}") int expiryAlertDays,
-            @Value("${glassehr.agreement.max-file-bytes}") long maxFileBytes) {
-        this(agreements, files, employees, sites, holidays, expiryAlertDays, maxFileBytes, Clock.system(SEOUL));
+            EnterSettingService settings, @Value("${glassehr.agreement.max-file-bytes}") long maxFileBytes) {
+        this(agreements, files, employees, sites, holidays, settings, maxFileBytes, Clock.system(SEOUL));
     }
 
     LaborAgreementService(LaborAgreementRepository agreements, LaborAgreementFileRepository files,
-            EmployeeRepository employees, BizSiteRepository sites, HolidayRepository holidays, int expiryAlertDays, long maxFileBytes,
-            Clock clock) {
+            EmployeeRepository employees, BizSiteRepository sites, HolidayRepository holidays,
+            EnterSettingService settings, long maxFileBytes, Clock clock) {
         this.agreements = agreements;
         this.files = files;
         this.employees = employees;
         this.sites = sites;
         this.holidays = holidays;
-        this.expiryAlertDays = expiryAlertDays;
+        this.settings = settings;
         this.maxFileBytes = maxFileBytes;
         this.clock = clock;
     }
@@ -92,10 +93,6 @@ public class LaborAgreementService {
 
     private LocalDateTime now() {
         return LocalDateTime.now(clock.withZone(SEOUL));
-    }
-
-    public int expiryAlertDays() {
-        return expiryAlertDays;
     }
 
     @Transactional(readOnly = true)
@@ -146,14 +143,14 @@ public class LaborAgreementService {
         }
     }
 
-    /** 만료 예정 알림: 오늘부터 days 일 안(오늘·마지막 날 포함)에 유효기간이 끝나는 합의서. days 미지정 = 설정값. */
+    /** 만료 예정 알림: 오늘부터 days 일 안(오늘·마지막 날 포함)에 유효기간이 끝나는 합의서. days 미지정 = 그 법인 설정값(#131). */
     @Transactional(readOnly = true)
     public ExpiringView expiring(String enterCd, Integer days) {
-        int d = days == null ? expiryAlertDays : days;
+        LocalDate today = today();
+        int d = days == null ? settings.value(enterCd, EnterSettingKey.AGREEMENT_EXPIRY_ALERT_DAYS, today) : days;
         if (d < 0 || d > 3650) {
             throw AttendanceException.badRequest("알림 기간은 0~3650일로 지정해 주세요");
         }
-        LocalDate today = today();
         List<AgreementView> rows = agreements.findExpiring(enterCd, today, today.plusDays(d)).stream()
                 .map(a -> view(a, today)).toList();
         return new ExpiringView(d, rows);
