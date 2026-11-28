@@ -13,6 +13,8 @@ import com.glassehr.contract.ContractDtos.UndeliveredRow;
 import com.glassehr.contract.EmploymentContract.Terms;
 import com.glassehr.employee.Employee;
 import com.glassehr.employee.EmployeeRepository;
+import com.glassehr.tenant.EnterSettingKey;
+import com.glassehr.tenant.EnterSettingService;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -27,7 +29,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,7 +41,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>기간제법 제4조: 기간제 계속근로 총기간이 사용기간 상한에 가까우면 알린다({@link FixedTermUsePeriodCalculator}).</li>
  *   <li>근로기준법 제42조: 계약 행을 지우지 않는다(삭제 기능 없음).</li>
  * </ul>
- * 알림 기간(만료 30일 전 등)은 법정 수치가 아니라 회사 운영 설정이라 {@code glassehr.contract.*} 설정에서 읽는다(이슈 #17 완료 기준의 30일).
+ * 알림 기간(만료 30일 전 등)은 법정 수치가 아니라 회사 운영 설정이라 법인 설정({@link EnterSettingService}, #131)에서 읽는다
+ * (값이 없는 법인은 {@code glassehr.contract.*} 기본값, 이슈 #17 완료 기준의 30일).
  * 쓰기 권한 검사는 백엔드 인증·권한 이슈에서 붙인다(사원 API와 같음).
  */
 @Service
@@ -53,29 +55,22 @@ public class ContractService {
     private final EmployeeRepository employees;
     private final CommonCodeRepository codes;
     private final FixedTermUsePeriodCalculator useLimit;
-    private final int expiryAlertDays;
-    private final int fixedTermLimitAlertDays;
+    private final EnterSettingService settings;
     private final Clock clock;
 
     @Autowired
     public ContractService(EmploymentContractRepository contracts, EmployeeRepository employees,
-            CommonCodeRepository codes, FixedTermUsePeriodCalculator useLimit,
-            @Value("${glassehr.contract.expiry-alert-days}") int expiryAlertDays,
-            @Value("${glassehr.contract.fixed-term-limit-alert-days}") int fixedTermLimitAlertDays) {
-        this(contracts, employees, codes, useLimit, expiryAlertDays, fixedTermLimitAlertDays, Clock.system(SEOUL));
+            CommonCodeRepository codes, FixedTermUsePeriodCalculator useLimit, EnterSettingService settings) {
+        this(contracts, employees, codes, useLimit, settings, Clock.system(SEOUL));
     }
 
     ContractService(EmploymentContractRepository contracts, EmployeeRepository employees, CommonCodeRepository codes,
-            FixedTermUsePeriodCalculator useLimit, int expiryAlertDays, int fixedTermLimitAlertDays, Clock clock) {
-        if (expiryAlertDays < 0 || fixedTermLimitAlertDays < 0) {
-            throw new IllegalArgumentException("알림 기간(일)은 0 이상이어야 해요");
-        }
+            FixedTermUsePeriodCalculator useLimit, EnterSettingService settings, Clock clock) {
         this.contracts = contracts;
         this.employees = employees;
         this.codes = codes;
         this.useLimit = useLimit;
-        this.expiryAlertDays = expiryAlertDays;
-        this.fixedTermLimitAlertDays = fixedTermLimitAlertDays;
+        this.settings = settings;
         this.clock = clock.withZone(SEOUL);
     }
 
@@ -189,6 +184,9 @@ public class ContractService {
      */
     public List<AlertRow> alerts(String enterCd, LocalDate asOf) {
         LocalDate base = asOf == null ? today() : asOf;
+        // 알림 기간은 그 법인의 기준일 설정값(#131).
+        int expiryAlertDays = settings.value(enterCd, EnterSettingKey.CONTRACT_EXPIRY_ALERT_DAYS, base);
+        int fixedTermLimitAlertDays = settings.value(enterCd, EnterSettingKey.CONTRACT_FIXED_TERM_LIMIT_ALERT_DAYS, base);
         Map<Long, List<EmploymentContract>> byEmp = contracts.findByEnterCdOrderByEmpIdAscStartDateAsc(enterCd).stream()
                 .collect(Collectors.groupingBy(EmploymentContract::getEmpId, LinkedHashMap::new, Collectors.toList()));
         Map<Long, Employee> emps = employees.findByEnterCdAndEmpIdIn(enterCd, byEmp.keySet()).stream()

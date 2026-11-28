@@ -11,6 +11,8 @@ import com.glassehr.legalrate.LegalRateRow;
 import com.glassehr.legalrate.LegalRateService;
 import com.glassehr.org.OrgDeptService;
 import com.glassehr.org.OrgDtos.DeptNode;
+import com.glassehr.tenant.EnterSettingKey;
+import com.glassehr.tenant.EnterSettingService;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -21,7 +23,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 주 52시간 모니터링(#31). 이번 주(서울 기준 오늘이 속한 월~일)를 저장 없이 계산해 본인 게이지와 부서별 표를 만든다.
  * 한도는 legal_rate(근로기준법 제50조 제1항 WEEKLY_STANDARD_WORK_HOURS, 제53조 제1항 WEEKLY_OVERTIME_LIMIT_HOURS)를
- * 그 주 월요일 기준으로 읽고, 경고 기준(남은 분)은 회사 설정 {@code glassehr.attendance.weekly-hours-warn-remain-minutes}.
+ * 그 주 월요일 기준으로 읽고, 경고 기준(남은 분)은 법인 설정 {@link EnterSettingKey#WEEKLY_HOURS_WARN_REMAIN_MINUTES}(#131).
  * 판정 규칙: {@link WeeklyHoursMonitor}. 설계: docs/weekly-hours-monitor-design.md
  */
 @Service
@@ -42,25 +43,22 @@ public class WeeklyHoursService {
     private final LegalRateService legalRates;
     private final EmployeeRepository employees;
     private final OrgDeptService org;
-    private final int warnRemainMinutes;
+    private final EnterSettingService settings;
     private final Clock clock;
 
     @Autowired
     public WeeklyHoursService(WorkHoursService workHours, LegalRateService legalRates, EmployeeRepository employees,
-            OrgDeptService org, @Value("${glassehr.attendance.weekly-hours-warn-remain-minutes}") int warnRemainMinutes) {
-        this(workHours, legalRates, employees, org, warnRemainMinutes, Clock.system(WorkHoursService.SEOUL));
+            OrgDeptService org, EnterSettingService settings) {
+        this(workHours, legalRates, employees, org, settings, Clock.system(WorkHoursService.SEOUL));
     }
 
     WeeklyHoursService(WorkHoursService workHours, LegalRateService legalRates, EmployeeRepository employees,
-            OrgDeptService org, int warnRemainMinutes, Clock clock) {
-        if (warnRemainMinutes < 0) {
-            throw new IllegalArgumentException("glassehr.attendance.weekly-hours-warn-remain-minutes 는 0 이상이어야 해요");
-        }
+            OrgDeptService org, EnterSettingService settings, Clock clock) {
         this.workHours = workHours;
         this.legalRates = legalRates;
         this.employees = employees;
         this.org = org;
-        this.warnRemainMinutes = warnRemainMinutes;
+        this.settings = settings;
         this.clock = clock.withZone(WorkHoursService.SEOUL);
     }
 
@@ -87,7 +85,7 @@ public class WeeklyHoursService {
                 .orElseThrow(() -> AttendanceException.notFound("사원이 없어요: " + user.empId()));
         LocalDate today = LocalDate.now(clock);
         WorkHoursService.WeekInputs week = workHours.weekInputs(e.getEnterCd(), today);
-        Limits limits = limits(week.monday());
+        Limits limits = limits(e.getEnterCd(), week.monday());
         return new MyWeek(week.monday(), week.monday().plusDays(6), today, limits, empWeek(e, week, limits));
     }
 
@@ -101,7 +99,7 @@ public class WeeklyHoursService {
         WorkHoursService.WeekInputs week = workHours.weekInputs(user.enterCd(), today);
         LocalDate monday = week.monday();
         LocalDate sunday = monday.plusDays(6);
-        Limits limits = limits(monday);
+        Limits limits = limits(user.enterCd(), monday);
         Map<Long, String> deptNames = new HashMap<>();
         collectNames(org.tree(user.enterCd(), today).roots(), deptNames);
 
@@ -134,10 +132,14 @@ public class WeeklyHoursService {
         return new EmpWeek(e.getEmpId(), e.getEmpNo(), e.getName(), e.getCurrentDeptId(), w);
     }
 
-    /** 근로기준법 제50조 제1항·제53조 제1항 한도를 그 주 월요일 기준으로 읽는다. 값이 없으면 LegalRateException(409). */
-    Limits limits(LocalDate monday) {
+    /**
+     * 근로기준법 제50조 제1항·제53조 제1항 한도를 그 주 월요일 기준으로 읽는다. 값이 없으면 LegalRateException(409).
+     * 근접 경고 기준은 그 법인의 그 주 월요일 설정값(#131).
+     */
+    Limits limits(String enterCd, LocalDate monday) {
         return new Limits(hoursAsMinutes(LegalRateItem.WEEKLY_STANDARD_WORK_HOURS, monday),
-                hoursAsMinutes(LegalRateItem.WEEKLY_OVERTIME_LIMIT_HOURS, monday), warnRemainMinutes);
+                hoursAsMinutes(LegalRateItem.WEEKLY_OVERTIME_LIMIT_HOURS, monday),
+                settings.value(enterCd, EnterSettingKey.WEEKLY_HOURS_WARN_REMAIN_MINUTES, monday));
     }
 
     private int hoursAsMinutes(LegalRateItem item, LocalDate date) {

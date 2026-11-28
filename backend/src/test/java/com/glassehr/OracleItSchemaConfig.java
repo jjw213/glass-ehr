@@ -300,6 +300,13 @@ public class OracleItSchemaConfig {
                     new ClassPathResource("db/oracle/V046__approval_overtime_family_leave_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer enterSettingTables = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'ENTER_SETTING'", Integer.class);
+        if (enterSettingTables == null || enterSettingTables == 0) {
+            // #131: 법인별 회사 설정과 변경 이력
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V049__enter_setting.sql"))
+                    .execute(dataSource);
+        }
         return new Applied();
     }
 
