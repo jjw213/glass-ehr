@@ -27,7 +27,7 @@ class TenantSchemaScriptTest {
 
     /** 전체 공통(enter_cd 없음). tenant-design.md 3.1·3.3. */
     static final Set<String> COMMON = Set.of("legal_rate_item", "legal_rate", "app_role", "app_permission",
-            "app_role_permission", "spring_session", "spring_session_attributes", "enter_company");
+            "app_role_permission", "spring_session", "spring_session_attributes", "enter_company", "tenant");
 
     /** 법인별이지만 NULL 허용·FK 없음(없는 법인으로 시도한 로그인 실패도 남긴다, 3.2 ※※·4.4). */
     static final Set<String> NULLABLE_NO_FK = Set.of("login_access_log");

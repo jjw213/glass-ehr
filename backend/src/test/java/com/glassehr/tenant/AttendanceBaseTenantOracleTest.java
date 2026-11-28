@@ -70,8 +70,8 @@ class AttendanceBaseTenantOracleTest {
 
     @BeforeEach
     void 법인_B와_B의_근무유형_서면합의를_넣는다() {
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES (?, 'IT 법인 나(예시)', '0000000093', 'Y', 0)", B);
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES (?, 'IT 법인 나(예시)', '0000000093', 'Y', 0, 'T001')", B);
         jdbc.update("INSERT INTO work_pattern (enter_cd, pattern_code, pattern_name, work_start_min, work_end_min,"
                 + " break_start_min, break_minutes, day_types, daily_contract_minutes, weekly_contract_minutes)"
                 + " VALUES (?, 'ZZIT_WP', 'B 근무유형(예시)', 540, 1080, 720, 60, 'WWWWWOH', 480, 2400)", B);

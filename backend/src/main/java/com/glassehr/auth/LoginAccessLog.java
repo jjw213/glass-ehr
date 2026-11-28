@@ -41,7 +41,9 @@ public class LoginAccessLog {
         BAD_PASSWORD,
         LOCKED,
         INACTIVE,
-        NO_PASSWORD
+        NO_PASSWORD,
+        /** 고객사 정지·해지·체험 종료(V051, #151) */
+        TENANT_UNAVAILABLE
     }
 
     @Id

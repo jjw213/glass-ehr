@@ -33,15 +33,18 @@ public class AuthController {
         this.logs = logs;
     }
 
-    /** enterCd = 현재 법인, homeEnterCd = 로그인한 법인(docs/tenant-design.md 4.2). */
-    public record Me(String enterCd, String homeEnterCd, String loginId, Long empId, List<String> roles,
-            List<String> permissions, List<Long> managedDeptIds) {
+    /**
+     * tenantId = 현재 고객사(#151, docs/saas-design.md 2.3), enterCd = 현재 법인, homeEnterCd = 로그인한 법인
+     * (docs/tenant-design.md 4.2).
+     */
+    public record Me(String tenantId, String enterCd, String homeEnterCd, String loginId, Long empId,
+            List<String> roles, List<String> permissions, List<Long> managedDeptIds) {
     }
 
     @GetMapping("/api/auth/me")
     @RequiresPermission
     public Me me(AuthUser user) {
-        return new Me(user.enterCd(), user.homeEnterCd(), user.loginId(), user.empId(), List.copyOf(user.roles()),
+        return new Me(user.tenantId(), user.enterCd(), user.homeEnterCd(), user.loginId(), user.empId(), List.copyOf(user.roles()),
                 user.permissions().stream().map(Enum::name).sorted().toList(), List.copyOf(user.managedDeptIds()));
     }
 

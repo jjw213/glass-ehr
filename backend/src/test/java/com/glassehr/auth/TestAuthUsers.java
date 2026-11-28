@@ -80,7 +80,7 @@ public class TestAuthUsers {
         for (String r : roles) {
             perms.addAll(matrix.getOrDefault(r, Set.of()));
         }
-        return new AuthUser(C001, C001, loginId, empId, roles, perms, managed, ip);
+        return new AuthUser("T001", C001, C001, loginId, empId, roles, perms, managed, ip);
     }
 
     /** 전환 대상으로 쓸 수 있는 가짜 법인. */
@@ -104,7 +104,7 @@ public class TestAuthUsers {
         if (!u.has(Permission.ENTER_SWITCH) || !(C001.equals(current) || C002.equals(current))) {
             return Optional.empty();
         }
-        return Optional.of(new AuthUser(current, u.homeEnterCd(), u.loginId(), u.empId(), u.roles(), u.permissions(),
+        return Optional.of(new AuthUser("T001", current, u.homeEnterCd(), u.loginId(), u.empId(), u.roles(), u.permissions(),
                 Set.of(), ip));
     }
 

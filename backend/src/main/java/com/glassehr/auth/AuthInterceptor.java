@@ -50,6 +50,8 @@ public class AuthInterceptor implements HandlerInterceptor {
     public static final String SESSION_ENTER_CD = "glassehr.auth.enterCd";
     /** 세션의 현재 법인(업무 조회·수정의 법인 조건). 로그인 때 주체 법인으로 넣는다. */
     public static final String SESSION_CURRENT_ENTER_CD = "glassehr.auth.currentEnterCd";
+    /** 세션의 현재 고객사(로그인한 법인의 고객사, 바뀌지 않음). docs/saas-design.md 2.3 */
+    public static final String SESSION_TENANT_ID = "glassehr.auth.tenantId";
     static final String ATTR = AuthUser.class.getName();
     private static final String CSRF_REJECT = "요청 출처를 확인할 수 없어요. 화면을 새로 고친 뒤 다시 시도해 주세요";
     private static final String STALE_ENTER_REJECT = "다른 화면에서 회사가 바뀌었어요. 새로 고친 뒤 다시 시도해 주세요";
@@ -133,8 +135,27 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         PrivacyAudit audit = hm.getMethodAnnotation(PrivacyAudit.class);
         Principal who = principalOf(req);
-        Optional<AuthUser> found = resolver.resolve(who.enterCd(), who.loginId(), currentEnterOf(req, who),
-                req.getRemoteAddr());
+        Optional<AuthUser> found;
+        try {
+            found = resolver.resolve(who.enterCd(), who.loginId(), currentEnterOf(req, who), req.getRemoteAddr());
+        } catch (TenantUnavailableException e) {
+            // 고객사 정지·해지·체험 종료: 남은 세션도 끊고 안내한다(#151, docs/saas-design.md 2.2).
+            if (audit != null) {
+                privacyLog.logAnonymousDenied(who.enterCd(), who.loginId(), req.getRemoteAddr(), targetEmpId(req),
+                        audit.item(), audit.action(), req.getRequestURI());
+            }
+            if (sessionLoginId(req) != null) {
+                req.getSession(false).invalidate();
+            }
+            return reject(res, HttpStatus.UNAUTHORIZED, TenantUnavailableException.MESSAGE);
+        }
+        // 세션의 고객사와 지금 법인의 고객사가 다르면(법인이 다른 고객사로 옮겨짐) 남은 세션을 쓰지 못하게 한다.
+        // 고객사 속성이 없는 세션(#151 전 로그인)은 DB 의 법인 → 고객사를 그대로 쓴다.
+        if (found.isPresent() && sessionLoginId(req) != null
+                && req.getSession(false).getAttribute(SESSION_TENANT_ID) instanceof String t
+                && !t.equals(found.get().tenantId())) {
+            found = Optional.empty();
+        }
         if (found.isEmpty()) {
             if (audit != null) {
                 privacyLog.logAnonymousDenied(who.enterCd(), who.loginId(), req.getRemoteAddr(), targetEmpId(req),

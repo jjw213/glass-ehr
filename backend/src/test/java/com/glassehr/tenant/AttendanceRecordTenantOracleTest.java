@@ -69,8 +69,8 @@ class AttendanceRecordTenantOracleTest {
 
     @BeforeEach
     void 법인_B와_B의_출퇴근_유연근무를_넣는다() {
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES (?, 'IT 법인 다(예시)', '0000000093', 'Y', 0)", B);
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES (?, 'IT 법인 다(예시)', '0000000093', 'Y', 0, 'T001')", B);
         jdbc.update("INSERT INTO biz_site (enter_cd, site_code, site_name) VALUES (?, 'S01', 'B 본사(예시)')", B);
         aEmp = insertEmployee(A, "S01-1903-931");
         bEmp = insertEmployee(B, "S01-1903-932");
@@ -171,7 +171,7 @@ class AttendanceRecordTenantOracleTest {
     }
 
     private static AuthUser hr(String enterCd) {
-        return new AuthUser(enterCd, enterCd, "it-hr", null, Set.of("HR"),
+        return new AuthUser("T001", enterCd, enterCd, "it-hr", null, Set.of("HR"),
                 Set.of(Permission.EMP_READ_ALL, Permission.EMP_WRITE), Set.of(), "127.0.0.1");
     }
 

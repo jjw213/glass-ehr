@@ -39,7 +39,15 @@ public class EnterCompany {
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder;
 
+    /** 이 법인이 속한 고객사(V051, docs/saas-design.md 2.1). 법인은 고객사 하나에만 속한다. */
+    @Column(name = "tenant_id", nullable = false)
+    private String tenantId;
+
     protected EnterCompany() {
+    }
+
+    public String getTenantId() {
+        return tenantId;
     }
 
     public String getEnterCd() {

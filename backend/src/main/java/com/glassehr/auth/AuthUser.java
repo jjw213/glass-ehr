@@ -10,6 +10,7 @@ import java.util.TreeSet;
 /**
  * 요청한 로그인 사용자. 역할·권한은 DB(app_user_role·app_role_permission)에서 읽는다(요청 헤더의 역할은 믿지 않음).
  *
+ * @param tenantId       현재 고객사 = 주체 법인이 속한 고객사(#151, docs/saas-design.md 2.3). 현재 법인도 같은 고객사다
  * @param enterCd        현재 법인. 모든 업무 조회·수정의 법인 조건은 이 값만 쓴다(docs/tenant-design.md 4.2)
  * @param homeEnterCd    주체 법인 = 로그인한 법인. loginId·empId·역할은 이 법인의 계정 기준
  * @param loginId        로그인 ID(주체 법인 안에서 유일)
@@ -19,8 +20,8 @@ import java.util.TreeSet;
  * @param managedDeptIds 부서장으로 맡은 부서와 모든 하위부서(오늘 기준). 부서장이 아니면 빈 집합
  * @param clientIp       접속 IP(로그용)
  */
-public record AuthUser(String enterCd, String homeEnterCd, String loginId, Long empId, Set<String> roles,
-        Set<Permission> permissions, Set<Long> managedDeptIds, String clientIp) {
+public record AuthUser(String tenantId, String enterCd, String homeEnterCd, String loginId, Long empId,
+        Set<String> roles, Set<Permission> permissions, Set<Long> managedDeptIds, String clientIp) {
 
     public static final String ROLE_ADMIN = "ADMIN";
     public static final String ROLE_HR = "HR";

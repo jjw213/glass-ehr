@@ -55,8 +55,8 @@ class OrgTenantOracleTest {
 
     @BeforeEach
     void 법인_B와_B의_부서를_넣는다() {
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES (?, 'IT 법인 가(예시)', '0000000092', 'Y', 0)", B);
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES (?, 'IT 법인 가(예시)', '0000000092', 'Y', 0, 'T001')", B);
         // 같은 부서코드가 법인 A 에도 있을 수 있다(UNIQUE (enter_cd, dept_code)).
         jdbc.update("INSERT INTO org_dept (enter_cd, dept_code, valid_from) VALUES (?, 'ZZIT_T1', DATE '1902-01-01')", B);
         bDept = jdbc.queryForObject("SELECT dept_id FROM org_dept WHERE enter_cd = ? AND dept_code = 'ZZIT_T1'",

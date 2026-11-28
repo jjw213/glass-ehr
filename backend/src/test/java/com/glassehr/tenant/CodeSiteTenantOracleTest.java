@@ -46,8 +46,8 @@ class CodeSiteTenantOracleTest {
 
     @BeforeEach
     void 법인_B와_B의_코드_사업장을_넣는다() {
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES (?, 'IT 법인 가(예시)', '0000000091', 'Y', 0)", B);
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES (?, 'IT 법인 가(예시)', '0000000091', 'Y', 0, 'T001')", B);
         jdbc.update("INSERT INTO common_code_group (enter_cd, group_code, group_name) VALUES (?, 'ZZ_IT_ONLY_B', 'B 전용')", B);
         jdbc.update("INSERT INTO common_code (enter_cd, group_code, code, code_name) VALUES (?, 'ZZ_IT_ONLY_B', 'X1', '가')", B);
         // 같은 그룹코드(JOB_GRADE)가 법인마다 따로 있을 수 있다(복합 PK).

@@ -46,8 +46,8 @@ class MessageTenantOracleTest {
 
     @BeforeEach
     void 법인_B와_B의_대화방을_넣는다() {
-        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order)"
-                + " VALUES (?, 'IT 법인 가(예시)', '0000000093', 'Y', 0)", B);
+        jdbc.update("INSERT INTO enter_company (enter_cd, enter_name, biz_reg_no, use_yn, sort_order, tenant_id)"
+                + " VALUES (?, 'IT 법인 가(예시)', '0000000093', 'Y', 0, 'T001')", B);
         jdbc.update("INSERT INTO biz_site (enter_cd, site_code, site_name) VALUES (?, 'S01', 'B 본사(예시)')", B);
         aEmp1 = insertEmployee(A, "S01-1903-911");
         aEmp2 = insertEmployee(A, "S01-1903-912");
@@ -146,7 +146,7 @@ class MessageTenantOracleTest {
     }
 
     private static AuthUser as(String enterCd, long empId) {
-        return new AuthUser(enterCd, enterCd, "it-" + empId, empId, Set.of("EMPLOYEE"), Set.of(), Set.of(),
+        return new AuthUser("T001", enterCd, enterCd, "it-" + empId, empId, Set.of("EMPLOYEE"), Set.of(), Set.of(),
                 "127.0.0.1");
     }
 }

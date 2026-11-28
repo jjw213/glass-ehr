@@ -47,7 +47,7 @@ class MessageOracleTest {
     }
 
     private static AuthUser as(long empId) {
-        return new AuthUser("C001", "C001", "it-" + empId, empId, Set.of("EMPLOYEE"), Set.of(), Set.of(), "127.0.0.1");
+        return new AuthUser("T001", "C001", "C001", "it-" + empId, empId, Set.of("EMPLOYEE"), Set.of(), Set.of(), "127.0.0.1");
     }
 
     private long thread(long... members) {

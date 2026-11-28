@@ -292,6 +292,12 @@ public class OracleItSchemaConfig {
                     new ClassPathResource("db/oracle/V046__approval_overtime_family_leave_enter_cd.sql"))
                     .execute(dataSource);
         }
+        Integer tenantTable = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_tables WHERE table_name = 'TENANT'", Integer.class);
+        if (tenantTable == null || tenantTable == 0) {
+            // #151: 고객사 마스터와 법인 소속
+            new ResourceDatabasePopulator(new ClassPathResource("db/oracle/V051__tenant.sql")).execute(dataSource);
+        }
         return new Applied();
     }
 

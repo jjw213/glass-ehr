@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
  * 화면에는 HttpOnly·SameSite=Lax 쿠키(GHR_SESSION)만 간다.
  * <ul>
  *   <li>POST /api/auth/login {enterCd, loginId, password} — 200 {enterCd, loginId}, 400 입력 없음,
- *       401 법인·아이디·비밀번호 불일치(없는 법인·사용 중지 법인도 같은 응답), 423 잠김</li>
+ *       401 법인·아이디·비밀번호 불일치(없는 법인·사용 중지 법인도 같은 응답), 423 잠김,
+ *       401 고객사 정지·해지·체험 종료(비밀번호가 맞을 때만 안내 문구, #151)</li>
  *   <li>POST /api/auth/logout — 204. 세션이 없어도 204.</li>
  * </ul>
  * 둘 다 {@link PublicApi}지만 CSRF 헤더({@code X-Requested-With})는 AuthInterceptor 가 검사한다.
@@ -47,7 +48,7 @@ public class LoginController {
         }
     }
 
-    public record LoginResponse(String enterCd, String loginId) {
+    public record LoginResponse(String tenantId, String enterCd, String loginId) {
     }
 
     @PostMapping("/api/auth/login")
@@ -71,6 +72,8 @@ public class LoginController {
                         + r.lockedUntil().format(HM) + " 이후 다시 시도해 주세요");
             case BAD_CREDENTIALS:
                 return error(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 맞지 않아요");
+            case TENANT_UNAVAILABLE:
+                return error(HttpStatus.UNAUTHORIZED, TenantUnavailableException.MESSAGE);
             default:
                 break;
         }
@@ -84,12 +87,14 @@ public class LoginController {
         session.setAttribute(AuthInterceptor.SESSION_ENTER_CD, r.enterCd());
         session.setAttribute(AuthInterceptor.SESSION_LOGIN_ID, r.loginId());
         session.setAttribute(AuthInterceptor.SESSION_CURRENT_ENTER_CD, r.enterCd());
+        // 현재 고객사는 로그인한 법인으로 정하고 세션에만 둔다(#151, docs/saas-design.md 2.3).
+        session.setAttribute(AuthInterceptor.SESSION_TENANT_ID, r.tenantId());
         // 사용 중지 등으로 그 사용자 세션을 모두 끊을 때 PRINCIPAL_NAME 으로 찾는다. 같은 아이디가 다른 법인에도
         // 있을 수 있어 법인과 함께 적는다(한 법인 계정을 끊을 때 다른 법인 계정 세션까지 끊지 않게).
         session.setAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME,
                 r.enterCd() + ":" + r.loginId());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(new LoginResponse(r.enterCd(), r.loginId()));
+                .body(new LoginResponse(r.tenantId(), r.enterCd(), r.loginId()));
     }
 
     /** 전환할 법인. 법인 코드를 본문으로 받는 유일한 업무 API(docs/tenant-design.md 2장 예외). */
