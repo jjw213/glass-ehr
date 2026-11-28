@@ -390,6 +390,23 @@ class CommonCodeServiceTest {
     }
 
     @Test
+    void 근로계약에서_사용_중인_고용형태는_처리방식을_바꿀_수_없다() {
+        when(groups.existsByEnterCdAndGroupCode(E, "EMPLOYMENT_TYPE")).thenReturn(true);
+        CommonCode own = new CommonCode(E, "EMPLOYMENT_TYPE", "INTERN", "인턴", null, 40, true, "REGULAR", T0);
+        when(codes.findByEnterCdAndGroupCodeAndCode(E, "EMPLOYMENT_TYPE", "INTERN")).thenReturn(Optional.of(own));
+        when(usages.count(E, ref("EMPLOYMENT_TYPE", "employment_contract"), "INTERN")).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.update(E, "EMPLOYMENT_TYPE", "INTERN",
+                new CodeUpdateRequest("인턴", null, 40, true, "FIXED_TERM")))
+                .isInstanceOfSatisfying(CodeException.class, e -> {
+                    assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(e.getMessage()).contains("근로계약에서 사용 중").contains("처리방식");
+                });
+        assertThat(own.getProcessType()).isEqualTo("REGULAR");
+        verify(codes, never()).saveAndFlush(any());
+    }
+
+    @Test
     void 처리방식_목록은_그룹별_서버_고정값이고_없는_그룹은_404() {
         when(groups.existsByEnterCdAndGroupCode(E, "RETIREMENT_REASON")).thenReturn(true);
         when(groups.existsByEnterCdAndGroupCode(E, "JOB_GRADE")).thenReturn(true);

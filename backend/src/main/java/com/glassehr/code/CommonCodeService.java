@@ -193,6 +193,11 @@ public class CommonCodeService {
         if (c.isSystem() && !Objects.equals(sysType, c.getProcessType())) {
             throw CodeException.conflict("기본 코드는 처리방식을 바꿀 수 없어요");
         }
+        if (CodeGroups.EMPLOYMENT_TYPE.equals(groupCode)
+                && !Objects.equals(sysType, c.getProcessType())
+                && usages.count(enterCd, CodeReferences.find(groupCode, "employment_contract").orElseThrow(), code) > 0) {
+            throw CodeException.conflict("근로계약에서 사용 중인 고용형태는 처리방식을 바꿀 수 없어요");
+        }
         c.change(req.name().strip(), blankToNull(req.description()), req.sortOrder(), req.active(), now());
         c.changeProcessType(sysType);
         return CodeView.of(codes.saveAndFlush(c));
